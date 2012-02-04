@@ -1,15 +1,15 @@
 BossDB: A sharded, caching, evented ORM for Erlang
---------------------------------------------------
+==================================================
 
 Complete API references
-=======================
+-----------------------
 
 Querying: http://www.chicagoboss.org/api-db.html
 Records: http://www.chicagoboss.org/api-record.html
 BossNews: http://chicagoboss.org/api-news.html
 
 Usage
-=====
+-----
 
     boss_db:start(DBOptions),
     boss_cache:start(CacheOptions), % If you want cacheing with Memcached
@@ -36,7 +36,7 @@ Usage
     ]
 
 Introduction
-============
+------------
 
 BossDB is a compiler chain and run-time library for accessing a database via
 Erlang parameterized modules. It solves the age-old problem of retrieving
@@ -117,7 +117,7 @@ instead of the saved record.
 
 
 Events
-======
+------
 
 BossDB provides two kinds of model events: synchronous save hooks, and
 asynchronous notifications via BossNews. Save hooks are simple; just
