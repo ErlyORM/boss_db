@@ -10,9 +10,9 @@ start(_Type, _StartArgs) ->
                     _ -> Acc
                 end
         end, [], [db_port, db_host, db_username, db_password, db_database]),
-    DBAdapter = boss_env:get_env(db_adapter, mock),
-    DBShards = boss_env:get_env(db_shards, []),
-    CacheEnable = boss_env:get_env(cache_enable, false),
+    DBAdapter = get_env(db_adapter, mock),
+    DBShards = get_env(db_shards, []),
+    CacheEnable = get_env(cache_enable, false),
     DBOptions1 = [{adapter, list_to_atom(lists:concat(["boss_db_adapter_", DBAdapter]))},
         {cache_enable, CacheEnable}, {shards, DBShards}|DBOptions],
 
@@ -26,13 +26,16 @@ start(_Type, _StartArgs) ->
 stop(_State) ->
   ok.
 
+get_env(Key, Default) ->
+    case application:get_env(Key) of
+        {ok, Val} -> Val;
+        _ -> Default
+    end.
+
 run_setup() ->
     ok = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_model.erl"])),
     ok = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_parent_model.erl"])),
-  DBAdapter = case application:get_env(db_adapter) of
-    {ok, Val} -> Val;
-    _ -> mock
-  end,
+  DBAdapter = get_env(db_adapter, mock),
   case file:read_file(filename:join(["priv", "test_sql", lists:concat([DBAdapter, ".sql"])])) of
     {ok, FileContents} ->
       io:format("Running setup SQL...~n", []),

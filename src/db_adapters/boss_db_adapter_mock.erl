@@ -8,8 +8,8 @@
 start() ->
     start([]).
 
-start(_Options) ->
-    case boss_env:is_master_node() of
+start(Options) ->
+    case proplists:get_value(is_master_node, Options, true) of
         true ->
             {ok, MockSup} = boss_db_mock_sup:start_link(),
             {ok, MockSup};
