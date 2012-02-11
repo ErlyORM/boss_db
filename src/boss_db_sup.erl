@@ -14,7 +14,7 @@ start_link(StartArgs) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, StartArgs).
 
 init(StartArgs) ->
-    Args = [{name, boss_db_pool},
+    Args = [{name, {local, boss_db_pool}},
         {worker_module, boss_db_controller},
         {size, 5}, {max_overflow, 10}|StartArgs],
     PoolSpec = {db_controller, {poolboy, start_link, [Args]}, permanent, 2000, worker, [poolboy]},
