@@ -50,7 +50,13 @@ find_acc(Prefix, [Id | Rest], Acc) ->
 
 % this is a stub just to make the tests runable
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
-    {ok, Keys} = riakc_pb_socket:search(Conn, type_to_bucket_name(Type), build_search_query(Conditions)),
+    Bucket = type_to_bucket_name(Type),
+    {ok, Keys} = case Conditions of
+        [] -> 
+            riakc_pb_socket:list_keys(Conn, Bucket);
+        _ ->
+            riakc_pb_socket:search(Conn, Bucket, build_search_query(Conditions))
+    end,
     Records = find_acc(atom_to_list(Type) ++ "-", Keys, []),
     Sorted = if
         is_atom(Sort) ->
