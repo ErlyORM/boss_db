@@ -1,6 +1,6 @@
 -module(boss_db_adapter_riak).
 -behaviour(boss_db_adapter).
--export([start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, start/0, start/1, stop/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
@@ -8,26 +8,25 @@
 
 -define(HUGE_INT, 1000 * 1000 * 1000 * 1000).
 
+init(_Options) ->
+    % TODO: crypto is needed for unique_id_62/0. Remove it when
+    %       unique_id_62/0 is not needed.
+    crypto:start().
+
 start() ->
     start([]).
 
 start(Options) ->
-    % TODO: crypto is needed for unique_id_62/0. Remove it when
-    %       unique_id_62/0 is not needed.
-    crypto:start(),
-    application:start(riakpool),
     Host = proplists:get_value(db_host, Options, "localhost"),
     Port = proplists:get_value(db_port, Options, 8087),
-    riakpool:start_pool(Host, Port),
-    {ok, undefined}.
+    riakc_pb_socket:start_link(Host, Port).
 
 stop(_) ->
-    riakpool:stop(),
     ok.
 
-find(_, Id) ->
+find(Conn, Id) ->
     {Type, Bucket, Key} = infer_type_from_id(Id),
-    case riakpool_client:get(Bucket, Key) of
+    case riakc_pb_socket:get(Conn, Bucket, Key) of
         {ok, Value} ->
             Data = binary_to_term(Value),
             Record = apply(Type, new, lists:map(fun (AttrName) ->
@@ -50,11 +49,8 @@ find_acc(Prefix, [Id | Rest], Acc) ->
     end.
 
 % this is a stub just to make the tests runable
-find(_, Type, Conditions, Max, Skip, Sort, SortOrder) ->
-    Fun = fun(C) ->
-            riakc_pb_socket:search(C, type_to_bucket_name(Type), build_search_query(Conditions))
-    end,
-    {ok, {ok, Keys}} = riakpool:execute(Fun),
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
+    {ok, Keys} = riakc_pb_socket:search(Conn, type_to_bucket_name(Type), build_search_query(Conditions)),
     Records = find_acc(atom_to_list(Type) ++ "-", Keys, []),
     Sorted = if
         is_atom(Sort) ->
@@ -87,13 +83,13 @@ incr(_Conn, _Id, _Count) ->
     {error, notimplemented}.
 
 
-delete(_, Id) ->
+delete(Conn, Id) ->
     {_Type, Bucket, Key} = infer_type_from_id(Id),
-    ok = riakpool_client:delete(Bucket, Key).
+    ok = riakc_pb_socket:delete(Conn, Bucket, Key).
 
-save_record(_, Record) ->
+save_record(Conn, Record) ->
     Type = element(1, Record),
-    Bucket = type_to_bucket_name(Type),
+    Bucket = list_to_binary(type_to_bucket_name(Type)),
     PropList = [{K, V} || {K, V} <- Record:attributes(), K =/= id],
     Key = case Record:id() of
         id ->
@@ -104,9 +100,17 @@ save_record(_, Record) ->
             [_ | Tail] = string:tokens(DefinedId, "-"),
             string:join(Tail, "-")
     end,
-    ok = riakpool_client:put(list_to_binary(Bucket), list_to_binary(Key),
-                             term_to_binary(PropList)),
-    {ok, Record:set(id, atom_to_list(Type) ++ "-" ++ Key)}.
+    BinKey = list_to_binary(Key),
+    BinVal = term_to_binary(PropList),
+    ok = case riakc_pb_socket:get(Conn, Bucket, BinKey) of
+        {ok, O} ->
+            O2 = riakc_obj:update_value(O, BinVal),
+            riakc_pb_socket:put(Conn, O2);
+        {error, _} ->
+            O = riakc_obj:new(Bucket, BinKey, BinVal),
+            riakc_pb_socket:put(Conn, O)
+    end,
+    {ok, Record:set(id, lists:concat([Type, "-", Key]))}.
 
 % These 2 functions are not part of the behaviour but are required for
 % tests to pass

@@ -14,10 +14,8 @@ start_link(StartArgs) ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, StartArgs).
 
 init(StartArgs) ->
-    {ok, {{one_for_one, 10, 10}, [
-                {cache_controller, {boss_cache_controller, start_link, [StartArgs]},
-                    permanent,
-                    2000,
-                    worker,
-                    [boss_cache_controller]}
-                ]}}.
+    Args = [{name, {local, boss_cache_pool}},
+        {worker_module, boss_cache_controller},
+        {size, 20}, {max_overflow, 40}|StartArgs],
+    PoolSpec = {cache_controller, {poolboy, start_link, [Args]}, permanent, 2000, worker, [poolboy]},
+    {ok, {{one_for_one, 10, 10}, [PoolSpec]}}.

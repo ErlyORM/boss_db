@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
--export([start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, start/0, start/1, stop/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2]).
 -export([push/2, pop/2]).
@@ -14,6 +14,8 @@
 -define(CONTAINS_FORMAT, "this.~s.indexOf('~s') != -1").
 -define(NOT_CONTAINS_FORMAT, "this.~s.indexOf('~s') == -1").
 
+init(_Options) ->
+    application:start(mongodb).
 
 start() ->
     start([]).
@@ -24,7 +26,6 @@ start(Options) ->
     Database = proplists:get_value(db_database, Options, test),
     WriteMode = proplists:get_value(db_write_mode, Options, safe),
     ReadMode = proplists:get_value(db_read_mode, Options, master),
-    application:start(mongodb),
     {ok, Connection} = mongo:connect({Host, Port}),
     % We pass around arguments required by mongo:do/5
     {ok, {WriteMode, ReadMode, Connection, Database}}.

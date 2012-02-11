@@ -1,8 +1,11 @@
 -module(boss_db_adapter_pgsql).
 -behaviour(boss_db_adapter).
--export([start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, start/0, start/1, stop/1, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, transaction/2]).
+
+init(_) ->
+    ok.
 
 start() ->
     start([]).

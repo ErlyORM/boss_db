@@ -1,19 +1,22 @@
 -module(boss_cache_adapter_memcached_bin).
 -behaviour(boss_cache_adapter).
 
--export([start/0, start/1, stop/1]).
+-export([init/1, start/0, start/1, stop/1]).
 -export([get/3, set/5, delete/3]).
 
 start() ->
     start([]).
 
-start(Options) ->
-    CacheServers = proplists:get_value(cache_servers, Options, [{"localhost", 11211, 1}]),
-    ok = erlmc:start(CacheServers),
+start(_Options) ->
     {ok, undefined}.
 
 stop(_Conn) ->
     erlmc:quit().
+
+init(Options) ->
+    CacheServers = proplists:get_value(cache_servers, Options, [{"localhost", 11211, 1}]),
+    ok = erlmc:start(CacheServers),
+    ok.
 
 get(_Conn, Prefix, Key) ->
     case erlmc:get(term_to_key(Prefix, Key)) of

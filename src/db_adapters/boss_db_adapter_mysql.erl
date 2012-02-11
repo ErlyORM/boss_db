@@ -1,8 +1,11 @@
 -module(boss_db_adapter_mysql).
 -behaviour(boss_db_adapter).
--export([start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, start/0, start/1, stop/1, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, transaction/2]).
+
+init(_) ->
+    ok.
 
 start() ->
     start([]).
@@ -14,21 +17,15 @@ start(Options) ->
     DBPassword = proplists:get_value(db_password, Options, ""),
     DBDatabase = proplists:get_value(db_database, Options, "test"),
     DBIdentifier = proplists:get_value(db_shard_id, Options, boss_pool),
-    Result = mysql:start(DBIdentifier, DBHost, DBPort, DBUsername, DBPassword, DBDatabase, fun(_, _, _, _) -> ok end, utf8),
-    case Result of
-        {error, {already_started,_}} ->
-            mysql:connect(DBIdentifier, DBHost, DBPort, DBUsername, DBPassword, DBDatabase, utf8, true, false);
-        _ ->
-            ok
-    end,
-    {ok, DBIdentifier}.
+    Encoding = utf8,
+    mysql_conn:start(DBHost, DBPort, DBUsername, DBPassword, DBDatabase, 
+        fun(_, _, _, _) -> ok end, Encoding, DBIdentifier).
 
 stop(_Pid) -> ok.
 
 find(Pid, Id) when is_list(Id) ->
     {Type, TableName, TableId} = infer_type_from_id(Id),
-    Res = mysql:fetch(Pid, ["SELECT * FROM ", TableName,
-            " WHERE id = ", pack_value(TableId)]),
+    Res = fetch(Pid, ["SELECT * FROM ", TableName, " WHERE id = ", pack_value(TableId)]),
     case Res of
         {data, MysqlRes} ->
             case mysql:get_result_rows(MysqlRes) of
@@ -50,7 +47,7 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
     case boss_record_lib:ensure_loaded(Type) of
         true ->
             Query = build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder),
-            Res = mysql:fetch(Pid, Query),
+            Res = fetch(Pid, Query),
             case Res of
                 {data, MysqlRes} ->
                     Columns = mysql:get_result_field_info(MysqlRes),
@@ -73,8 +70,7 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
 count(Pid, Type, Conditions) ->
     ConditionClause = build_conditions(Conditions),
     TableName = type_to_table_name(Type),
-    Res = mysql:fetch(Pid, ["SELECT COUNT(*) AS count FROM ", TableName, 
-            " WHERE ", ConditionClause]),
+    Res = fetch(Pid, ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
     case Res of
         {data, MysqlRes} ->
             [[Count]] = mysql:get_result_rows(MysqlRes),
@@ -84,7 +80,7 @@ count(Pid, Type, Conditions) ->
     end.
 
 counter(Pid, Id) when is_list(Id) ->
-    Res = mysql:fetch(Pid, ["SELECT value FROM counters WHERE name = ", pack_value(Id)]),
+    Res = fetch(Pid, ["SELECT value FROM counters WHERE name = ", pack_value(Id)]),
     case Res of
         {data, MysqlRes} ->
             [[Value]] = mysql:get_result_rows(MysqlRes),
@@ -93,13 +89,13 @@ counter(Pid, Id) when is_list(Id) ->
     end.
 
 incr(Pid, Id, Count) ->
-    Res = mysql:fetch(Pid, ["UPDATE counters SET value = value + ", pack_value(Count), 
+    Res = fetch(Pid, ["UPDATE counters SET value = value + ", pack_value(Count), 
             " WHERE name = ", pack_value(Id)]),
     case Res of
         {updated, _} ->
             counter(Pid, Id); % race condition
         {error, _Reason} -> 
-            Res1 = mysql:fetch(Pid, ["INSERT INTO counters (name, value) VALUES (",
+            Res1 = fetch(Pid, ["INSERT INTO counters (name, value) VALUES (",
                     pack_value(Id), ", ", pack_value(Count), ")"]),
             case Res1 of
                 {updated, _} -> counter(Pid, Id); % race condition
@@ -109,11 +105,11 @@ incr(Pid, Id, Count) ->
 
 delete(Pid, Id) when is_list(Id) ->
     {_, TableName, TableId} = infer_type_from_id(Id),
-    Res = mysql:fetch(Pid, ["DELETE FROM ", TableName, " WHERE id = ", 
+    Res = fetch(Pid, ["DELETE FROM ", TableName, " WHERE id = ", 
             pack_value(TableId)]),
     case Res of
         {updated, _} ->
-            mysql:fetch(Pid, ["DELETE FROM counters WHERE name = ", 
+            fetch(Pid, ["DELETE FROM counters WHERE name = ", 
                     pack_value(Id)]),
             ok;
         {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
@@ -124,10 +120,10 @@ save_record(Pid, Record) when is_tuple(Record) ->
         id ->
             Type = element(1, Record),
             Query = build_insert_query(Record),
-            Res = mysql:fetch(Pid, Query),
+            Res = fetch(Pid, Query),
             case Res of
                 {updated, _} ->
-                    Res1 = mysql:fetch(Pid, "SELECT last_insert_id()"),
+                    Res1 = fetch(Pid, "SELECT last_insert_id()"),
                     case Res1 of
                         {data, MysqlRes} ->
                             [[Id]] = mysql:get_result_rows(MysqlRes),
@@ -140,7 +136,7 @@ save_record(Pid, Record) when is_tuple(Record) ->
         Identifier when is_integer(Identifier) ->
             Type = element(1, Record),
             Query = build_insert_query(Record),
-            Res = mysql:fetch(Pid, Query),
+            Res = fetch(Pid, Query),
             case Res of
                 {updated, _} ->
                     {ok, Record:set(id, lists:concat([Type, "-", integer_to_list(Identifier)]))};
@@ -148,7 +144,7 @@ save_record(Pid, Record) when is_tuple(Record) ->
             end;			
         Defined when is_list(Defined) ->
             Query = build_update_query(Record),
-            Res = mysql:fetch(Pid, Query),
+            Res = fetch(Pid, Query),
             case Res of
                 {updated, _} -> {ok, Record};
                 {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
@@ -156,20 +152,20 @@ save_record(Pid, Record) when is_tuple(Record) ->
     end.
 
 push(Pid, Depth) ->
-    case Depth of 0 -> mysql:fetch(Pid, "BEGIN"); _ -> ok end,
-    mysql:fetch(Pid, ["SAVEPOINT savepoint", integer_to_list(Depth)]).
+    case Depth of 0 -> fetch(Pid, "BEGIN"); _ -> ok end,
+    fetch(Pid, ["SAVEPOINT savepoint", integer_to_list(Depth)]).
 
 pop(Pid, Depth) ->
-    mysql:fetch(Pid, ["ROLLBACK TO SAVEPOINT savepoint", integer_to_list(Depth - 1)]),
-    mysql:fetch(Pid, ["RELEASE SAVEPOINT savepoint", integer_to_list(Depth - 1)]).
+    fetch(Pid, ["ROLLBACK TO SAVEPOINT savepoint", integer_to_list(Depth - 1)]),
+    fetch(Pid, ["RELEASE SAVEPOINT savepoint", integer_to_list(Depth - 1)]).
 
 dump(_Conn) -> "".
 
 execute(Pid, Commands) ->
-    mysql:fetch(Pid, Commands).
+    fetch(Pid, Commands).
 
 transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
-    mysql:transaction(Pid, TransactionFun).
+    mysql_conn:transaction(Pid, TransactionFun, self()).
 
 % internal
 
@@ -408,3 +404,7 @@ pack_value(true) ->
     "TRUE";
 pack_value(false) ->
     "FALSE".
+
+fetch(Pid, Query) ->
+    mysql_conn:fetch(Pid, [Query], self()).
+

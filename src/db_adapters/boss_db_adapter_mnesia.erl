@@ -1,24 +1,23 @@
 -module(boss_db_adapter_mnesia).
 -behaviour(boss_db_adapter).
--export([start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, start/0, start/1, stop/1, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([transaction/2]).
 
 %-define(TRILLION, (1000 * 1000 * 1000 * 1000)).
 
+init([]) ->
+    application:start(mnesia).
+
 % -----
 start() ->
-%io:format("==> Start/0 Called~n"),
     start([]).
 
 start(_Options) ->
-%io:format("==> Start/1 Called~n"),
-    application:start(mnesia),
     {ok, undefined}.
 
 % -----
 stop(_) ->
-%io:format("==> Stop/0 Called~n"),
     application:stop(mnesia).
 
 % -----

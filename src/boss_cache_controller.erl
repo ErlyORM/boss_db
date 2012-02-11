@@ -15,7 +15,7 @@ start_link() ->
     start_link([]).
 
 start_link(Args) ->
-    gen_server:start_link({local, boss_cache}, ?MODULE, Args, []).
+    gen_server:start_link(?MODULE, Args, []).
 
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, memcached_bin),

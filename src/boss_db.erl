@@ -29,8 +29,24 @@
         data_type/2]).
 
 -define(DEFAULT_TIMEOUT, (30 * 1000)).
+-define(POOLNAME, boss_db_pool).
 
 start(Options) ->
+    AdapterName = proplists:get_value(adapter, Options, mock),
+    Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
+    Adapter:init(Options),
+    lists:foldr(fun(ShardOptions, Acc) ->
+                case proplists:get_value(db_shard_models, ShardOptions, []) of
+                    [] -> Acc;
+                    _ ->
+                        ShardAdapter = case proplists:get_value(db_adapter, ShardOptions) of
+                            undefined -> Adapter;
+                            ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
+                        end,
+                        ShardAdapter:init(ShardOptions ++ Options),
+                        Acc
+                end
+        end, [], proplists:get_value(shards, Options, [])),
     boss_db_sup:start_link(Options).
 
 stop() ->
@@ -40,7 +56,7 @@ stop() ->
 %% @doc Find a BossRecord with the specified `Id'.
 find("") -> undefined;
 find(Key) when is_list(Key) ->
-    gen_server:call(boss_db, {find, Key}, ?DEFAULT_TIMEOUT);
+    boss_pool:call(?POOLNAME, {find, Key}, ?DEFAULT_TIMEOUT);
 find(_) ->
     {error, invalid_id}.
 
@@ -82,8 +98,8 @@ find(Type, Conditions, Max, Skip, Sort) ->
 %% sort them numerically.
 
 find(Type, Conditions, Max, Skip, Sort, SortOrder) ->
-    gen_server:call(boss_db, {find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder},
-    ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, {find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder},
+        ?DEFAULT_TIMEOUT).
 
 %% @spec count( Type::atom() ) -> integer()
 %% @doc Count the number of BossRecords of type `Type' in the database.
@@ -94,14 +110,14 @@ count(Type) ->
 %% @doc Count the number of BossRecords of type `Type' in the database matching
 %% all of the given `Conditions'.
 count(Type, Conditions) ->
-    gen_server:call(boss_db, {count, Type, normalize_conditions(Conditions)}, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, {count, Type, normalize_conditions(Conditions)}, ?DEFAULT_TIMEOUT).
 
 %% @spec counter( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and return its value.
 %% Returns 0 if the record does not exist, so to reset a counter just use
 %% "delete".
 counter(Key) ->
-    gen_server:call(boss_db, {counter, Key}, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, {counter, Key}, ?DEFAULT_TIMEOUT).
 
 %% @spec incr( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by 1.
@@ -111,7 +127,7 @@ incr(Key) ->
 %% @spec incr( Id::string(), Increment::integer() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by `Increment'.
 incr(Key, Count) ->
-    gen_server:call(boss_db, {incr, Key, Count}, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, {incr, Key, Count}, ?DEFAULT_TIMEOUT).
 
 %% @spec delete( Id::string() ) -> ok | {error, Reason}
 %% @doc Delete the BossRecord with the given `Id'.
@@ -119,38 +135,39 @@ delete(Key) ->
     AboutToDelete = boss_db:find(Key),
     case boss_record_lib:run_before_delete_hooks(AboutToDelete) of
         ok ->
-            case gen_server:call(boss_db, {delete, Key}, ?DEFAULT_TIMEOUT) of
+            Result = boss_pool:call(?POOLNAME, {delete, Key}, ?DEFAULT_TIMEOUT),
+            case Result of
                 ok -> 
                     boss_news:deleted(Key, AboutToDelete:attributes()),
                     ok;
-                RetVal -> 
-                    RetVal
+                _ -> 
+                    Result
             end;
         {error, Reason} ->
             {error, Reason}
     end.
 
 push() ->
-    gen_server:call(boss_db, push, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, push, ?DEFAULT_TIMEOUT).
 
 pop() ->
-    gen_server:call(boss_db, pop, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, pop, ?DEFAULT_TIMEOUT).
 
 depth() ->
-    gen_server:call(boss_db, depth, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, depth, ?DEFAULT_TIMEOUT).
 
 dump() ->
-    gen_server:call(boss_db, depth, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, dump, ?DEFAULT_TIMEOUT).
 
 %% @spec execute( Commands::iolist() ) -> RetVal
 %% @doc Execute raw database commands on SQL databases
 execute(Commands) ->
-    gen_server:call(boss_db, {execute, Commands}, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, {execute, Commands}, ?DEFAULT_TIMEOUT).
 
 %% @spec transaction( TransactionFun::function() ) -> {atomic, Result} | {aborted, Reason}
 %% @doc Execute a fun inside a transaction.
 transaction(TransactionFun) ->
-    gen_server:call(boss_db, {transaction, TransactionFun}, ?DEFAULT_TIMEOUT).
+    boss_pool:call(?POOLNAME, {transaction, TransactionFun}, ?DEFAULT_TIMEOUT).
 
 %% @spec save_record( BossRecord ) -> {ok, SavedBossRecord} | {error, [ErrorMessages]}
 %% @doc Save (that is, create or update) the given BossRecord in the database.
@@ -176,7 +193,7 @@ save_record(Record) ->
             end,
             case HookResult of
                 {ok, PossiblyModifiedRecord} ->
-                    case gen_server:call(boss_db, {save_record, PossiblyModifiedRecord}, ?DEFAULT_TIMEOUT) of
+                    case boss_pool:call(?POOLNAME, {save_record, PossiblyModifiedRecord}, ?DEFAULT_TIMEOUT) of
                         {ok, SavedRecord} ->
                             boss_record_lib:run_after_hooks(OldRecord, SavedRecord, IsNew),
                             {ok, SavedRecord};

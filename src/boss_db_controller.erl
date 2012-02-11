@@ -20,7 +20,7 @@ start_link() ->
     start_link([]).
 
 start_link(Args) ->
-    gen_server:start_link({local, boss_db}, ?MODULE, Args, []).
+    gen_server:start_link(?MODULE, Args, []).
 
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
@@ -51,13 +51,11 @@ init(Options) ->
 handle_call({find, Key}, From, #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
     case boss_cache:get(Prefix, Key) of
         undefined ->
-            io:format("Not cached: ~p~n", [Key]),
             {reply, Res, _} = handle_call({find, Key}, From, State#state{ cache_enable = false }),
             boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
             boss_news:set_watch(Key, lists:concat([Key, ", ", Key, ".*"]), fun boss_db_cache:handle_record_news/3, {Prefix, Key}, State#state.cache_ttl),
             {reply, Res, State};
         CachedValue ->
-            io:format("Cached! ~p~n", [CachedValue]),
             boss_news:extend_watch(Key),
             {reply, CachedValue, State}
     end;
@@ -70,14 +68,12 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder} = Cmd, From,
     Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
     case boss_cache:get(Prefix, Key) of
         undefined ->
-            io:format("Not cached: ~p~n", [Key]),
             {reply, Res, _} = handle_call(Cmd, From, State#state{ cache_enable = false }),
             boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
             boss_news:set_watch(Key, lists:concat([inflector:pluralize(atom_to_list(Type)), ", ", Type, "-*.*"]), 
                 fun boss_db_cache:handle_collection_news/3, {Prefix, Key}, State#state.cache_ttl),
             {reply, Res, State};
         CachedValue ->
-            io:format("Cached! ~p~n", [CachedValue]),
             boss_news:extend_watch(Key),
             {reply, CachedValue, State}
     end;

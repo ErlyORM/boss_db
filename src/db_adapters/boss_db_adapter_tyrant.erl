@@ -1,9 +1,12 @@
 -module(boss_db_adapter_tyrant).
 -behaviour(boss_db_adapter).
--export([start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, start/0, start/1, stop/1, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 
 -define(TRILLION, (1000 * 1000 * 1000 * 1000)).
+
+init(_) ->
+    ok.
 
 start() ->
     start([]).
@@ -11,15 +14,15 @@ start() ->
 start(Options) ->
     Host = proplists:get_value(db_host, Options, "localhost"),
     Port = proplists:get_value(db_port, Options, 1978),
-    ok = medici:start([{hostname, Host}, {port, Port}]),
-    {ok, undefined}.
+    Options = [{hostname, Host}, {port, Port}],
+    principe:connect(Options).
 
 stop(_) ->
-    medici:stop().
+    ok.
 
-find(_, Id) when is_list(Id) ->
+find(Conn, Id) when is_list(Id) ->
     Type = infer_type_from_id(Id),
-    case medici:get(list_to_binary(Id)) of
+    case principe_table:get(Conn, list_to_binary(Id)) of
         Record when is_list(Record) ->
             case boss_record_lib:ensure_loaded(Type) of
                 true -> activate_record(Record, Type);
@@ -31,13 +34,13 @@ find(_, Id) when is_list(Id) ->
             {error, Reason}
     end.
 
-find(_, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
                                                         is_integer(Max) orelse Max =:= all,
                                                         is_integer(Skip), is_atom(Sort), is_atom(SortOrder) ->
     case boss_record_lib:ensure_loaded(Type) of
         true ->
             Query = build_query(Type, Conditions, Max, Skip, Sort, SortOrder),
-            ResultRows = medici:mget(medici:search(Query)),
+            ResultRows = principe_table:mget(Conn, principe_table:search(Conn, Query)),
             FilteredRows = case {Max, Skip} of
                 {all, Skip} when Skip > 0 ->
                     lists:nthtail(Skip, ResultRows);
@@ -49,35 +52,35 @@ find(_, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_lis
             []
     end.
 
-count(_, Type, Conditions) ->
-    medici:searchcount(build_conditions(Type, Conditions)).
+count(Conn, Type, Conditions) ->
+    principe_table:searchcount(Conn, build_conditions(Type, Conditions)).
 
-counter(_, Id) when is_list(Id) ->
-    case medici:get(list_to_binary(Id)) of
+counter(Conn, Id) when is_list(Id) ->
+    case principe_table:get(Conn, list_to_binary(Id)) of
         Record when is_list(Record) ->
             list_to_integer(binary_to_list(
                     proplists:get_value(<<"_num">>, Record, <<"0">>)));
         {error, _Reason} -> 0
     end.
 
-incr(_, Id, Count) when is_list(Id) ->
-    medici:addint(list_to_binary(Id), Count).
+incr(Conn, Id, Count) when is_list(Id) ->
+    principe_table:addint(Conn, list_to_binary(Id), Count).
 
-delete(_, Id) when is_list(Id) ->
-    medici:out(list_to_binary(Id)).
+delete(Conn, Id) when is_list(Id) ->
+    principe_table:out(Conn, list_to_binary(Id)).
 
-save_record(_, Record) when is_tuple(Record) ->
+save_record(Conn, Record) when is_tuple(Record) ->
     Type = element(1, Record),
     Id = case Record:id() of
         id ->
-            atom_to_list(Type) ++ "-" ++ binary_to_list(medici:genuid());
+            atom_to_list(Type) ++ "-" ++ binary_to_list(principe_table:genuid(Conn));
         Defined when is_list(Defined) ->
             Defined
     end,
     RecordWithId = Record:set(id, Id),
     PackedRecord = pack_record(RecordWithId, Type),
 
-    Result = medici:put(list_to_binary(Id), PackedRecord),
+    Result = principe_table:put(Conn, list_to_binary(Id), PackedRecord),
     case Result of
         ok -> {ok, RecordWithId};
         {error, Error} -> {error, [Error]}
@@ -152,12 +155,12 @@ attribute_to_colname(Attribute) ->
 build_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     Query = build_conditions(Type, Conditions),
     Query1 = apply_limit(Query, Max, Skip),
-    medici:query_order(Query1, atom_to_list(Sort), SortOrder).
+    principe_table:query_order(Query1, atom_to_list(Sort), SortOrder).
 
 apply_limit(Query, all, _) ->
     Query;
 apply_limit(Query, Max, Skip) ->
-    medici:query_limit(Query, Max, Skip).
+    principe_table:query_limit(Query, Max, Skip).
 
 build_conditions(Type, Conditions) ->
     build_conditions1([{'_type', 'equals', atom_to_list(Type)}|Conditions], []).
@@ -206,7 +209,7 @@ build_conditions1([{Key, 'contains_none', Values}|Rest], Acc) when is_list(Value
     build_conditions1(Rest, add_cond(Acc, Key, {no, str_or}, pack_tokens(Values))).
 
 add_cond(Acc, Key, Op, PackedVal) ->
-    medici:query_add_condition(Acc, attribute_to_colname(Key), Op, [PackedVal]).
+    principe_table:query_add_condition(Acc, attribute_to_colname(Key), Op, [PackedVal]).
 
 pack_tokens(Tokens) ->
     list_to_binary(string:join(lists:map(fun(V) -> binary_to_list(pack_value(V)) end, Tokens), " ")).
