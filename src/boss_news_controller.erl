@@ -144,7 +144,8 @@ handle_call({created, Id, Attrs}, _From, State0) ->
                             user_info = UserInfo } = dict:fetch(WatchId, State#state.watch_dict),
                         lists:foldr(fun
                                 ({set, TopicString}, Acc1) when TopicString =:= PluralModel ->
-                                    execute_callback(CallBack, created, Record, UserInfo, WatchId, Acc1);
+                                    execute_callback(CallBack, created, Record, UserInfo, WatchId),
+                                    Acc1;
                                 (_, Acc1) ->
                                     Acc1
                             end, Acc0, WatchList)
@@ -166,9 +167,11 @@ handle_call({deleted, Id, OldAttrs}, _From, State0) ->
                             user_info = UserInfo } = dict:fetch(WatchId, State#state.watch_dict),
                         lists:foldr(fun
                                 ({set, TopicString}, Acc1) when TopicString =:= PluralModel ->
-                                    execute_callback(CallBack, deleted, Record, UserInfo, WatchId, Acc1);
+                                    execute_callback(CallBack, deleted, Record, UserInfo, WatchId),
+                                    Acc1;
                                 ({id, TopicString}, Acc1) when TopicString =:= Id ->
-                                    execute_callback(CallBack, deleted, Record, UserInfo, WatchId, Acc1);
+                                    execute_callback(CallBack, deleted, Record, UserInfo, WatchId),
+                                    Acc1;
                                 (_, Acc1) ->
                                     Acc1
                             end, Acc0, WatchList)
@@ -203,13 +206,17 @@ handle_call({updated, Id, OldAttrs, NewAttrs}, _From, State0) ->
                                         user_info = UserInfo } = dict:fetch(WatchId, State#state.watch_dict),
                                     lists:foldr(fun
                                             ({id_attr, ThisId, Attr}, Acc2) when ThisId =:= Id, Attr =:= KeyString ->
-                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId, Acc2);
+                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId),
+                                                Acc2;
                                             ({id_attr, ThisId, "*"}, Acc2) when ThisId =:= Id ->
-                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId, Acc2);
+                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId),
+                                                Acc2;
                                             ({set_attr, ThisModule, Attr}, Acc2) when ThisModule =:= Module, Attr =:= KeyString ->
-                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId, Acc2);
+                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId),
+                                                Acc2;
                                             ({set_attr, ThisModule, "*"}, Acc2) when ThisModule =:= Module ->
-                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId, Acc2);
+                                                execute_callback(CallBack, updated, {NewRecord, Key, OldVal, NewVal}, UserInfo, WatchId),
+                                                Acc2;
                                             (_, Acc2) -> Acc2
                                         end, Acc1, WatchList)
                             end, Acc0, AllWatchers)
@@ -287,20 +294,20 @@ prune_expired_entries(#state{ ttl_tree = Tree } = State) ->
         end, State, Tree, Now),
     NewState#state{ ttl_tree = NewTree }.
 
-execute_callback(Fun, Event, EventInfo, UserInfo, WatchId, State) when is_function(Fun) ->
-    Result = case proplists:get_value(arity, erlang:fun_info(Fun)) of
-        2 ->
-            Fun(Event, EventInfo);
-        3 ->
-            Fun(Event, EventInfo, UserInfo)
-    end,
-    case Result of
-        {ok, cancel_watch} -> 
-            {reply, _, NewState} = handle_call({cancel_watch, WatchId}, undefined, State),
-            NewState;
-        {ok, extend_watch} -> 
-            {reply, _, NewState} = handle_call({extend_watch, WatchId}, undefined, State),
-            NewState;
-        _ ->
-            State
-    end.
+execute_callback(Fun, Event, EventInfo, UserInfo, WatchId) when is_function(Fun) ->
+    erlang:spawn(fun() ->
+                Result = case proplists:get_value(arity, erlang:fun_info(Fun)) of
+                    2 ->
+                        Fun(Event, EventInfo);
+                    3 ->
+                        Fun(Event, EventInfo, UserInfo)
+                end,
+                case Result of
+                    {ok, cancel_watch} -> 
+                        boss_news:cancel_watch(WatchId);
+                    {ok, extend_watch} -> 
+                        boss_news:extend_watch(WatchId);
+                    _ ->
+                        ok
+                end
+        end).
