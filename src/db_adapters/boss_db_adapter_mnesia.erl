@@ -6,7 +6,7 @@
 
 %-define(TRILLION, (1000 * 1000 * 1000 * 1000)).
 
-init([]) ->
+init(_) ->
     application:start(mnesia).
 
 % -----
