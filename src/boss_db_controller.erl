@@ -137,7 +137,10 @@ handle_call({execute, Commands}, _From, State) ->
 handle_call({transaction, TransactionFun}, _From, State) ->
     Adapter = State#state.adapter,
     Conn = State#state.connection,
-    {reply, Adapter:transaction(Conn, TransactionFun), State}.
+    {reply, Adapter:transaction(Conn, TransactionFun), State};
+
+handle_call(state, _From, State) ->
+    {reply, State, State}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.

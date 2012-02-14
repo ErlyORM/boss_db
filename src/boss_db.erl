@@ -52,11 +52,20 @@ start(Options) ->
 stop() ->
     ok.
 
+db_call(Msg) ->
+    case get(boss_db_transaction_info) of
+        undefined ->
+            boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
+        State ->
+            {reply, Reply, _} = boss_db_controller:handle_call(Msg, self(), State),
+            Reply
+    end.
+
 %% @spec find(Id::string()) -> BossRecord | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id'.
 find("") -> undefined;
 find(Key) when is_list(Key) ->
-    boss_pool:call(?POOLNAME, {find, Key}, ?DEFAULT_TIMEOUT);
+    db_call({find, Key});
 find(_) ->
     {error, invalid_id}.
 
@@ -98,8 +107,7 @@ find(Type, Conditions, Max, Skip, Sort) ->
 %% sort them numerically.
 
 find(Type, Conditions, Max, Skip, Sort, SortOrder) ->
-    boss_pool:call(?POOLNAME, {find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder},
-        ?DEFAULT_TIMEOUT).
+    db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder}).
 
 %% @spec count( Type::atom() ) -> integer()
 %% @doc Count the number of BossRecords of type `Type' in the database.
@@ -110,14 +118,14 @@ count(Type) ->
 %% @doc Count the number of BossRecords of type `Type' in the database matching
 %% all of the given `Conditions'.
 count(Type, Conditions) ->
-    boss_pool:call(?POOLNAME, {count, Type, normalize_conditions(Conditions)}, ?DEFAULT_TIMEOUT).
+    db_call({count, Type, normalize_conditions(Conditions)}).
 
 %% @spec counter( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and return its value.
 %% Returns 0 if the record does not exist, so to reset a counter just use
 %% "delete".
 counter(Key) ->
-    boss_pool:call(?POOLNAME, {counter, Key}, ?DEFAULT_TIMEOUT).
+    db_call({counter, Key}).
 
 %% @spec incr( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by 1.
@@ -127,7 +135,7 @@ incr(Key) ->
 %% @spec incr( Id::string(), Increment::integer() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by `Increment'.
 incr(Key, Count) ->
-    boss_pool:call(?POOLNAME, {incr, Key, Count}, ?DEFAULT_TIMEOUT).
+    db_call({incr, Key, Count}).
 
 %% @spec delete( Id::string() ) -> ok | {error, Reason}
 %% @doc Delete the BossRecord with the given `Id'.
@@ -135,7 +143,7 @@ delete(Key) ->
     AboutToDelete = boss_db:find(Key),
     case boss_record_lib:run_before_delete_hooks(AboutToDelete) of
         ok ->
-            Result = boss_pool:call(?POOLNAME, {delete, Key}, ?DEFAULT_TIMEOUT),
+            Result = db_call({delete, Key}),
             case Result of
                 ok -> 
                     boss_news:deleted(Key, AboutToDelete:attributes()),
@@ -148,26 +156,32 @@ delete(Key) ->
     end.
 
 push() ->
-    boss_pool:call(?POOLNAME, push, ?DEFAULT_TIMEOUT).
+    db_call(push).
 
 pop() ->
-    boss_pool:call(?POOLNAME, pop, ?DEFAULT_TIMEOUT).
+    db_call(pop).
 
 depth() ->
-    boss_pool:call(?POOLNAME, depth, ?DEFAULT_TIMEOUT).
+    db_call(depth).
 
 dump() ->
-    boss_pool:call(?POOLNAME, dump, ?DEFAULT_TIMEOUT).
+    db_call(dump).
 
 %% @spec execute( Commands::iolist() ) -> RetVal
 %% @doc Execute raw database commands on SQL databases
 execute(Commands) ->
-    boss_pool:call(?POOLNAME, {execute, Commands}, ?DEFAULT_TIMEOUT).
+    db_call({execute, Commands}).
 
 %% @spec transaction( TransactionFun::function() ) -> {atomic, Result} | {aborted, Reason}
 %% @doc Execute a fun inside a transaction.
 transaction(TransactionFun) ->
-    boss_pool:call(?POOLNAME, {transaction, TransactionFun}, ?DEFAULT_TIMEOUT).
+    Worker = poolboy:checkout(?POOLNAME),
+    State = gen_server:call(Worker, state, ?DEFAULT_TIMEOUT),
+    put(boss_db_transaction_info, State),
+    {reply, Reply, _} = boss_db_controller:handle_call({transaction, TransactionFun}, self(), State),
+    put(boss_db_transaction_info, undefined),
+    poolboy:checkin(?POOLNAME, Worker),
+    Reply.
 
 %% @spec save_record( BossRecord ) -> {ok, SavedBossRecord} | {error, [ErrorMessages]}
 %% @doc Save (that is, create or update) the given BossRecord in the database.
@@ -193,7 +207,7 @@ save_record(Record) ->
             end,
             case HookResult of
                 {ok, PossiblyModifiedRecord} ->
-                    case boss_pool:call(?POOLNAME, {save_record, PossiblyModifiedRecord}, ?DEFAULT_TIMEOUT) of
+                    case db_call({save_record, PossiblyModifiedRecord}) of
                         {ok, SavedRecord} ->
                             boss_record_lib:run_after_hooks(OldRecord, SavedRecord, IsNew),
                             {ok, SavedRecord};
