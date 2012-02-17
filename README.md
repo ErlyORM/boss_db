@@ -1,11 +1,23 @@
-BossDB: A sharded, caching, evented ORM for Erlang
-==================================================
+BossDB: A sharded, caching, pooling, evented ORM for Erlang
+===========================================================
+
+Supported databases
+-------------------
+
+* Mnesia
+* MongoDB
+* MySQL
+* PostgreSQL
+* Riak (experimental)
+* Tokyo Tyrant
 
 Complete API references
 -----------------------
 
 Querying: http://www.chicagoboss.org/api-db.html
+
 Records: http://www.chicagoboss.org/api-record.html
+
 BossNews: http://chicagoboss.org/api-news.html
 
 Usage
@@ -72,7 +84,7 @@ Then back in puppy.erl you'd add a "-belongs_to" attribute:
     -module(puppy, [Id, Name, BreedId]).
     -belongs_to(breed).
 
-Once you've compile breed.erl with boss_record_compiler, you can print a puppy's
+Once you've compiled breed.erl with boss_record_compiler, you can print a puppy's
 associated breed like:
 
     Breed = Puppy:breed(),
@@ -138,6 +150,47 @@ programmatically:
     {ok, WatchId} = boss_news:watch(TopicString, CallBack),
     boss_news:cancel_watch(WatchId)
 
-You can watch individual records or collections of records for changes, which
-is handy for providing real-time notifications or alerts. For details see
-the documentation at http://www.chicagoboss.org/api-news.html
+Four kinds of topic strings are supported:
+
+    "puppies" => watch for new and deleted Puppy records
+    "puppy-42.*" => watch all attributes of Puppy #42
+    "puppy-*.name" => watch the "name" attribute of all Puppy records
+    "puppy-*.*" => watch all attributes of all Puppy records
+
+The callback is passed two or three arguments: the event name
+(created/updated/deleted), information about the event (i.e. the new and old
+values of the watched record), and optionally user information passed as the
+third argument to boss_news:watch/3.
+
+BossNews is suited to providing real-time notifications and alerts. For example,
+if you want to log each time a puppy's name is changed,
+
+    boss_news:watch("puppy-*.name", 
+            fun(updated, {Puppy, 'name', OldName, NewName}) ->
+                error_logger:info_msg("Puppy's name changed from ~p to ~p", [OldName, NewName])
+            end)
+
+For more details see the documentation at http://www.chicagoboss.org/api-news.html
+
+
+Caching
+-------
+
+If caching is enabled, queries and records are automatically cached. BossDB
+uses BossNews events to automatically invalidate out-of-date cache entries; you do
+not need to write any cache logic in your save hooks.
+
+
+Sharding
+--------
+
+Vertical sharding is supported via the db_shards config option. Simply add shard-specific
+configuration in a proplist along with an extra config parameter called db_shard_models,
+which should be a list of models (atoms) in the shard.
+
+
+Pooling
+-------
+
+BossDB uses Poolboy to create a connection pool to the database. Connection pooling
+is supported with all databases.
