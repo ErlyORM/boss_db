@@ -20,6 +20,8 @@ Records: http://www.chicagoboss.org/api-record.html
 
 BossNews: http://chicagoboss.org/api-news.html
 
+Write an adapter: https://github.com/evanmiller/ChicagoBoss/wiki/DB-Adapter-Quickstart
+
 Usage
 -----
 
