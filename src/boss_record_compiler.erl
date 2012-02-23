@@ -24,7 +24,7 @@ edoc_module(File) ->
 %% @doc Return an `edoc_module()' for the given Erlang source file when
 %% compiled as a BossRecord.
 edoc_module(File, Options) ->
-    {ok, Forms, TokenInfo} = boss_compiler:parse(File),
+    {ok, Forms, TokenInfo} = boss_compiler:parse(File, fun ?MODULE:process_tokens/2, []),
     edoc_extract:source(trick_out_forms(Forms, TokenInfo), edoc:read_comments(File), 
         File, edoc_lib:get_doc_env([]), Options).
 

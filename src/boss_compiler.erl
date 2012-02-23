@@ -1,5 +1,5 @@
 -module(boss_compiler).
--export([compile/1, compile/2, parse/1]).
+-export([compile/1, compile/2, parse/3]).
 
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 compile(File) ->
@@ -54,9 +54,6 @@ compile_forms(Forms, File, Options) ->
         OtherError ->
             OtherError
     end.
-
-parse(File) ->
-    parse(File, undefined, []).
 
 parse(File, TokenTransform, IncludeDirs) ->
     case file:read_file(File) of
