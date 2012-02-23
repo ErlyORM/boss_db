@@ -7,15 +7,21 @@ compile(File) ->
 
 compile(File, Options) ->
     IncludeDirs = proplists:get_value(include_dirs, Options, []),
-    case parse(File, IncludeDirs) of
-        {ok, Forms} ->
+    TokenTransform = proplists:get_value(token_transform, Options),
+    case parse(File, TokenTransform, IncludeDirs) of
+        {ok, Forms, TokenInfo} ->
             CompilerOptions = proplists:get_value(compiler_options, Options, 
                 [verbose, return_errors]),
             NewForms = case proplists:get_value(pre_revert_transform, Options) of
                 undefined ->
                     Forms;
                 TransformFun when is_function(TransformFun) ->
-                    TransformFun(Forms)
+                    case erlang:fun_info(TransformFun, arity) of
+                        {arity, 1} ->
+                            TransformFun(Forms);
+                        {arity, 2} ->
+                            TransformFun(Forms, TokenInfo)
+                    end
             end,
             ParseTransforms = [boss_db_pt|proplists:get_value(parse_transforms, Options, [])],
             RevertedForms = lists:foldl(fun(Mod, Acc) ->
@@ -50,25 +56,31 @@ compile_forms(Forms, File, Options) ->
     end.
 
 parse(File) ->
-    parse(File, []).
+    parse(File, undefined, []).
 
-parse(File, IncludeDirs) ->
+parse(File, TokenTransform, IncludeDirs) ->
     case file:read_file(File) of
         {ok, FileContents} ->
-            parse_text(File, FileContents, IncludeDirs);
+            parse_text(File, FileContents, TokenTransform, IncludeDirs);
         Error ->
             Error
     end.
 
-parse_text(FileName, FileContents, IncludeDirs) ->
+parse_text(FileName, FileContents, TokenTransform, IncludeDirs) ->
     case scan_transform(FileContents) of
         {ok, Tokens} ->
-            case aleppo:process_tokens(Tokens, [{file, FileName}, {include, IncludeDirs}]) of
+            {NewTokens, TokenInfo} = case TokenTransform of
+                undefined ->
+                    {Tokens, undefined};
+                TransformFun when is_function(TransformFun) ->
+                    TransformFun(Tokens)
+            end,
+            case aleppo:process_tokens(NewTokens, [{file, FileName}, {include, IncludeDirs}]) of
                 {ok, ProcessedTokens} ->
                     {Forms, Errors} = parse_tokens(ProcessedTokens, FileName),
                     case length(Errors) of
                         0 ->
-                            {ok, Forms};
+                            {ok, Forms, TokenInfo};
                         _ ->
                             Errors1 = lists:map(fun(File) ->
                                         {File, proplists:get_all_values(File, Errors)}

@@ -3,7 +3,7 @@
 -define(DATABASE_MODULE, boss_db).
 -define(PREFIX, "BOSSRECORDINTERNAL").
 
--export([compile/1, compile/2, edoc_module/1, edoc_module/2, trick_out_forms/1]).
+-export([compile/1, compile/2, edoc_module/1, edoc_module/2, process_tokens/1, trick_out_forms/2]).
 
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 %% @equiv compile(File, [])
@@ -12,7 +12,8 @@ compile(File) ->
 
 compile(File, Options) ->
     boss_compiler:compile(File, 
-        [{pre_revert_transform, fun ?MODULE:trick_out_forms/1}|Options]).
+        [{pre_revert_transform, fun ?MODULE:trick_out_forms/2},
+            {token_transform, fun ?MODULE:process_tokens/1}|Options]).
 
 %% @spec edoc_module( File::string() ) -> {Module::atom(), EDoc}
 %% @equiv edoc_module(File, [])
@@ -23,21 +24,34 @@ edoc_module(File) ->
 %% @doc Return an `edoc_module()' for the given Erlang source file when
 %% compiled as a BossRecord.
 edoc_module(File, Options) ->
-    {ok, Forms} = boss_compiler:parse(File),
-    edoc_extract:source(trick_out_forms(Forms), edoc:read_comments(File), 
+    {ok, Forms, TokenInfo} = boss_compiler:parse(File),
+    edoc_extract:source(trick_out_forms(Forms, TokenInfo), edoc:read_comments(File), 
         File, edoc_lib:get_doc_env([]), Options).
 
-trick_out_forms(Forms) ->
-    trick_out_forms(Forms, []).
+process_tokens(Tokens) ->
+    process_tokens(Tokens, [], []).
+
+process_tokens([{']',_},{')',_},{dot,_}|_]=Tokens, TokenAcc, Acc) ->
+    {lists:reverse(TokenAcc, Tokens), Acc};
+process_tokens([{'-',N}=T1,{atom,N,module}=T2,{'(',_}=T3,{atom,_,_ModuleName}=T4,{',',_}=T5,
+        {'[',_}=T6,{var,_,'Id'}=T7|Rest], TokenAcc, []) ->
+    process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), []);
+process_tokens([{',',_}=T1,{var,_,VarName}=T2,{'::',_},{atom,_,VarType},{'(',_},{')',_}|Rest], TokenAcc, Acc) ->
+    process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, VarType}|Acc]);
+process_tokens([H|T], TokenAcc, Acc) ->
+    process_tokens(T, [H|TokenAcc], Acc).
+
+trick_out_forms(Forms, TokenInfo) ->
+    trick_out_forms(Forms, [], TokenInfo).
 
 trick_out_forms([
         {attribute, _Pos, module, {ModuleName, Parameters}} = H
-        | Forms], LeadingForms) ->
-    trick_out_forms(lists:reverse([H|LeadingForms]), Forms, ModuleName, Parameters);
-trick_out_forms([H|T], LeadingForms) ->
-    trick_out_forms(T, [H|LeadingForms]).
+        | Forms], LeadingForms, TokenInfo) ->
+    trick_out_forms(lists:reverse([H|LeadingForms]), Forms, ModuleName, Parameters, TokenInfo);
+trick_out_forms([H|T], LeadingForms, TokenInfo) ->
+    trick_out_forms(T, [H|LeadingForms], TokenInfo).
 
-trick_out_forms(LeadingForms, Forms, ModuleName, Parameters) ->
+trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
     Attributes = proplists:get_value(attributes, erl_syntax_lib:analyze_forms(LeadingForms ++ Forms), []),
     [{eof, _Line}|ReversedOtherForms] = lists:reverse(Forms),
     UserForms = lists:reverse(ReversedOtherForms),
@@ -48,11 +62,12 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters) ->
         end, [], Attributes),
 
     GeneratedForms = 
-        save_forms(ModuleName) ++
+        attribute_names_forms(ModuleName, Parameters) ++
+        attribute_types_forms(ModuleName, TokenInfo) ++
         validate_forms(ModuleName) ++
+        save_forms(ModuleName) ++
         set_attributes_forms(ModuleName, Parameters) ++
         get_attributes_forms(ModuleName, Parameters) ++
-        attribute_names_forms(ModuleName, Parameters) ++
         counter_getter_forms(Counters) ++
         counter_reset_forms(Counters) ++
         counter_incr_forms(Counters) ++
@@ -111,6 +126,16 @@ export_forms([], Acc) ->
     lists:reverse(Acc);
 export_forms([{Name, Arity}|Rest], Acc) ->
     export_forms(Rest, [erl_syntax:attribute(erl_syntax:atom(export), [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(Arity))])])|Acc]).
+
+attribute_types_forms(ModuleName, TypeInfo) ->
+    [erl_syntax:add_precomments([erl_syntax:comment(
+                    ["% @spec attribute_types() -> [{atom(), atom()}]",
+                        lists:concat(["% @doc A proplist of the types of each `", ModuleName, "' parameter, if specified."])])],
+            erl_syntax:function(
+                erl_syntax:atom(attribute_types),
+                [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
+                                    fun({P, T}) -> erl_syntax:tuple([erl_syntax:atom(parameter_to_colname(P)), erl_syntax:atom(T)]) end,
+                                    TypeInfo))])]))].
 
 validate_forms(ModuleName) ->
     [erl_syntax:add_precomments([erl_syntax:comment(
