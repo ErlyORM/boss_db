@@ -64,6 +64,7 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
     GeneratedForms = 
         attribute_names_forms(ModuleName, Parameters) ++
         attribute_types_forms(ModuleName, TokenInfo) ++
+        validate_types_forms(ModuleName) ++
         validate_forms(ModuleName) ++
         save_forms(ModuleName) ++
         set_attributes_forms(ModuleName, Parameters) ++
@@ -136,6 +137,20 @@ attribute_types_forms(ModuleName, TypeInfo) ->
                 [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
                                     fun({P, T}) -> erl_syntax:tuple([erl_syntax:atom(parameter_to_colname(P)), erl_syntax:atom(T)]) end,
                                     TypeInfo))])]))].
+
+validate_types_forms(ModuleName) ->
+    [erl_syntax:add_precomments([erl_syntax:comment(
+                    ["% @spec validate_types() -> ok | {error, [ErrorMessages]}",
+                        lists:concat(["% @doc Validates the parameter types of `", ModuleName, "' without saving to the database."])
+                    ])], 
+            erl_syntax:function(
+                erl_syntax:atom(validate_types),
+                [erl_syntax:clause([], none,
+                        [erl_syntax:application(
+                                erl_syntax:atom(?DATABASE_MODULE),
+                                erl_syntax:atom(validate_record_types),
+                                [erl_syntax:variable("THIS")]
+                            )])]))].
 
 validate_forms(ModuleName) ->
     [erl_syntax:add_precomments([erl_syntax:comment(

@@ -25,6 +25,7 @@
         execute/1,
         transaction/1,
         validate_record/1,
+        validate_record_types/1,
         type/1,
         data_type/2]).
 
@@ -228,12 +229,58 @@ save_record(Record) ->
 %% if the `TestFunction' returns `false' on this particular BossRecord.
 validate_record(Record) ->
     Type = element(1, Record),
-    Errors = case erlang:function_exported(Type, validation_tests, 1) of
-        true -> [String || {TestFun, String} <- Record:validation_tests(), not TestFun()];
-        false -> []
+    Errors1 = case validate_record_types(Record) of
+        ok -> [];
+        {error, Errors} -> Errors
     end,
-    case length(Errors) of
+    Errors2 = case Errors1 of
+        [] ->
+            case erlang:function_exported(Type, validation_tests, 1) of
+                true -> [String || {TestFun, String} <- Record:validation_tests(), not TestFun()];
+                false -> []
+            end;
+        _ -> Errors1
+    end,
+    case length(Errors2) of
         0 -> ok;
+        _ -> {error, Errors2}
+    end.
+
+%% @spec validate_record_types( BossRecord ) -> ok | {error, [ErrorMessages]}
+%% @doc Validate the parameter types of the given BossRecord without saving it
+%% to the database.
+validate_record_types(Record) ->
+    Errors = lists:foldl(fun
+            ({Attr, Type}, Acc) ->
+                Data = Record:Attr(),
+                GreatSuccess = case {Data, Type} of
+                    {Data, string} when is_list(Data) ->
+                        true;
+                    {Data, binary} when is_binary(Data) ->
+                        true;
+                    {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3), 
+                                                                  is_integer(T1), is_integer(T2), is_integer(T3) ->
+                        true;
+                    {Data, integer} when is_integer(Data) ->
+                        true;
+                    {Data, float} when is_float(Data) ->
+                        true;
+                    {Data, number} when is_number(Data) ->
+                        true;
+                    {{N1, N2, N3}, now} when is_integer(N1), is_integer(N2), is_integer(N3) ->
+                        true;
+                    {_Data, Type} ->
+                        false
+                end,
+                if
+                    GreatSuccess ->
+                        Acc;
+                    true -> 
+                        [lists:concat(["Invalid data type for ", Attr])|Acc]
+                end
+        end, [], Record:attribute_types()),
+    case Errors of
+        [] -> ok;
         _ -> {error, Errors}
     end.
 
