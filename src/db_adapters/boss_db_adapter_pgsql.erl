@@ -153,6 +153,7 @@ integer_to_id(Val, KeyString) ->
     ModelName ++ "-" ++ integer_to_list(Val).
 
 activate_record(Record, Metadata, Type) ->
+    AttributeTypes = boss_record_lib:attribute_types(Type),
     apply(Type, new, lists:map(fun
                 (id) ->
                     Index = keyindex(<<"id">>, 2, Metadata),
@@ -160,14 +161,13 @@ activate_record(Record, Metadata, Type) ->
                 (Key) ->
                     KeyString = atom_to_list(Key),
                     Index = keyindex(list_to_binary(KeyString), 2, Metadata),
+                    AttrType = proplists:get_value(Key, AttributeTypes),
                     case element(Index, Record) of
-                        {Date, {_, _, S} = Time} when is_float(S) ->
-                            {Date, setelement(3, Time, round(S))};
                         undefined -> undefined;
                         Val -> 
                             case lists:suffix("_id", KeyString) of
                                 true -> integer_to_id(Val, KeyString);
-                                false -> Val
+                                false -> boss_record_lib:convert_value_to_type(Val, AttrType)
                             end
                     end
             end, boss_record_lib:attribute_names(Type))).

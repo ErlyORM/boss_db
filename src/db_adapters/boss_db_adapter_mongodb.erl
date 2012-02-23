@@ -296,9 +296,15 @@ type_to_collection_name(Type) when is_list(Type) ->
 % Convert a tuple return by the MongoDB driver to a Boss record
 mongo_tuple_to_record(Type, Row) ->
     MongoDoc = tuple_to_proplist(Row),
-    Args = lists:map(fun(AttrName) ->
+    AttributeTypes = boss_record_lib:attribute_types(Type),
+    Args = lists:map(fun
+            (id) ->
+                MongoValue = attr_value(id, MongoDoc),
+                unpack_id(Type, MongoValue);
+            (AttrName) ->
                 MongoValue = attr_value(AttrName, MongoDoc),
-                unpack_value(AttrName, MongoValue, Type)
+                ValueType = proplists:get_value(AttrName, AttributeTypes),
+                unpack_value(AttrName, MongoValue, ValueType)
         end, boss_record_lib:attribute_names(Type)),
     apply(Type, new, Args).
 
@@ -332,22 +338,15 @@ pack_value([H|T]) when is_integer(H) -> list_to_binary([H|T]);
 pack_value({integers, List}) -> List;
 pack_value(V) -> V.
 
-unpack_value(id, Value, RecordType) ->
-    unpack_id(RecordType, Value);
-unpack_value(AttrName, {_,_,_} = Value, _) ->
-    case lists:suffix("_time", atom_to_list(AttrName)) of
-        true -> calendar:now_to_datetime(Value);
-        false -> Value
-    end;
-unpack_value(_AttrName, [H|T], _) when is_integer(H) ->
+unpack_value(_AttrName, [H|T], _ValueType) when is_integer(H) ->
     {integers, [H|T]};
-unpack_value(AttrName, Value, _RecordType) ->
+unpack_value(AttrName, Value, ValueType) ->
     case is_id_attr(AttrName) and (Value =/= "") of 
         true -> 
             IdType = id_type_from_foreign_key(AttrName),
             unpack_id(IdType, Value);
         false -> 
-            Value
+            boss_record_lib:convert_value_to_type(Value, ValueType)
     end.
 
 id_type_from_foreign_key(ForeignKey) ->

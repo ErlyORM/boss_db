@@ -5,7 +5,11 @@
         is_boss_record/2,
         dummy_record/1,
         attribute_names/1,
+        attribute_types/1,
+        convert_value_to_type/2,
         ensure_loaded/1]).
+
+-define(MILLION, 1000000).
 
 run_before_hooks(Record, true) ->
     run_hooks(Record, element(1, Record), before_create);
@@ -44,6 +48,10 @@ attribute_names(Module) ->
     DummyRecord = dummy_record(Module),
     DummyRecord:attribute_names().
 
+attribute_types(Module) ->
+    DummyRecord = dummy_record(Module),
+    DummyRecord:attribute_types().
+
 ensure_loaded(Module) ->
     case code:ensure_loaded(Module) of
         {module, Module} ->
@@ -51,3 +59,43 @@ ensure_loaded(Module) ->
             proplists:get_value(attribute_names, Exports) =:= 1;
         _ -> false
     end.
+
+convert_value_to_type(Val, undefined) ->
+    Val;
+convert_value_to_type(Val, string) when is_integer(Val) ->
+    integer_to_list(Val);
+convert_value_to_type(Val, string) when is_binary(Val) ->
+    binary_to_list(Val);
+convert_value_to_type(Val, string) when is_list(Val) ->
+    Val;
+convert_value_to_type(Val, binary) when is_integer(Val) ->
+    list_to_binary(integer_to_list(Val));
+convert_value_to_type(Val, binary) when is_list(Val) ->
+    list_to_binary(Val);
+convert_value_to_type(Val, binary) when is_binary(Val) ->
+    Val;
+convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}}, Type) when is_integer(D1), is_integer(D2), is_integer(D3), 
+                                                                     is_integer(T1), is_integer(T2), is_float(T3) ->
+    convert_value_to_type({{D1, D2, D3}, {T1, T2, round(T3)}}, Type);
+convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}} = Val, integer) when is_integer(D1), is_integer(D2), is_integer(D3), 
+                                                                        is_integer(T1), is_integer(T2), is_integer(T3) ->
+    calendar:datetime_to_gregorian_seconds(Val); 
+convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}} = Val, timestamp) when is_integer(D1), is_integer(D2), is_integer(D3), 
+                                                                          is_integer(T1), is_integer(T2), is_integer(T3) ->
+    Secs = calendar:datetime_to_gregorian_seconds(Val) - calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
+    {Secs rem ?MILLION, Secs div ?MILLION, 0};
+convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}} = Val, datetime) when is_integer(D1), is_integer(D2), is_integer(D3), 
+                                                                         is_integer(T1), is_integer(T2), is_integer(T3) ->
+    Val;
+convert_value_to_type(<<"1">>, boolean) -> true;
+convert_value_to_type(<<"0">>, boolean) -> false;
+convert_value_to_type(<<"true">>, boolean) -> true;
+convert_value_to_type(<<"false">>, boolean) -> false;
+convert_value_to_type("1", boolean) -> true;
+convert_value_to_type("0", boolean) -> false;
+convert_value_to_type("true", boolean) -> true;
+convert_value_to_type("false", boolean) -> false;
+convert_value_to_type(1, boolean) -> true;
+convert_value_to_type(0, boolean) -> false;
+convert_value_to_type(true, boolean) -> true;
+convert_value_to_type(false, boolean) -> false.

@@ -254,6 +254,8 @@ validate_record_types(Record) ->
             ({Attr, Type}, Acc) ->
                 Data = Record:Attr(),
                 GreatSuccess = case {Data, Type} of
+                    {undefined, _} ->
+                        true;
                     {Data, string} when is_list(Data) ->
                         true;
                     {Data, binary} when is_binary(Data) ->
@@ -265,9 +267,9 @@ validate_record_types(Record) ->
                         true;
                     {Data, float} when is_float(Data) ->
                         true;
-                    {Data, number} when is_number(Data) ->
+                    {Data, boolean} when is_boolean(Data) ->
                         true;
-                    {{N1, N2, N3}, now} when is_integer(N1), is_integer(N2), is_integer(N3) ->
+                    {{N1, N2, N3}, timestamp} when is_integer(N1), is_integer(N2), is_integer(N3) ->
                         true;
                     {_Data, Type} ->
                         false

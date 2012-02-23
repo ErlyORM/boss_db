@@ -29,23 +29,26 @@ find(Conn, Id) ->
     case riakc_pb_socket:get(Conn, Bucket, Key) of
         {ok, Value} ->
             Data = binary_to_term(Value),
+            AttributeTypes = boss_record_lib:attribute_types(Type),
             Record = apply(Type, new, lists:map(fun (AttrName) ->
-                            proplists:get_value(AttrName, Data)
+                            Val = proplists:get_value(AttrName, Data),
+                            AttrType = proplists:get_value(AttrName, AttributeTypes),
+                            boss_record_lib:convert_value_to_type(Val, AttrType)
                     end, boss_record_lib:attribute_names(Type))),
             Record:set(id, Id);
         {error, Reason} ->
             {error, Reason}
     end.
 
-find_acc(_, [], Acc) ->
+find_acc(_, _, [], Acc) ->
     lists:reverse(Acc);
-find_acc(Prefix, [Id | Rest], Acc) ->
-    case find(undefined, Prefix ++ binary_to_list(Id)) of
+find_acc(Conn, Prefix, [Id | Rest], Acc) ->
+    case find(Conn, Prefix ++ binary_to_list(Id)) of
         {error, _Reason} ->
-            find_acc(Prefix, Rest, Acc);
+            find_acc(Conn, Prefix, Rest, Acc);
 
         Value ->
-            find_acc(Prefix, Rest, [Value | Acc])
+            find_acc(Conn, Prefix, Rest, [Value | Acc])
     end.
 
 % this is a stub just to make the tests runable
@@ -57,7 +60,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
         _ ->
             riakc_pb_socket:search(Conn, Bucket, build_search_query(Conditions))
     end,
-    Records = find_acc(atom_to_list(Type) ++ "-", Keys, []),
+    Records = find_acc(Conn, atom_to_list(Type) ++ "-", Keys, []),
     Sorted = if
         is_atom(Sort) ->
             lists:sort(fun (A, B) ->

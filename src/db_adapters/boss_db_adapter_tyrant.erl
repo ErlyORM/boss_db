@@ -89,63 +89,30 @@ save_record(Conn, Record) when is_tuple(Record) ->
 % internal
 
 pack_record(RecordWithId, Type) ->
-    % metadata string stores the data types, <Data Type><attribute name>
-    {Columns, MetadataString} = lists:mapfoldl(fun
-            (Attr, Acc) -> 
+    Columns = lists:map(fun
+            (Attr) -> 
                 Val = RecordWithId:Attr(),
-                MagicLetter = case Val of
-                    _Val when is_list(_Val) ->    "L";
-                    {_, _, _} ->                  "T"; % time
-                    {{_, _, _}, {_, _, _}} ->     "T";
-                    _Val when is_binary(_Val) ->  "B";
-                    _Val when is_integer(_Val) -> "I"; 
-                    _Val when is_float(_Val) ->   "F";
-                    _Val when is_boolean(_Val) -> "O"
-                end,
-                {{attribute_to_colname(Attr), pack_value(Val)}, 
-                    lists:concat([Attr, MagicLetter, Acc])}
-        end, [], RecordWithId:attribute_names()),
-    [{attribute_to_colname('_type'), list_to_binary(atom_to_list(Type))},
-        {attribute_to_colname('_metadata'), list_to_binary(MetadataString)}|Columns].
+                {attribute_to_colname(Attr), pack_value(Val)}
+        end, RecordWithId:attribute_names()),
+    [{attribute_to_colname('_type'), list_to_binary(atom_to_list(Type))}|Columns].
 
 infer_type_from_id(Id) when is_binary(Id) ->
     infer_type_from_id(binary_to_list(Id));
 infer_type_from_id(Id) when is_list(Id) ->
     list_to_atom(hd(string:tokens(Id, "-"))).
 
-extract_metadata(Record, _Type) ->
-    MetadataString = proplists:get_value(attribute_to_colname('_metadata'), Record),
-    case MetadataString of
-        undefined -> [];
-        Val when is_binary(Val) -> 
-            parse_metadata_string(binary_to_list(Val))
-    end.
-
-parse_metadata_string(Val) ->
-    parse_metadata_string(Val, [], []).
-parse_metadata_string([], [], MetadataAcc) ->
-    MetadataAcc;
-parse_metadata_string([H|T], NameAcc, MetadataAcc) when H >= $A, H =< $Z ->
-    parse_metadata_string(T, [], [{list_to_atom(lists:reverse(NameAcc)), H}|MetadataAcc]);
-parse_metadata_string([H|T], NameAcc, MetadataAcc) when H >= $a, H =< $z; H =:= $_; H >= $0, H =< $9 ->
-    parse_metadata_string(T, [H|NameAcc], MetadataAcc).
-
 activate_record(Record, Type) ->
-    Metadata = extract_metadata(Record, Type),
+    AttributeTypes = boss_record_lib:attribute_types(Type),
     apply(Type, new, lists:map(fun
                 (Key) ->
                     Val = proplists:get_value(attribute_to_colname(Key), Record, <<"">>),
-                    case proplists:get_value(Key, Metadata) of
-                        $B -> Val;
-                        $I -> list_to_integer(binary_to_list(Val));
-                        $F -> list_to_integer(binary_to_list(Val)) / ?TRILLION;
-                        $T -> unpack_datetime(Val);
-                        $O -> Val =:= <<"1">>;
-                        _ ->
-                            case lists:suffix("_time", atom_to_list(Key)) of
-                                true -> unpack_datetime(Val);
-                                false -> binary_to_list(Val)
-                            end
+                    AttrType = proplists:get_value(Key, AttributeTypes, string),
+                    case AttrType of
+                        datetime -> unpack_datetime(Val);
+                        timestamp -> DateTime = unpack_datetime(Val),
+                            boss_record_lib:convert_value_to_type(DateTime, timestamp);
+                        float -> list_to_integer(binary_to_list(Val)) / ?TRILLION;
+                        _ -> boss_record_lib:convert_value_to_type(Val, AttrType)
                     end
             end, boss_record_lib:attribute_names(Type))).
 
