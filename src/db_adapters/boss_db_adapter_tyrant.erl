@@ -1,24 +1,24 @@
 -module(boss_db_adapter_tyrant).
 -behaviour(boss_db_adapter).
--export([init/1, start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 
 -define(TRILLION, (1000 * 1000 * 1000 * 1000)).
 
-init(_) ->
+start(_) ->
     ok.
 
-start() ->
-    start([]).
+stop() ->
+    ok.
 
-start(Options) ->
+init(Options) ->
     Host = proplists:get_value(db_host, Options, "localhost"),
     Port = proplists:get_value(db_port, Options, 1978),
     Options = [{hostname, Host}, {port, Port}],
     principe:connect(Options).
 
-stop(_) ->
-    ok.
+terminate(Conn) ->
+    gen_tcp:close(Conn).
 
 find(Conn, Id) when is_list(Id) ->
     Type = infer_type_from_id(Id),

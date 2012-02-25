@@ -1,6 +1,6 @@
 -module(boss_db_adapter_riak).
 -behaviour(boss_db_adapter).
--export([init/1, start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
@@ -8,21 +8,21 @@
 
 -define(HUGE_INT, 1000 * 1000 * 1000 * 1000).
 
-init(_Options) ->
+start(_Options) ->
     % TODO: crypto is needed for unique_id_62/0. Remove it when
     %       unique_id_62/0 is not needed.
     crypto:start().
 
-start() ->
-    start([]).
+stop() ->
+    ok.
 
-start(Options) ->
+init(Options) ->
     Host = proplists:get_value(db_host, Options, "localhost"),
     Port = proplists:get_value(db_port, Options, 8087),
     riakc_pb_socket:start_link(Host, Port).
 
-stop(_) ->
-    ok.
+terminate(Conn) ->
+    riakc_pb_socket:stop(Conn).
 
 find(Conn, Id) ->
     {Type, Bucket, Key} = infer_type_from_id(Id),

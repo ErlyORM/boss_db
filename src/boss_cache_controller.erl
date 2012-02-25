@@ -20,7 +20,7 @@ start_link(Args) ->
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, memcached_bin),
     Adapter = list_to_atom(lists:concat(["boss_cache_adapter_", AdapterName])),
-    {ok, Conn} = Adapter:start(Options),
+    {ok, Conn} = Adapter:init(Options),
     {ok, #state{ adapter = Adapter, connection = Conn }}.
 
 handle_call({get, Prefix, Key}, _From, State) ->
@@ -42,7 +42,7 @@ handle_cast(_Request, State) ->
 terminate(_Reason, State) ->
     Adapter = State#state.adapter,
     Conn = State#state.connection,
-    Adapter:stop(Conn).
+    Adapter:terminate(Conn).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.

@@ -11,7 +11,7 @@ start() ->
 
 start(Options) ->
     Adapter = proplists:get_value(adapter, Options, boss_cache_adapter_memcached_bin),
-    Adapter:init(Options),
+    Adapter:start(Options),
     boss_cache_sup:start_link(Options).
 
 stop() ->

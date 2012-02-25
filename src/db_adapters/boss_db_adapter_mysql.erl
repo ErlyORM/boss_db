@@ -1,16 +1,16 @@
 -module(boss_db_adapter_mysql).
 -behaviour(boss_db_adapter).
--export([init/1, start/0, start/1, stop/1, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, transaction/2]).
 
-init(_) ->
+start(_) ->
     ok.
 
-start() ->
-    start([]).
+stop() ->
+    ok.
 
-start(Options) ->
+init(Options) ->
     DBHost = proplists:get_value(db_host, Options, "localhost"),
     DBPort = proplists:get_value(db_port, Options, 3306),
     DBUsername = proplists:get_value(db_username, Options, "guest"),
@@ -21,7 +21,8 @@ start(Options) ->
     mysql_conn:start(DBHost, DBPort, DBUsername, DBPassword, DBDatabase, 
         fun(_, _, _, _) -> ok end, Encoding, DBIdentifier).
 
-stop(_Pid) -> ok.
+terminate(Pid) -> 
+    exit(Pid, normal).
 
 find(Pid, Id) when is_list(Id) ->
     {Type, TableName, TableId} = infer_type_from_id(Id),

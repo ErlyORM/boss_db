@@ -1,11 +1,11 @@
 % In-memory database for fast tests and easy setup
 -module(boss_db_adapter_mock).
 -behaviour(boss_db_adapter).
--export([init/1, start/0, start/1, stop/1]).
+-export([init/1, terminate/1, start/1, stop/0]).
 -export([find/2, find/7, count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, transaction/2]).
 
-init(Options) ->
+start(Options) ->
     case proplists:get_value(is_master_node, Options, true) of
         true ->
             boss_db_mock_sup:start_link();
@@ -13,16 +13,13 @@ init(Options) ->
             ok
     end.
 
-start() ->
-    start([]).
+stop() ->
+    ok.
 
-start(_Options) ->
+init(_Options) ->
     {ok, undefined}.
 
-stop(undefined) ->
-    ok;
-stop(MockSup) ->
-    exit(MockSup),
+terminate(_) ->
     ok.
 
 find(_, Id) ->

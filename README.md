@@ -74,6 +74,9 @@ Then compile it like:
 
 ...and you're ready to go.
 
+Associations
+------------
+
 BossDB supports database associations. Suppose you want to model the dog breed
 (golden retriever, poodle, etc). You would create a model file with a special
 "-has" attribute, like:
@@ -99,7 +102,10 @@ Similarly, you could iterate over all the puppies of a particular breed:
             io:format("Puppy: ~p~n", [Puppy:name()]) 
         end, Breed:puppies())
 
-You can achieve the same thing with a database query, for example:
+Querying
+--------
+
+You can search the database with the boss_db:find functions. Example:
 
     Puppies = boss_db:find(puppy, [{breed_id, 'equals', "breed-47"}])
 
@@ -108,7 +114,11 @@ you'll be able to write the more simple expression:
 
     Puppies = boss_db:find(puppy, [breed_id = "breed-47"])
 
-BossDB supports many query operators; see the API references at the top.
+BossDB supports many query operators, as well as sorting, offsets, and limits;
+see the API references at the top.
+
+Validating and saving
+---------------------
 
 To create and save a new record, you would write:
 
@@ -128,6 +138,22 @@ to your model file, e.g.
 
 If validation fails, the save/0 function will return a list of error messages
 instead of the saved record.
+
+You can also provide spec strings in the parameter declaration if you want to
+validate the attribute types before saving, e.g.
+
+    -module(puppy, [Id, Name::string(), BirthDate::datetime()]).
+
+Accepted types are:
+
+* string()
+* binary()
+* datetime()
+* timestamp() [e.g. returned by erlang:now()]
+* integer()
+* float()
+
+If the type validation fails, then validation_tests/0 will not be called.
 
 
 Events
