@@ -14,6 +14,5 @@
         stdlib,
         crypto
             ]},
-    {mod, {boss_app, []}},
     {env, []}
     ]}.
