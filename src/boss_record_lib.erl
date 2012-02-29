@@ -62,6 +62,12 @@ ensure_loaded(Module) ->
 
 convert_value_to_type(Val, undefined) ->
     Val;
+convert_value_to_type(Val, integer) when is_integer(Val) ->
+    Val;
+convert_value_to_type(Val, integer) when is_list(Val) ->
+    list_to_integer(Val);
+convert_value_to_type(Val, integer) when is_binary(Val) ->
+    list_to_integer(binary_to_list(Val));
 convert_value_to_type(Val, string) when is_integer(Val) ->
     integer_to_list(Val);
 convert_value_to_type(Val, string) when is_binary(Val) ->
