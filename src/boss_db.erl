@@ -141,19 +141,23 @@ incr(Key, Count) ->
 %% @spec delete( Id::string() ) -> ok | {error, Reason}
 %% @doc Delete the BossRecord with the given `Id'.
 delete(Key) ->
-    AboutToDelete = boss_db:find(Key),
-    case boss_record_lib:run_before_delete_hooks(AboutToDelete) of
-        ok ->
-            Result = db_call({delete, Key}),
-            case Result of
-                ok -> 
-                    boss_news:deleted(Key, AboutToDelete:attributes()),
-                    ok;
-                _ -> 
-                    Result
-            end;
-        {error, Reason} ->
-            {error, Reason}
+    case boss_db:find(Key) of
+        undefined ->
+            {error, not_found};
+        AboutToDelete ->
+            case boss_record_lib:run_before_delete_hooks(AboutToDelete) of
+                ok ->
+                    Result = db_call({delete, Key}),
+                    case Result of
+                        ok -> 
+                            boss_news:deleted(Key, AboutToDelete:attributes()),
+                            ok;
+                        _ -> 
+                            Result
+                    end;
+                {error, Reason} ->
+                    {error, Reason}
+            end
     end.
 
 push() ->
