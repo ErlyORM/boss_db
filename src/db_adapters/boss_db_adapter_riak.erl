@@ -27,7 +27,8 @@ terminate(Conn) ->
 find(Conn, Id) ->
     {Type, Bucket, Key} = infer_type_from_id(Id),
     case riakc_pb_socket:get(Conn, Bucket, Key) of
-        {ok, Value} ->
+        {ok, Res} ->
+            Value = riakc_obj:get_value (Res),
             Data = binary_to_term(Value),
             AttributeTypes = boss_record_lib:attribute_types(Type),
             Record = apply(Type, new, lists:map(fun (AttrName) ->
