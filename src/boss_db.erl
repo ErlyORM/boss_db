@@ -11,6 +11,10 @@
         find/4, 
         find/5, 
         find/6,
+        find_first/2,
+        find_first/3,
+        find_last/2,
+        find_last/3,
         count/1,
         count/2,
         counter/1, 
@@ -109,6 +113,27 @@ find(Type, Conditions, Max, Skip, Sort) ->
 
 find(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder}).
+
+%% @spec find_first( Type::atom(), Conditions ) -> Record | undefined
+%% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions'
+find_first(Type, Conditions) ->
+    return_one(find(Type, Conditions, 1)).
+
+%% @spec find_first( Type::atom(), Conditions, Sort::atom() ) -> Record | undefined
+%% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions',
+%% sorted on the attribute `Sort'.
+find_first(Type, Conditions, Sort) ->
+    return_one(find(Type, Conditions, 1, 0, Sort)).
+
+%% @spec find_last( Type::atom(), Conditions ) -> Record | undefined
+%% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
+find_last(Type, Conditions) ->
+    return_one(find(Type, Conditions, 1, 0, id, str_descending)).
+
+%% @spec find_last( Type::atom(), Conditions ) -> Record | undefined
+%% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
+find_last(Type, Conditions, Sort) ->
+    return_one(find(Type, Conditions, 1, 0, Sort, str_descending)).
 
 %% @spec count( Type::atom() ) -> integer()
 %% @doc Count the number of BossRecords of type `Type' in the database.
@@ -329,3 +354,9 @@ normalize_conditions([{Key, Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'equals', Value}|Acc]);
 normalize_conditions([{Key, Operator, Value}|Rest], Acc) when is_atom(Key), is_atom(Operator) ->
     normalize_conditions(Rest, [{Key, Operator, Value}|Acc]).
+
+return_one(Result) ->
+    case Result of
+        [] -> undefined;
+        [Record] -> Record
+    end.
