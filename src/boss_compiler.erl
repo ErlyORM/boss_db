@@ -55,13 +55,15 @@ compile_forms(Forms, File, Options) ->
             OtherError
     end.
 
-parse(File, TokenTransform, IncludeDirs) ->
+parse(File, TokenTransform, IncludeDirs) when is_list(File) ->
     case file:read_file(File) of
         {ok, FileContents} ->
             parse_text(File, FileContents, TokenTransform, IncludeDirs);
         Error ->
             Error
-    end.
+    end;
+parse(File, TokenTransform, IncludeDirs) when is_binary(File) ->
+    parse_text(undefined, File, TokenTransform, IncludeDirs).
 
 parse_text(FileName, FileContents, TokenTransform, IncludeDirs) ->
     case scan_transform(FileContents) of
