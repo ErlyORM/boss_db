@@ -18,7 +18,7 @@ init(Options) ->
     DBDatabase = proplists:get_value(db_database, Options, "test"),
     DBIdentifier = proplists:get_value(db_shard_id, Options, boss_pool),
     Encoding = utf8,
-    mysql_conn:start(DBHost, DBPort, DBUsername, DBPassword, DBDatabase, 
+    mysql_conn:start_link(DBHost, DBPort, DBUsername, DBPassword, DBDatabase, 
         fun(_, _, _, _) -> ok end, Encoding, DBIdentifier).
 
 terminate(Pid) -> 
@@ -392,7 +392,7 @@ pack_value(false) ->
 pack_value(undefined) ->
 	"null";
 pack_value(V) when is_binary(V) ->
-    pack_value(unicode:characters_to_list(V));
+    pack_value(binary_to_list(V));
 pack_value(V) when is_list(V) ->
     "'" ++ escape_sql(V) ++ "'";
 pack_value({MegaSec, Sec, MicroSec}) when is_integer(MegaSec) andalso is_integer(Sec) andalso is_integer(MicroSec) ->
