@@ -160,7 +160,7 @@ test_rec(Rec,{Key, 'contains_none', Values}) when is_list(Values) ->
 
 % -----
 count(Conn, Type, Conditions) ->
-    length(find(Conn, Type, Conditions,0,0,id,ascending)).
+    length(find(Conn, Type, Conditions, all, 0, id, ascending)).
 
 % -----
 counter(Conn, Id) when is_list(Id) ->
