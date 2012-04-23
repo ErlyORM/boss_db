@@ -27,6 +27,7 @@ init(Options) ->
     Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
     CacheEnable = proplists:get_value(cache_enable, Options, false),
     CacheTTL = proplists:get_value(cache_exp_time, Options, 60),
+    process_flag(trap_exit, true),
     {ok, Conn} = Adapter:init(Options),
     {Shards, ModelDict} = lists:foldr(fun(ShardOptions, {ShardAcc, ModelDictAcc}) ->
                 case proplists:get_value(db_shard_models, ShardOptions, []) of
@@ -156,6 +157,10 @@ terminate(_Reason, State) ->
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+handle_info(stop, State) ->
+    {stop, shutdown, State};
+handle_info({'EXIT', _, _}, State) ->
+    {stop, shutdown, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
