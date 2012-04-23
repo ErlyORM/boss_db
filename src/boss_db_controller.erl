@@ -38,7 +38,7 @@ init(Options) ->
                             undefined -> Adapter;
                             ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
                         end,
-                        {ok, ShardConn} = ShardAdapter:start(ShardOptions ++ Options),
+                        {ok, ShardConn} = ShardAdapter:init(ShardOptions ++ Options),
                         Index = erlang:length(ShardAcc),
                         NewDict = lists:foldr(fun(ModelAtom, Dict) ->
                                     dict:store(ModelAtom, Index, Dict)
@@ -151,7 +151,7 @@ terminate(_Reason, State) ->
     Conn = State#state.connection,
     Adapter:terminate(Conn),
     lists:map(fun({A, C}) ->
-                A:stop(C)
+                A:terminate(C)
         end, State#state.shards).
 
 code_change(_OldVsn, State, _Extra) ->
