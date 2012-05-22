@@ -175,8 +175,8 @@ activate_record(Record, Metadata, Type) ->
 keyindex(Key, N, TupleList) ->
     keyindex(Key, N, TupleList, 1).
 
-keyindex(_Key, _N, [], _Index) ->
-    undefined;
+keyindex(Key, _N, [], _Index) ->
+    throw({error, "Expected attribute '" ++ binary_to_list(Key) ++ "' was not found in Postgres query results. Synchronise your model and dat
 keyindex(Key, N, [Tuple|Rest], Index) ->
     case element(N, Tuple) of
         Key -> Index;
