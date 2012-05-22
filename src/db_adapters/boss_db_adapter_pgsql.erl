@@ -62,7 +62,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_
     end.
 
 count(Conn, Type, Conditions) ->
-    ConditionClause = build_conditions(Conditions),
+    ConditionClause = build_conditions(Type, Conditions),
     TableName = type_to_table_name(Type),
     {ok, _, [{Count}]} = pgsql:equery(Conn, 
         ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
@@ -240,7 +240,7 @@ build_update_query(Record) ->
 build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     TableName = type_to_table_name(Type),
     ["SELECT * FROM ", TableName, 
-        " WHERE ", build_conditions(Conditions),
+        " WHERE ", build_conditions(Type, Conditions),
         " ORDER BY ", atom_to_list(Sort), " ", sort_order_sql(SortOrder),
         case Max of all -> ""; _ -> [" LIMIT ", integer_to_list(Max),
                     " OFFSET ", integer_to_list(Skip)] end
@@ -264,11 +264,38 @@ is_foreign_key(Key) when is_atom(Key) ->
 	end;
 is_foreign_key(_Key) -> false.
 
-build_conditions(Conditions) ->
-    build_conditions1(Conditions, [" TRUE"]).
+%% take the "type-" part out of id_values of "type-nnn" 
+%% it allows to assert([boss_db:find("type-nnn")] == boss_db:find(type, [{id, equals, "type-nnn"}]) 
+%% while it forbids boss_db:find(type, [{id, equals, "othertype-nnn"}] where othertype is from the untrusted input
+%% without this patch, the second part returns:
+%%    {error,{error,error,<<"22P02">>,
+%%              <<"invalid input syntax for integer: \"type-1\"">>,
+%%              [{position,<<"35">>}]}}
+de_type_id(Type, Conditions) ->
+    lists:map(fun({id, Operator, Operand}) when is_list(Operand) ->
+                    {id, Operator, sanitize_value(Type, Operand)};
+               ({id, Operator, Operand}) when is_binary(Operand) ->  %% allow for binary operands, dunno if that occurs.
+                    {id, Operator, sanitize_value(Type, binary_to_list(Operand))};
+               (Other) -> Other %% anything not an 'id' is passed on as-is to the DB.
+            end, Conditions).
+
+%% Make sure the value that goes in the WHERE-clause is the number-part of the Type-Number record identifier.
+sanitize_value(Type, Value) ->
+    TypeL = atom_to_list(Type),	    %% we must match the expected Type
+    case string:tokens(Value, "-") of
+      [Value] -> Value;             %% just a string, no record-123 composite, pass it on
+      [TypeL, IdValue] -> IdValue;  %% take out the record- part and give the supposed number.
+      %% don't let missing input validation go unnoticed, scream loudly:
+      _Err -> throw({error, "Id value must be of the same type as the requested record.\nExpected type: \"" ++ TypeL ++ "\". Got value: \"" ++ Value ++ "\"."})
+    end.
+
+build_conditions(Type, Conditions) ->
+    Conds = de_type_id(Type, Conditions),
+    build_conditions1(Conds, [" TRUE"]).
 
 build_conditions1([], Acc) ->
     Acc;
+
 build_conditions1([{Key, 'equals', Value}|Rest], Acc) when Value == undefined ->
     build_conditions1(Rest, add_cond(Acc, Key, "is", pack_value(Value)));
 build_conditions1([{Key, 'equals', Value}|Rest], Acc) ->
