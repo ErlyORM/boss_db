@@ -176,7 +176,7 @@ keyindex(Key, N, TupleList) ->
     keyindex(Key, N, TupleList, 1).
 
 keyindex(Key, _N, [], _Index) ->
-    throw({error, "Expected attribute '" ++ binary_to_list(Key) ++ "' was not found in Postgres query results. Synchronise your model and dat
+    throw({error, "Expected attribute '" ++ binary_to_list(Key) ++ "' was not found in Postgres query results. Synchronise your model and data'"});
 keyindex(Key, N, [Tuple|Rest], Index) ->
     case element(N, Tuple) of
         Key -> Index;
