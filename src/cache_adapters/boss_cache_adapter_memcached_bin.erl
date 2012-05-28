@@ -7,15 +7,15 @@
 start() ->
     start([]).
 
-start(_Options) ->
-    {ok, undefined}.
+start(Options) ->
+    CacheServers = proplists:get_value(cache_servers, Options, [{"localhost", 11211, 1}]),
+    ok = erlmc:start(CacheServers),
+    ok.
 
 stop(_Conn) ->
     erlmc:quit().
 
-init(Options) ->
-    CacheServers = proplists:get_value(cache_servers, Options, [{"localhost", 11211, 1}]),
-    ok = erlmc:start(CacheServers),
+init(_Options) ->
     {ok, undefined}.
 
 get(_Conn, Prefix, Key) ->
