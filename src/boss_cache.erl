@@ -10,7 +10,8 @@ start() ->
     start([{adapter, Adapter}, {cache_servers, [{"127.0.0.1", 11211, 1}]}]).
 
 start(Options) ->
-    Adapter = proplists:get_value(adapter, Options, boss_cache_adapter_memcached_bin),
+    AdapterName = proplists:get_value(adapter, Options, memcached_bin),
+    Adapter = list_to_atom(lists:concat(["boss_cache_adapter_", AdapterName])),
     Adapter:start(Options),
     boss_cache_sup:start_link(Options).
 
