@@ -112,13 +112,12 @@ save_record(Conn, Record) ->
             string:join(Tail, "-")
     end,
     BinKey = list_to_binary(Key),
-    BinVal = term_to_binary(PropList),
     ok = case riakc_pb_socket:get(Conn, Bucket, BinKey) of
         {ok, O} ->
-            O2 = riakc_obj:update_value(O, BinVal),
+            O2 = riakc_obj:update_value(O, PropList),
             riakc_pb_socket:put(Conn, O2);
         {error, _} ->
-            O = riakc_obj:new(Bucket, BinKey, BinVal),
+            O = riakc_obj:new(Bucket, BinKey, PropList, <<"application/x-erlang-term">>),
             riakc_pb_socket:put(Conn, O)
     end,
     {ok, Record:set(id, lists:concat([Type, "-", Key]))}.
