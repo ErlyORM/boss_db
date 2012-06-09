@@ -25,7 +25,8 @@ start_link(Args) ->
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
     Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
-    CacheEnable = proplists:get_value(cache_enable, Options, false),
+    CacheEnable = proplists:get_value(db_cache_enable, Options, false) andalso 
+                      proplists:get_value(cache_enable, Options, false),
     CacheTTL = proplists:get_value(cache_exp_time, Options, 60),
     process_flag(trap_exit, true),
     {ok, Conn} = Adapter:init(Options),
