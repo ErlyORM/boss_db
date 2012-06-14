@@ -253,7 +253,6 @@ build_update_query(Record) ->
     {_, TableName, Id} = infer_type_from_id(Record:id()),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({_, undefined}, Acc) -> Acc;
             ({A, V}, Acc) -> 
                 AString = atom_to_list(A),
                 Value = case lists:suffix("_id", AString) of
@@ -387,8 +386,6 @@ pack_datetime(DateTime) ->
 
 pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
-pack_value(false) ->
-	"''";
 pack_value(undefined) ->
 	"null";
 pack_value(V) when is_binary(V) ->
