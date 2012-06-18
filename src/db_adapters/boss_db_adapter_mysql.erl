@@ -255,11 +255,11 @@ build_update_query(Record) ->
             ({id, _}, Acc) -> Acc;
             ({A, V}, Acc) -> 
                 AString = atom_to_list(A),
-                Value = case lists:suffix("_id", AString) of
-                    true ->
+                Value = case {lists:suffix("_id", AString), V =:= undefined} of
+                    {true, false} ->
                         {_, _, ForeignId} = infer_type_from_id(V),
                         ForeignId;
-                    false ->
+                    _ ->
                         V
                 end,
                 [AString ++ " = " ++ pack_value(Value)|Acc]
