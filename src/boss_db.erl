@@ -131,7 +131,7 @@ find_first(Type, Conditions, Sort) ->
 find_last(Type, Conditions) ->
     return_one(find(Type, Conditions, 1, 0, id, str_descending)).
 
-%% @spec find_last( Type::atom(), Conditions ) -> Record | undefined
+%% @spec find_last( Type::atom(), Conditions, Sort ) -> Record | undefined
 %% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
 find_last(Type, Conditions, Sort) ->
     return_one(find(Type, Conditions, 1, 0, Sort, str_descending)).
