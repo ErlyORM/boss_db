@@ -326,6 +326,8 @@ pack_id(BossId) ->
             []
     end.
 
+unpack_id(_Type, undefined) ->
+    undefined;
 unpack_id(Type, MongoId) ->
     lists:concat([Type, "-", binary_to_list(dec2hex(element(1, MongoId)))]).
 
