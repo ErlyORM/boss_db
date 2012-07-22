@@ -67,10 +67,8 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
         is_atom(Sort) ->
             lists:sort(fun (A, B) ->
                         case SortOrder of
-                            num_ascending -> A:Sort() =< B:Sort();
-                            str_ascending -> A:Sort() =< B:Sort();
-                            num_descending -> A:Sort() > B:Sort();
-                            str_descending -> A:Sort() > B:Sort()
+                            ascending -> A:Sort() =< B:Sort();
+                            descending -> A:Sort() > B:Sort()
                         end
                 end,
                 Records);

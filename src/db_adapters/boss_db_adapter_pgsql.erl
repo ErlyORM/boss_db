@@ -186,14 +186,10 @@ keyindex(Key, N, [Tuple|Rest], Index) ->
         _ -> keyindex(Key, N, Rest, Index + 1)
     end.
 
-sort_order_sql(num_ascending) ->
-    "ASC";
-sort_order_sql(num_descending) ->
+sort_order_sql(descending) ->
     "DESC";
-sort_order_sql(str_ascending) ->
-    "ASC";
-sort_order_sql(str_descending) ->
-    "DESC".
+sort_order_sql(ascending) ->
+    "ASC".
 
 build_insert_query(Record) ->
     Type = element(1, Record),

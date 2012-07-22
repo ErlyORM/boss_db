@@ -8,9 +8,6 @@
         find/1, 
         find/2, 
         find/3, 
-        find/4, 
-        find/5, 
-        find/6,
         find_first/2,
         find_first/3,
         find_last/2,
@@ -79,62 +76,44 @@ find(_) ->
 %% @doc Query for BossRecords. Returns all BossRecords of type
 %% `Type' matching all of the given `Conditions'
 find(Type, Conditions) ->
-    find(Type, Conditions, all).
+    find(Type, Conditions, []).
 
-%% @spec find(Type::atom(), Conditions, Max::integer() | all ) -> [ BossRecord ]
-%% @doc Query for BossRecords. Returns up to `Max' number of BossRecords of type
-%% `Type' matching all of the given `Conditions'
-find(Type, Conditions, Max) ->
-    find(Type, Conditions, Max, 0).
-
-%% @spec find( Type::atom(), Conditions, Max::integer() | all, Skip::integer() ) -> [ BossRecord ]
-%% @doc Query for BossRecords. Returns up to `Max' number of BossRecords of type
-%% `Type' matching all of the given `Conditions', skipping the first `Skip' results.
-find(Type, Conditions, Max, Skip) ->
-    find(Type, Conditions, Max, Skip, id).
-
-%% @spec find( Type::atom(), Conditions, Max::integer() | all, Skip::integer(), Sort::atom() ) -> [ BossRecord ]
-%% @doc Query for BossRecords. Returns up to `Max' number of BossRecords of type
-%% `Type' matching all of the given `Conditions', skipping the
-%% first `Skip' results, sorted on the attribute `Sort'.
-find(Type, Conditions, Max, Skip, Sort) ->
-    find(Type, Conditions, Max, Skip, Sort, str_ascending).
-
-%% @spec find( Type::atom(), Conditions, Max::integer() | all, Skip::integer(), Sort::atom(), SortOrder ) -> [ BossRecord ]
-%%       SortOrder = num_ascending | num_descending | str_ascending | str_descending
-%% @doc Query for BossRecords. Returns up to `Max' number of BossRecords of type
-%% Type matching all of the given `Conditions', skipping the
-%% first `Skip' results, sorted on the attribute `Sort'. `SortOrder' specifies whether
-%% to treat values as strings or as numbers, and whether to sort ascending or
-%% descending. (`SortOrder' = `num_ascending', `num_descending', `str_ascending', or
-%% `str_descending')
-%%
-%% Note that Time attributes are stored internally as numbers, so you should
-%% sort them numerically.
-
-find(Type, Conditions, Max, Skip, Sort, SortOrder) ->
+%% @spec find(Type::atom(), Conditions, Options::proplist()) -> [ BossRecord ]
+%% @doc Query for BossRecords. Returns BossRecords of type
+%% `Type' matching all of the given `Conditions'. Options may include
+%% `limit' (maximum number of records to return), `offset' (number of records
+%% to skip), `order_by' (attribute to sort on), and `descending' (whether to
+%% sort the values from highest to lowest)
+find(Type, Conditions, Options) ->
+    Max = proplists:get_value(limit, Options, all),
+    Skip = proplists:get_value(offset, Options, 0),
+    Sort = proplists:get_value(order_by, Options, id),
+    SortOrder = case proplists:get_value(descending, Options) of
+        true -> descending;
+        _ -> ascending
+    end,
     db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder}).
 
 %% @spec find_first( Type::atom(), Conditions ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions'
 find_first(Type, Conditions) ->
-    return_one(find(Type, Conditions, 1)).
+    return_one(find(Type, Conditions, [{limit, 1}])).
 
 %% @spec find_first( Type::atom(), Conditions, Sort::atom() ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions',
 %% sorted on the attribute `Sort'.
 find_first(Type, Conditions, Sort) ->
-    return_one(find(Type, Conditions, 1, 0, Sort)).
+    return_one(find(Type, Conditions, [{limit, 1}, {order_by, Sort}])).
 
 %% @spec find_last( Type::atom(), Conditions ) -> Record | undefined
 %% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
 find_last(Type, Conditions) ->
-    return_one(find(Type, Conditions, 1, 0, id, str_descending)).
+    return_one(find(Type, Conditions, [{limit, 1}, descending])).
 
 %% @spec find_last( Type::atom(), Conditions, Sort ) -> Record | undefined
 %% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
 find_last(Type, Conditions, Sort) ->
-    return_one(find(Type, Conditions, 1, 0, Sort, str_descending)).
+    return_one(find(Type, Conditions, [{limit, 1}, {order_by, Sort}, descending])).
 
 %% @spec count( Type::atom() ) -> integer()
 %% @doc Count the number of BossRecords of type `Type' in the database.

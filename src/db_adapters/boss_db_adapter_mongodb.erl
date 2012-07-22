@@ -369,11 +369,8 @@ boss_to_mongo_op('not_in') -> '$nin'.
 
 
 % Sort clauses
-pack_sort_order(str_ascending) -> 1;
-pack_sort_order(num_ascending) -> 1;
-pack_sort_order(str_descending) -> -1;
-pack_sort_order(num_descending) -> -1.
-
+pack_sort_order(ascending) -> 1;
+pack_sort_order(descending) -> -1.
 
 
 %% 

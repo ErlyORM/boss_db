@@ -306,7 +306,7 @@ has_one_forms(HasOne, ModuleName, Opts) ->
             erl_syntax:function(erl_syntax:atom(HasOne),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                has_many_application_forms(Type, ForeignKey, 1, id, str_ascending)
+                                has_many_application_forms(Type, ForeignKey, 1, id, false)
                             )
                         ])]))
     ].
@@ -314,8 +314,8 @@ has_one_forms(HasOne, ModuleName, Opts) ->
 has_many_forms(HasMany, ModuleName, many, Opts) ->
     has_many_forms(HasMany, ModuleName, all, Opts);
 has_many_forms(HasMany, ModuleName, Limit, Opts) -> 
-    Sort = proplists:get_value(sort_by, Opts, 'id'),
-    SortOrder = proplists:get_value(sort_order, Opts, str_ascending),
+    Sort = proplists:get_value(order_by, Opts, 'id'),
+    IsDescending = proplists:get_value(descending, Opts, false),
     Singular = inflector:singularize(atom_to_list(HasMany)),
     Type = proplists:get_value(module, Opts, Singular),
     ForeignKey = proplists:get_value(foreign_key, Opts, atom_to_list(ModuleName) ++ "_id"),
@@ -326,7 +326,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
                                 "set to the `Id' of this `", ModuleName, "'"])])],
             erl_syntax:function(erl_syntax:atom(HasMany),
                 [erl_syntax:clause([], none, [
-                            has_many_application_forms(Type, ForeignKey, Limit, Sort, SortOrder)
+                            has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending)
                         ])])),
         erl_syntax:add_precomments([erl_syntax:comment(
                     [
@@ -336,7 +336,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
             erl_syntax:function(erl_syntax:atom("first_"++Singular),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                has_many_application_forms(Type, ForeignKey, 1, Sort, SortOrder)
+                                has_many_application_forms(Type, ForeignKey, 1, Sort, IsDescending)
                             )
                         ])])),
         erl_syntax:add_precomments([erl_syntax:comment(
@@ -347,7 +347,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
             erl_syntax:function(erl_syntax:atom("last_"++Singular),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                    has_many_application_forms(Type, ForeignKey, 1, Sort, reverse_sort_order(SortOrder))
+                                    has_many_application_forms(Type, ForeignKey, 1, Sort, not IsDescending)
                                 )
                         ])]))
     ].
@@ -358,12 +358,7 @@ first_or_undefined_forms(Forms) ->
                 [erl_syntax:variable(?PREFIX++"Record")]),
             erl_syntax:clause([erl_syntax:underscore()], none, [erl_syntax:atom(undefined)])]).
 
-reverse_sort_order(str_ascending) -> str_descending;
-reverse_sort_order(str_descending) -> str_ascending;
-reverse_sort_order(num_ascending) -> num_descending;
-reverse_sort_order(num_descending) -> num_ascending.
-
-has_many_application_forms(Type, ForeignKey, Limit, Sort, SortOrder) ->
+has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending) ->
     erl_syntax:application(
         erl_syntax:atom(?DATABASE_MODULE), 
         erl_syntax:atom(find),
@@ -373,10 +368,17 @@ has_many_application_forms(Type, ForeignKey, Limit, Sort, SortOrder) ->
                             erl_syntax:atom(ForeignKey),
                             erl_syntax:variable("Id")])
                 ]),
-            erl_syntax:integer(Limit),
-            erl_syntax:integer(0),
-            erl_syntax:atom(Sort),
-            erl_syntax:atom(SortOrder)
+            erl_syntax:list([
+                    erl_syntax:tuple([
+                            erl_syntax:atom(limit),
+                            erl_syntax:integer(Limit)]),
+                    erl_syntax:tuple([
+                            erl_syntax:atom(order_by),
+                            erl_syntax:atom(Sort)]),
+                    erl_syntax:tuple([
+                            erl_syntax:atom(descending),
+                            erl_syntax:atom(IsDescending)])
+                ])
         ]).
 
 belongs_to_forms(Type, BelongsTo, ModuleName) ->
