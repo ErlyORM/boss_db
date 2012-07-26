@@ -133,28 +133,20 @@ run_tests() ->
             end, 
             [
               fun(_) ->
-                  Res = boss_db:find(boss_db_test_model, [], 1),
+                  Res = boss_db:find(boss_db_test_model, [], [{limit, 1}]),
                   {length(Res) =:= 1, "Max not obeyed"}
               end,
               fun(_) ->
-                  Res = boss_db:find(boss_db_test_model, [], all, 1),
+                  Res = boss_db:find(boss_db_test_model, [], [{offset, 1}]),
                   {length(Res) =:= 2, "Skip not obeyed"}
               end,
               fun([_Id1, _Id2, Id3]) ->
-                  Res = boss_db:find(boss_db_test_model, [], 1, 0, some_text, str_ascending),
-                  {(hd(Res)):id() =:= Id3, "Sort str_ascending failed"}
+                  Res = boss_db:find(boss_db_test_model, [], [{limit, 1}, {order_by, some_text}, {descending, false}]),
+                  {(hd(Res)):id() =:= Id3, "Sort ascending failed"}
               end,
               fun([Id1, _Id2, _Id3]) ->
-                  Res = boss_db:find(boss_db_test_model, [], 1, 0, some_text, str_descending),
-                  {(hd(Res)):id() =:= Id1, "Sort str_descending failed"}
-              end,
-              fun([Id1, _Id2, _Id3]) ->
-                  Res = boss_db:find(boss_db_test_model, [], 1, 0, some_integer, num_ascending),
-                  {(hd(Res)):id() =:= Id1, "Sort num_ascending failed"}
-              end,
-              fun([_Id1, _Id2, Id3]) ->
-                  Res = boss_db:find(boss_db_test_model, [], 1, 0, some_integer, num_descending),
-                  {(hd(Res)):id() =:= Id3, "Sort num_descending failed"}
+                  Res = boss_db:find(boss_db_test_model, [], [{limit, 1}, {order_by, some_text}, descending]),
+                  {(hd(Res)):id() =:= Id1, "Sort descending failed"}
               end,
 
               fun(_) ->

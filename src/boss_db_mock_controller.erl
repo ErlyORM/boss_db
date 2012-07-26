@@ -24,7 +24,7 @@ handle_call({find, Type, Conditions, Max, Skip, SortBy, SortOrder}, _From, [{Dic
     Records = do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder),
     {reply, Records, State};
 handle_call({count, Type, Conditions}, _From, [{Dict, _IdCounter}|_] = State) ->
-    Records = do_find(Dict, Type, Conditions, all, 0, id, str_ascending),
+    Records = do_find(Dict, Type, Conditions, all, 0, id, ascending),
     {reply, length(Records), State};
 handle_call({delete, Id}, _From, [{Dict, IdCounter}|OldState]) ->
     {reply, ok, [{dict:erase(Id, Dict), IdCounter}|OldState]};
@@ -87,13 +87,9 @@ do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
                     AttributeA = sortable_attribute(RecordA, SortBy),
                     AttributeB = sortable_attribute(RecordB, SortBy),
                     case SortOrder of
-                        str_ascending ->
+                        ascending ->
                             AttributeA < AttributeB;
-                        str_descending ->
-                            AttributeA > AttributeB;
-                        num_ascending ->
-                            AttributeA < AttributeB;
-                        num_descending ->
+                        descending ->
                             AttributeA > AttributeB
                     end
             end,

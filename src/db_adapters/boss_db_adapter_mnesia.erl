@@ -88,10 +88,6 @@ apply_sort([], _Key, _Order) ->
     [];
 apply_sort(List, primary, Order) ->    
     apply_sort(List, id, Order);
-apply_sort(List, Key, str_ascending) ->    
-    apply_sort(List, Key, ascending);
-apply_sort(List, Key, str_descending) ->    
-    apply_sort(List, Key, descending);
 apply_sort(List, Key, ascending) ->    
     Fun = fun (A, B) -> apply(A,Key,[]) =< apply(B,Key,[]) end,
     lists:sort(Fun, List);

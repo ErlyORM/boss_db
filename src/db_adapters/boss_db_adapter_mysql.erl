@@ -215,14 +215,10 @@ keyindex(Key, N, [Tuple|Rest], Index) ->
         _ -> keyindex(Key, N, Rest, Index + 1)
     end.
 
-sort_order_sql(num_ascending) ->
-    "ASC";
-sort_order_sql(num_descending) ->
+sort_order_sql(descending) ->
     "DESC";
-sort_order_sql(str_ascending) ->
-    "ASC";
-sort_order_sql(str_descending) ->
-    "DESC".
+sort_order_sql(ascending) ->
+    "ASC".
 
 build_insert_query(Record) ->
     Type = element(1, Record),
@@ -253,14 +249,13 @@ build_update_query(Record) ->
     {_, TableName, Id} = infer_type_from_id(Record:id()),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({_, undefined}, Acc) -> Acc;
             ({A, V}, Acc) -> 
                 AString = atom_to_list(A),
-                Value = case lists:suffix("_id", AString) of
-                    true ->
+                Value = case {lists:suffix("_id", AString), V =:= undefined} of
+                    {true, false} ->
                         {_, _, ForeignId} = infer_type_from_id(V),
                         ForeignId;
-                    false ->
+                    _ ->
                         V
                 end,
                 [AString ++ " = " ++ pack_value(Value)|Acc]
@@ -387,8 +382,6 @@ pack_datetime(DateTime) ->
 
 pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
-pack_value(false) ->
-	"''";
 pack_value(undefined) ->
 	"null";
 pack_value(V) when is_binary(V) ->
