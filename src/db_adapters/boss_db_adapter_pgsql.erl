@@ -167,6 +167,7 @@ activate_record(Record, Metadata, Type) ->
                     AttrType = proplists:get_value(Key, AttributeTypes),
                     case element(Index, Record) of
                         undefined -> undefined;
+                        null -> undefined;
                         Val -> 
                             case lists:suffix("_id", KeyString) of
                                 true -> integer_to_id(Val, KeyString);
@@ -221,7 +222,6 @@ build_update_query(Record) ->
     {_, TableName, Id} = infer_type_from_id(Record:id()),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({_, undefined}, Acc) -> Acc;
             ({A, V}, Acc) -> 
                 AString = atom_to_list(A),
                 Value = case lists:suffix("_id", AString) of
@@ -377,6 +377,8 @@ escape_sql1([$'|Rest], Acc) ->
 escape_sql1([C|Rest], Acc) ->
     escape_sql1(Rest, [C|Acc]).
 
+pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
+    pack_datetime({Date, {Y, M, erlang:round(S)}});
 pack_datetime(DateTime) ->
     "TIMESTAMP '" ++ erlydtl_filters:date(DateTime, "c") ++ "'".
 
