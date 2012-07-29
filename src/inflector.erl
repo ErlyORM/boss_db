@@ -29,7 +29,7 @@
 -author('Luke Galea <luke@ideaforge.org>').
 -export([pluralize/1, singularize/1, camelize/1, lower_camelize/1, titleize/1, 
 	 capitalize/1, humanize/1, underscore/1, dasherize/1, tableize/1, moduleize/1,
-	 foreign_key/1, ordinalize/1, cached_re/2]).
+	 foreign_key/1, ordinalize/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -96,7 +96,7 @@ ord(N) -> io_lib:format("~Bth", [N]).
 
 %% Helpers		       
 re_compile( RE ) ->
-    { ok, Compiled } = cached_re( RE, [] ),
+    { ok, Compiled } = re:compile(RE, []),
     Compiled.
 
 re_replace( In, RE, Out ) ->
@@ -120,46 +120,12 @@ is_uncountable(Word) ->
 replace(Word, [] ) ->
     Word;
 replace(Word, [ {Regex, Replacement} | Remainder ] ) ->
-    { ok, RE } = cached_re(Regex, [caseless]),
+    RE = re_compile( Regex ), 
     case re:run( Word, RE ) of
 	{ match, _ } ->
 	    re_replace( Word, RE, Replacement );
 	nomatch ->
 	    replace(Word, Remainder)
-    end.
-
-%% Cached Regular Expressions
-cached_re( RE, Options ) ->
-    CachePid = re_cache(),
-    CachePid ! { get, self(), RE, Options },
-    receive
-	{ CachePid, CompiledRE } -> 
-	    CompiledRE
-    end.
-
-re_cache() ->
-    case whereis( re_cache ) of
-	undefined -> 
-	    Pid = spawn_link( fun() -> re_cache_loop( ets:new(cached_regexps,[]) ) end ),
-	    register( re_cache, Pid ),
-	    Pid;
-	Pid -> Pid 
-    end.
-
-re_cache_loop( CachedREs ) ->
-    receive
-	{ get, Caller, RE, Options } ->
-	    Caller ! { self(), re_find_or_compile( CachedREs, RE, Options ) },
-	    re_cache_loop( CachedREs )
-    end.
-
-re_find_or_compile( CachedREs, RE, Options ) ->
-    case ets:lookup( CachedREs, { RE, Options } ) of
-	[] ->
-	    CompiledRE = re:compile( RE, Options ), 
-	    true = ets:insert( CachedREs, { { RE, Options }, CompiledRE } ),
-	    CompiledRE;
-	[ { { RE, Options }, StoredRE } ] -> StoredRE
     end.
 
 %% Rules
@@ -305,11 +271,3 @@ ordinalize_test() ->
 
 foreign_key_test() ->
     "message_id" = foreign_key("Message").
-
-cached_re_test() ->
-    {ok, RE1} = cached_re("Abcdefg", []),
-    {ok, RE2} = cached_re("yuuuu", []),
-    {ok, RE1_1} = cached_re("Abcdefg", []),
-    true = (RE1 =:= RE1_1),
-    false = (RE2 =:= RE1), 
-    "QQQ?UUU" == re_replace( "QQQAbcdefgUUU", RE1_1, "?" ).
