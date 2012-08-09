@@ -46,9 +46,16 @@ handle_call({incr, Id, Amount}, _From, [{Dict, IdCounter}|OldState]) ->
     {reply, NewValue, [{dict:store(Id, NewValue, Dict), IdCounter}|OldState]};
 handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     Type = element(1, Record),
+    TypeString = atom_to_list(Type),
     {Id, IdCounter1} = case Record:id() of
         id -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1};
-        Other -> {Other, IdCounter}
+        ExistingId -> 
+            [TypeString, IdNum] = string:tokens(ExistingId, "-"),
+            Max = case list_to_integer(IdNum) of
+                N when N > IdCounter -> N;
+                _ -> IdCounter
+            end,
+            {lists:concat([Type, "-", IdNum]), Max + 1}
     end,
     NewAttributes = lists:map(fun
             ({id, _}) ->
