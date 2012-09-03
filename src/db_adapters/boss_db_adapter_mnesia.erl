@@ -132,12 +132,16 @@ test_rec(Rec,{Key, 'le', Value}) ->
 test_rec(Rec,{Key, 'matches', Value}) ->
     {ok, MP} = re:compile(Value),
     case re:run(apply(Rec,Key,[]), MP) of
-        {match,_} ->
-            true;
-        match ->
-            true;
-        _ ->
-            false
+        {match,_} -> true;
+        match -> true;
+        _ -> false
+    end;
+test_rec(Rec,{Key, 'matches', "*"++Value}) ->
+    {ok, MP} = re:compile(Value, [caseless]),
+    case re:run(apply(Rec,Key,[]), MP) of
+        {match,_} -> true;
+        match -> true;
+        _ -> false
     end;
 test_rec(Rec,{Key, 'not_matches', Value}) ->
     not test_rec(Rec,{Key, 'matches', Value});
