@@ -285,6 +285,8 @@ validate_record_types(Record) ->
                         true;
                     {{N1, N2, N3}, timestamp} when is_integer(N1), is_integer(N2), is_integer(N3) ->
                         true;
+                    {Data, atom} when is_atom(Data) ->
+                        true;
                     {_Data, Type} ->
                         false
                 end,
