@@ -126,9 +126,9 @@ test_rec(Rec,{Key, 'gt', Value}) ->
 test_rec(Rec,{Key, 'lt', Value}) ->
     apply(Rec,Key,[]) < Value;
 test_rec(Rec,{Key, 'ge', Value}) ->
-    apply(Rec,Key,[]) =< Value;
-test_rec(Rec,{Key, 'le', Value}) ->
     apply(Rec,Key,[]) >= Value;
+test_rec(Rec,{Key, 'le', Value}) ->
+    apply(Rec,Key,[]) =< Value;
 test_rec(Rec,{Key, 'matches', Value}) ->
     {ok, MP} = re:compile(Value),
     case re:run(apply(Rec,Key,[]), MP) of
