@@ -200,8 +200,12 @@ build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
 %    ?LOG("Key, Operator, Value", {Key, Operator, Value}),
 
     Condition = case {Operator, Value} of 
+        {'not_matches', "*"++Value} ->
+            [{Key, {'$not', {regex, list_to_binary(Value), <<"i">>}}}];
         {'not_matches', Value} ->
             [{Key, {'$not', {regex, list_to_binary(Value), <<"">>}}}];
+        {'matches', "*"++Value} ->
+            [{Key, {regex, list_to_binary(Value), <<"i">>}}];
         {'matches', Value} ->
             [{Key, {regex, list_to_binary(Value), <<"">>}}];
         {'contains', Value} ->
