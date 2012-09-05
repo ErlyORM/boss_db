@@ -106,14 +106,14 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
                             user_info = UserInfo, 
                             exp_time = ExpTime, 
                             ttl = TTL}, NewState#state.watch_dict),
-                    ttl_tree = boss_pq:insert_value(ExpTime, WatchId, NewState#state.ttl_tree)
+                    ttl_tree = tiny_pq:insert_value(ExpTime, WatchId, NewState#state.ttl_tree)
                 }};
         Error -> {reply, Error, State}
     end;
 handle_call({cancel_watch, WatchId}, _From, State) ->
     {RetVal, NewState} = case dict:find(WatchId, State#state.watch_dict) of
         {ok, #watch{ exp_time = ExpTime }} ->
-            NewTree = boss_pq:move_value(ExpTime, 0, WatchId, State#state.ttl_tree),
+            NewTree = tiny_pq:move_value(ExpTime, 0, WatchId, State#state.ttl_tree),
             {ok, State#state{ ttl_tree = NewTree }};
         _ ->
             {{error, not_found}, State}
@@ -124,7 +124,7 @@ handle_call({extend_watch, WatchId}, _From, State0) ->
     {RetVal, NewState} = case dict:find(WatchId, State#state.watch_dict) of
         {ok, #watch{ exp_time = ExpTime, ttl = TTL } = Watch} ->
             NewExpTime = future_time(TTL),
-            NewTree = boss_pq:move_value(ExpTime, NewExpTime, WatchId, State#state.ttl_tree),
+            NewTree = tiny_pq:move_value(ExpTime, NewExpTime, WatchId, State#state.ttl_tree),
             {ok, State#state{ ttl_tree = NewTree, 
                     watch_dict = dict:store(WatchId, Watch#watch{ exp_time = NewExpTime }, State#state.watch_dict) }};
         _ ->
@@ -252,7 +252,7 @@ activate_record(Id, Attrs) ->
 
 prune_expired_entries(#state{ ttl_tree = Tree } = State) ->
     Now = future_time(0),
-    {NewState, NewTree} = boss_pq:prune(fun(WatchId, StateAcc) ->
+    {NewState, NewTree} = tiny_pq:prune_collect_old(fun(WatchId, StateAcc) ->
                 #watch{ watch_list = WatchList } = dict:fetch(WatchId, StateAcc#state.watch_dict),
                 NewState = lists:foldr(fun
                         ({id, TopicString}, Acc) ->
