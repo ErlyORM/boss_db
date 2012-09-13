@@ -11,8 +11,12 @@ start_link() ->
 start_link(Args) ->
     gen_server:start_link({global, boss_db_mock}, ?MODULE, Args, []).
 
-init(_Options) ->
-    {ok, [{dict:new(), 1}]}.
+init(Options) ->
+    InitialIdCounter = case proplists:get_value(db_keytype, Options, serial) of
+                           serial -> 1;
+                           uuid   -> uuid
+                       end,
+    {ok, [{dict:new(), InitialIdCounter}]}.
 
 handle_call({find, Id}, _From, [{Dict, _IdCounter}|_] = State) ->
     Reply = case dict:find(Id, Dict) of
@@ -48,14 +52,21 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     Type = element(1, Record),
     TypeString = atom_to_list(Type),
     {Id, IdCounter1} = case Record:id() of
-        id -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1};
+        id -> case IdCounter of
+                  uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:v4())]), uuid};
+                  _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
+              end;
         ExistingId -> 
-            [TypeString, IdNum] = string:tokens(ExistingId, "-"),
-            Max = case list_to_integer(IdNum) of
-                N when N > IdCounter -> N;
-                _ -> IdCounter
-            end,
-            {lists:concat([Type, "-", IdNum]), Max + 1}
+            case IdCounter of
+                uuid -> {ExistingId, uuid};
+                _    ->
+                  [TypeString, IdNum] = string:tokens(ExistingId, "-"),
+                   Max = case list_to_integer(IdNum) of
+                           N when N > IdCounter -> N;
+                           _ -> IdCounter
+                         end,
+                   {lists:concat([Type, "-", IdNum]), Max + 1}
+            end
     end,
     NewAttributes = lists:map(fun
             ({id, _}) ->
