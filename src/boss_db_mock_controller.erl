@@ -11,12 +11,8 @@ start_link() ->
 start_link(Args) ->
     gen_server:start_link({global, boss_db_mock}, ?MODULE, Args, []).
 
-init(Options) ->
-    InitialIdCounter = case proplists:get_value(db_keytype, Options, serial) of
-                           serial -> 1;
-                           uuid   -> uuid
-                       end,
-    {ok, [{dict:new(), InitialIdCounter}]}.
+init(_Options) ->
+    {ok, [{dict:new(), 1}]}.
 
 handle_call({find, Id}, _From, [{Dict, _IdCounter}|_] = State) ->
     Reply = case dict:find(Id, Dict) of
@@ -52,12 +48,12 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     Type = element(1, Record),
     TypeString = atom_to_list(Type),
     {Id, IdCounter1} = case Record:id() of
-        id -> case keytype(Record, IdCounter) of
+        id -> case keytype(Record) of
                   uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:v4())]), uuid};
                   _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
               end;
         ExistingId -> 
-            case keytype(Record, IdCounter) of
+            case keytype(Record) of
                 uuid -> {ExistingId, uuid};
                 _    ->
                   [TypeString, IdNum] = string:tokens(ExistingId, "-"),
@@ -100,16 +96,8 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 
-keytype(Record, Counter) ->
-    RecordType = proplists:get_value(id, Record:attribute_types()),
-    if 
-        Counter =:= uuid -> uuid;
-        RecordType =:= uuid -> uuid;
-        true -> unknown
-    end.                                                                          
-                                                                            
-             
-
+keytype(Record) ->
+    proplists:get_value(id, Record:attribute_types(), unspecified).  
 
 do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
     Tail = lists:nthtail(Skip, 

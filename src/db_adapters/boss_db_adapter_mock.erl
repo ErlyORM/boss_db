@@ -8,7 +8,7 @@
 start(Options) ->
     case proplists:get_value(is_master_node, Options, true) of
         true ->
-            boss_db_mock_sup:start_link(Options);
+            boss_db_mock_sup:start_link();
         false ->
             ok
     end.
