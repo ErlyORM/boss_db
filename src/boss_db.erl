@@ -266,36 +266,40 @@ validate_record(Record) ->
 validate_record_types(Record) ->
     Errors = lists:foldl(fun
             ({Attr, Type}, Acc) ->
-                Data = Record:Attr(),
-                GreatSuccess = case {Data, Type} of
-                    {undefined, _} ->
-                        true;
-                    {Data, string} when is_list(Data) ->
-                        true;
-                    {Data, binary} when is_binary(Data) ->
-                        true;
-                    {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3), 
-                                                                  is_integer(T1), is_integer(T2), is_integer(T3) ->
-                        true;
-                    {Data, integer} when is_integer(Data) ->
-                        true;
-                    {Data, float} when is_float(Data) ->
-                        true;
-                    {Data, boolean} when is_boolean(Data) ->
-                        true;
-                    {{N1, N2, N3}, timestamp} when is_integer(N1), is_integer(N2), is_integer(N3) ->
-                        true;
-                    {Data, atom} when is_atom(Data) ->
-                        true;
-                    {_Data, Type} ->
-                        false
-                end,
-                if
-                    GreatSuccess ->
-                        Acc;
-                    true -> 
-                        [lists:concat(["Invalid data type for ", Attr])|Acc]
-                end
+                case Attr of
+                  id -> Acc;
+                  _  ->                                 
+                    Data = Record:Attr(),
+                    GreatSuccess = case {Data, Type} of
+                        {undefined, _} ->
+                            true;
+                        {Data, string} when is_list(Data) ->
+                            true;
+                        {Data, binary} when is_binary(Data) ->
+                            true;
+                        {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3), 
+                                                                      is_integer(T1), is_integer(T2), is_integer(T3) ->
+                            true;
+                        {Data, integer} when is_integer(Data) ->
+                            true;
+                        {Data, float} when is_float(Data) ->
+                            true;
+                        {Data, boolean} when is_boolean(Data) ->
+                            true;
+                        {{N1, N2, N3}, timestamp} when is_integer(N1), is_integer(N2), is_integer(N3) ->
+                            true;
+                        {Data, atom} when is_atom(Data) ->
+                            true;
+                        {_Data, Type} ->
+                            false
+                    end,
+                    if
+                        GreatSuccess ->
+                            Acc;
+                        true -> 
+                            [lists:concat(["Invalid data type for ", Attr])|Acc]
+                    end
+                  end
         end, [], Record:attribute_types()),
     case Errors of
         [] -> ok;
