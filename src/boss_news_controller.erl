@@ -75,7 +75,7 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
                         end,
                         {ok, NewState1, [WatchInfo|WatchListAcc]};
                     _ -> 
-                        case re:split(SingleTopic, "-", [{return, list}]) of
+                        case re:split(SingleTopic, "-", [{return, list}, {parts, 2}]) of
                             [_Module, _IdNum] ->
                                 IdWatchers = case dict:find(SingleTopic, State#state.id_watchers) of
                                     {ok, Val} -> Val;
@@ -96,7 +96,7 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
                 end;
             (_, Error) ->
                 Error
-        end, {ok, State, []}, re:split(TopicString, ", +", [{return, list}])),
+        end, {ok, State, []}, re:split(TopicString, ", +", [{return, list}, {parts, 2}])),
     case RetVal of
         ok -> {reply, RetVal, NewState#state{ 
                     watch_dict = dict:store(WatchId, 
@@ -133,7 +133,7 @@ handle_call({extend_watch, WatchId}, _From, State0) ->
     {reply, RetVal, NewState};
 handle_call({created, Id, Attrs}, _From, State0) ->
     State = prune_expired_entries(State0),
-    [Module | _IdNum] = re:split(Id, "-", [{return, list}]),
+    [Module | _IdNum] = re:split(Id, "-", [{return, list}, {parts, 2}]),
     PluralModel = inflector:pluralize(Module),
     {RetVal, State1} = case dict:find(PluralModel, State#state.set_watchers) of
         {ok, SetWatchers} -> 
@@ -156,7 +156,7 @@ handle_call({created, Id, Attrs}, _From, State0) ->
     {reply, RetVal, State1};
 handle_call({deleted, Id, OldAttrs}, _From, State0) ->
     State = prune_expired_entries(State0),
-    [Module | _IdNum] = re:split(Id, "-", [{return, list}]),
+    [Module | _IdNum] = re:split(Id, "-", [{return, list}, {parts, 2}]),
     PluralModel = inflector:pluralize(Module),
     {RetVal, State1} = case dict:find(PluralModel, State#state.set_watchers) of
         {ok, SetWatchers} -> 
@@ -182,7 +182,7 @@ handle_call({deleted, Id, OldAttrs}, _From, State0) ->
     {reply, RetVal, State1};
 handle_call({updated, Id, OldAttrs, NewAttrs}, _From, State0) ->
     State = prune_expired_entries(State0),
-    [Module | _IdNum] = re:split(Id, "-", [{return, list}]),
+    [Module | _IdNum] = re:split(Id, "-", [{return, list}, {parts, 2}]),
     IdWatchers = case dict:find(Id, State#state.id_attr_watchers) of
         {ok, Val} -> Val;
         _ -> []
@@ -242,7 +242,7 @@ future_time(TTL) ->
     MegaSecs * 1000 * 1000 + Secs + TTL.
 
 activate_record(Id, Attrs) ->
-    [Module | _IdNum] = re:split(Id, "-", [{return, list}]),
+    [Module | _IdNum] = re:split(Id, "-", [{return, list}, {parts, 2}]),
     Type = list_to_atom(Module),
     DummyRecord = boss_record_lib:dummy_record(Type),
     apply(Type, new, lists:map(fun
