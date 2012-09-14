@@ -54,7 +54,7 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
             (SingleTopic, {ok, StateAcc, WatchListAcc}) ->
                 case re:split(SingleTopic, "\\.", [{return, list}]) of
                     [Id, Attr] ->
-                        [Module, IdNum] = re:split(Id, "-", [{return, list}]),
+                        [Module, IdNum] = re:split(Id, "-", [{return, list}, {parts, 2}]),
                         {NewState1, WatchInfo} = case IdNum of
                             "*" ->
                                 SetAttrWatchers = case dict:find(Module, StateAcc#state.set_attr_watchers) of
