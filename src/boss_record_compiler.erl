@@ -228,15 +228,15 @@ set_attributes_forms(ModuleName, Parameters) ->
                                                     erl_syntax:variable(P)])
                                     end, Parameters))])])),
     erl_syntax:add_precomments([erl_syntax:comment(
-                    ["% @spec set(Attribute::atom(), NewValue) -> "++inflector:camelize(atom_to_list(ModuleName)),
+                ["% @spec set(Attribute::atom(), NewValue::any()) -> "++inflector:camelize(atom_to_list(ModuleName)),
                         "% @doc Set the value of a particular attribute. Does not save the record."])],
             erl_syntax:function(
                 erl_syntax:atom(set),
-                [erl_syntax:clause([erl_syntax:variable("Attribute"), erl_syntax:variable("NewValue")], none,
+                [erl_syntax:clause([erl_syntax:variable(?PREFIX++"Attribute"), erl_syntax:variable(?PREFIX++"NewValue")], none,
                         [
                             erl_syntax:application(
                                 erl_syntax:atom(set),
-                                [erl_syntax:list([erl_syntax:tuple([erl_syntax:variable("Attribute"), erl_syntax:variable("NewValue")])])])
+                                [erl_syntax:list([erl_syntax:tuple([erl_syntax:variable(?PREFIX++"Attribute"), erl_syntax:variable(?PREFIX++"NewValue")])])])
                         ])]))
     ].
 
