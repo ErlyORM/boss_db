@@ -36,6 +36,9 @@ process_tokens([{']',_},{')',_},{dot,_}|_]=Tokens, TokenAcc, Acc) ->
 process_tokens([{'-',N}=T1,{atom,N,module}=T2,{'(',_}=T3,{atom,_,_ModuleName}=T4,{',',_}=T5,
         {'[',_}=T6,{var,_,'Id'}=T7|Rest], TokenAcc, []) ->
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), []);
+process_tokens([{'-',_N}=T1,{atom,_,module}=T2,{'(',_}=T3,{atom,_,_ModuleName}=T4,{',',_}=T5,
+                {'[',_}=T6,{var,_,'Id'}=T7,{'::',_},{atom,_,VarType},{'(',_},{')',_}|Rest], TokenAcc, []) ->    
+    process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), [{'Id', VarType}]);
 process_tokens([{',',_}=T1,{var,_,VarName}=T2,{'::',_},{atom,_,VarType},{'(',_},{')',_}|Rest], TokenAcc, Acc) ->
     process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, VarType}|Acc]);
 process_tokens([H|T], TokenAcc, Acc) ->
