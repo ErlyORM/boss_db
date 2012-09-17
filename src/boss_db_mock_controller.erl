@@ -48,14 +48,21 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     Type = element(1, Record),
     TypeString = atom_to_list(Type),
     {Id, IdCounter1} = case Record:id() of
-        id -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1};
+        id -> case keytype(Record) of
+                  uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:v4())]), IdCounter};
+                  _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
+              end;
         ExistingId -> 
-            [TypeString, IdNum] = string:tokens(ExistingId, "-"),
-            Max = case list_to_integer(IdNum) of
-                N when N > IdCounter -> N;
-                _ -> IdCounter
-            end,
-            {lists:concat([Type, "-", IdNum]), Max + 1}
+            case keytype(Record) of
+                uuid -> {ExistingId, IdCounter};
+                _    ->
+                  [TypeString, IdNum] = string:tokens(ExistingId, "-"),
+                   Max = case list_to_integer(IdNum) of
+                           N when N > IdCounter -> N;
+                           _ -> IdCounter
+                         end,
+                   {lists:concat([Type, "-", IdNum]), Max + 1}
+            end
     end,
     NewAttributes = lists:map(fun
             ({id, _}) ->
@@ -87,6 +94,10 @@ code_change(_OldVsn, State, _Extra) ->
 
 handle_info(_Info, State) ->
     {noreply, State}.
+
+
+keytype(Record) ->
+    proplists:get_value(id, Record:attribute_types(), unspecified).  
 
 do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
     Tail = lists:nthtail(Skip, 
