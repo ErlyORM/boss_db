@@ -49,7 +49,7 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     TypeString = atom_to_list(Type),
     {Id, IdCounter1} = case Record:id() of
         id -> case keytype(Record) of
-                  uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:v4())]), IdCounter};
+                  uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]), IdCounter};
                   _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
               end;
         ExistingId -> 
