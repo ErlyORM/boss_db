@@ -102,12 +102,13 @@ delete(Conn, Id) when is_list(Id) ->
 save_record(Conn, Record) when is_tuple(Record) ->
     case Record:id() of
         id ->
-            Type = element(1, Record),
-            Query = build_insert_query(Record),
+            Record1 = maybe_populate_id_value(Record),
+            Type = element(1, Record1),
+            Query = build_insert_query(Record1),
             Res = pgsql:equery(Conn, Query, []),
             case Res of
                 {ok, _, _, [{Id}]} ->
-                    {ok, Record:set(id, lists:concat([Type, "-", integer_to_list(Id)]))};
+                    {ok, Record1:set(id, lists:concat([Type, "-", id_value_to_string(Id)]))};
                 {error, Reason} -> {error, Reason}
             end;
         Defined when is_list(Defined) ->
@@ -118,6 +119,7 @@ save_record(Conn, Record) when is_tuple(Record) ->
                 {error, Reason} -> {error, Reason}
             end
     end.
+
 
 push(Conn, Depth) ->
     case Depth of 0 -> pgsql:squery(Conn, "BEGIN"); _ -> ok end,
@@ -142,9 +144,24 @@ transaction(Conn, TransactionFun) ->
 
 % internal
 
+id_value_to_string(Id) when is_atom(Id) -> atom_to_list(Id);
+id_value_to_string(Id) when is_integer(Id) -> integer_to_list(Id);
+id_value_to_string(Id) when is_binary(Id) -> binary_to_list(Id);
+id_value_to_string(Id) -> Id.
+
 infer_type_from_id(Id) when is_list(Id) ->
-    [Type, TableId] = string:tokens(Id, "-"),
-    {list_to_atom(Type), type_to_table_name(Type), list_to_integer(TableId)}.
+    [Type, TableId] = re:split(Id, "-", [{return, list}, {parts, 2}]),
+    IdValue = case boss_record_lib:keytype(Type) of
+                uuid -> TableId;
+                serial -> list_to_integer(TableId)
+            end,
+    {list_to_atom(Type), type_to_table_name(Type), IdValue}.
+
+maybe_populate_id_value(Record) ->
+    case boss_record_lib:keytype(Record) of 
+        uuid -> Record:set(id, uuid:to_string(uuid:v4()));
+        _ -> Record
+end.
 
 type_to_table_name(Type) when is_atom(Type) ->
     type_to_table_name(atom_to_list(Type));
@@ -153,14 +170,14 @@ type_to_table_name(Type) when is_list(Type) ->
 
 integer_to_id(Val, KeyString) ->
     ModelName = string:substr(KeyString, 1, string:len(KeyString) - string:len("_id")),
-    ModelName ++ "-" ++ integer_to_list(Val).
+    ModelName ++ "-" ++ id_value_to_string(Val).
 
 activate_record(Record, Metadata, Type) ->
     AttributeTypes = boss_record_lib:attribute_types(Type),
     apply(Type, new, lists:map(fun
                 (id) ->
                     Index = keyindex(<<"id">>, 2, Metadata),
-                    atom_to_list(Type) ++ "-" ++ integer_to_list(element(Index, Record));
+                    atom_to_list(Type) ++ "-" ++ id_value_to_string(element(Index, Record));
                 (Key) ->
                     KeyString = atom_to_list(Key),
                     Index = keyindex(list_to_binary(KeyString), 2, Metadata),
@@ -197,6 +214,7 @@ build_insert_query(Record) ->
     TableName = type_to_table_name(Type),
     {Attributes, Values} = lists:foldl(fun
             ({id, V}, {Attrs, Vals}) when is_integer(V) -> {[atom_to_list(id)|Attrs], [pack_value(V)|Vals]};
+            ({id, V}, {Attrs, Vals}) when is_list(V) -> {[atom_to_list(id)|Attrs], [pack_value(V)|Vals]};
             ({id, _}, Acc) -> Acc;
             ({_, undefined}, Acc) -> Acc;
             ({A, V}, {Attrs, Vals}) ->
