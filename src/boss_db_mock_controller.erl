@@ -48,12 +48,12 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     Type = element(1, Record),
     TypeString = atom_to_list(Type),
     {Id, IdCounter1} = case Record:id() of
-        id -> case keytype(Record) of
+        id -> case boss_record_lib:keytype(Record) of
                   uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]), IdCounter};
                   _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
               end;
         ExistingId -> 
-            case keytype(Record) of
+            case boss_record_lib:keytype(Record) of
                 uuid -> {ExistingId, IdCounter};
                 _    ->
                   [TypeString, IdNum] = string:tokens(ExistingId, "-"),
@@ -95,9 +95,6 @@ code_change(_OldVsn, State, _Extra) ->
 handle_info(_Info, State) ->
     {noreply, State}.
 
-
-keytype(Record) ->
-    proplists:get_value(id, Record:attribute_types(), unspecified).  
 
 do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
     Tail = lists:nthtail(Skip, 
