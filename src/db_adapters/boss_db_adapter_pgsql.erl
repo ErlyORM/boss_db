@@ -159,10 +159,7 @@ infer_type_from_id(Id) when is_list(Id) ->
 
 maybe_populate_id_value(Record) ->
     case boss_record_lib:keytype(Record) of 
-        uuid -> 
-            UUID = uuid:to_string(uuid:uuid4()),
-            io:format("UUID is ~p~n", [UUID]),
-            Record:set(id, UUID);
+        uuid -> Record:set(id, uuid:to_string(uuid:uuid4()));
         _ -> Record
 end.
 
