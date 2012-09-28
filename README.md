@@ -222,3 +222,21 @@ Pooling
 
 BossDB uses Poolboy to create a connection pool to the database. Connection pooling
 is supported with all databases.
+
+
+Primary Keys
+------------
+
+The Id field of each model is assumed to be an integer supplied by the
+database (e.g., a SERIAL type in Postgres or AUTOINCREMENT in MySQL).
+Specifying an Id value other than the atom 'id' for a new record will
+result in an error.
+
+When using the mock or pgsql adapters, the Id may have a type of
+::uuid().  This will coerce boss_db into generating a v4 UUID for the
+Id field before saving the record (in other words, the UUID is
+provided by boss_db and not by the application nor by the DB).  UUIDs
+are useful PKs when data are being aggregated from multiple sources.
+
+The default Id type ::serial() may be explicitly supplied.  Note that
+all Id types, valid or otherwise, pass type validation.
