@@ -247,8 +247,12 @@ build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
             [{Key, Value}];
         {Operator, {{_,_,_},{_,_,_}} = Value} -> 
             [{Key, {boss_to_mongo_op(Operator), datetime_to_now(Value)}}];
+        {'in', [H|T]} ->
+            [{Key, {'$in', lists:map(list_pack_function(Key), [H|T])}}];
         {'in', {Min, Max}} -> 
             [{Key, {'$gte', Min}}, {Key, {'$lte', Max}}];
+        {'not_in', [H|T]} ->
+            [{Key, {'$nin', lists:map(list_pack_function(Key), [H|T])}}];
         {'not_in', {Min, Max}} -> 
             [{'$or', [{Key, {'$lt', Min}}, {Key, {'$gt', Max}}]}];
         {Operator, Value} -> 
@@ -256,6 +260,18 @@ build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
     end,
 %    ?LOG("Condition", Condition),
     build_conditions1(Rest, lists:append(Condition, Acc)).
+
+list_pack_function(Key) ->
+    case is_id_attr(Key) of
+        true ->
+            fun(Id) -> pack_id(Id) end;
+        false ->
+            fun(Value) when is_list(Value) ->
+                    list_to_binary(Value);
+               (Value) ->
+                    Value
+            end
+    end.
 
 where_clause(Format, Params) ->
     erlang:iolist_to_binary(
