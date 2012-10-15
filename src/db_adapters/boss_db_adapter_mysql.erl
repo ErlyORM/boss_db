@@ -49,6 +49,7 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
         true ->
             Query = build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder),
             Res = fetch(Pid, Query),
+
             case Res of
                 {data, MysqlRes} ->
                     Columns = mysql:get_result_field_info(MysqlRes),
@@ -166,7 +167,43 @@ execute(Pid, Commands) ->
     fetch(Pid, Commands).
 
 transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
-    mysql_conn:transaction(Pid, TransactionFun, self()).
+    do_transaction(Pid, TransactionFun).
+    
+do_transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
+    case do_begin(Pid, self()) of
+ 	{error, _} = Err ->	
+ 	    {aborted, Err};
+ 	{updated,{mysql_result,[],[],0,0,[]}} ->
+	    case catch TransactionFun() of
+		error = Err ->  
+				do_rollback(Pid, self()),
+				{aborted, Err};
+		{error, _} = Err -> 
+				do_rollback(Pid, self()),
+				{aborted, Err};
+		{'EXIT', _} = Err -> 
+				do_rollback(Pid, self()),
+				{aborted, Err};
+		Res ->
+		    case do_commit(Pid, self()) of
+			{error, _} = Err ->
+			    do_rollback(Pid, self()),
+			    {aborted, Err};
+			_ ->
+			    {atomic, Res}
+		    end
+	    end
+    end.    
+
+do_begin(Pid,_)->
+	fetch(Pid, ["BEGIN"]).	
+
+do_commit(Pid,_)->
+	fetch(Pid, ["COMMIT"]).
+
+do_rollback(Pid,_)->
+	fetch(Pid, ["ROLLBACK"]).
+
 
 % internal
 
