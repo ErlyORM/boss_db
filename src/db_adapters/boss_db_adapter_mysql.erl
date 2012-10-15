@@ -382,6 +382,8 @@ pack_datetime(DateTime) ->
 
 pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
+pack_value(null) ->
+	"null";
 pack_value(undefined) ->
 	"null";
 pack_value(V) when is_binary(V) ->
