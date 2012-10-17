@@ -429,6 +429,8 @@ pack_value(V) when is_list(V) ->
     "'" ++ escape_sql(V) ++ "'";
 pack_value({MegaSec, Sec, MicroSec}) when is_integer(MegaSec) andalso is_integer(Sec) andalso is_integer(MicroSec) ->
     pack_now({MegaSec, Sec, MicroSec});
+pack_value({date, Date = {_,_,_}}) ->    
+    pack_datetime({Date,{0,0,0}});    
 pack_value({{_, _, _}, {_, _, _}} = Val) ->
     pack_datetime(Val);
 pack_value(Val) when is_integer(Val) ->
