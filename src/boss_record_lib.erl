@@ -44,7 +44,7 @@ is_boss_record(_, _) ->
 
 dummy_record(Module) ->
     NumArgs = proplists:get_value('new', Module:module_info(exports)),
-    apply(Module, 'new', lists:map(fun(1) -> 'id'; (_) -> undefined end, lists:seq(1, NumArgs))).
+    apply(Module, 'new', ['id'] ++ lists:duplicate(NumArgs-1, undefined)).
 
 attribute_names(Module) ->
     DummyRecord = dummy_record(Module),
