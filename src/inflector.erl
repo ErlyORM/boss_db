@@ -87,7 +87,7 @@ moduleize(TableName) ->
 ordinalize(N) ->
     lists:flatten( ord(N) ).
 
-ord(N) when (N rem 100 >= 11) and (N rem 100 =< 13) -> io_lib:format("~Bth", N);
+ord(N) when (N rem 100 >= 11) and (N rem 100 =< 13) -> io_lib:format("~Bth", [N]);
 ord(N) when (N rem 10) =:= 1 -> io_lib:format("~Bst", [N]);
 ord(N) when (N rem 10) =:= 2 -> io_lib:format("~Bnd", [N]);
 ord(N) when (N rem 10) =:= 3 -> io_lib:format("~Brd", [N]);
