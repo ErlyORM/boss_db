@@ -113,4 +113,6 @@ convert_value_to_type("false", boolean) -> false;
 convert_value_to_type(1, boolean) -> true;
 convert_value_to_type(0, boolean) -> false;
 convert_value_to_type(true, boolean) -> true;
-convert_value_to_type(false, boolean) -> false.
+convert_value_to_type(false, boolean) -> false;
+
+convert_value_to_type(Val, float) -> Val.
