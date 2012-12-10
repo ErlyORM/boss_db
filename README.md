@@ -149,6 +149,7 @@ Accepted types are:
 * string()
 * binary()
 * datetime()
+* date()
 * timestamp() [e.g. returned by erlang:now()]
 * integer()
 * float()
