@@ -417,6 +417,9 @@ escape_sql1([C|Rest], Acc) ->
 pack_datetime(DateTime) ->
     "'" ++ erlydtl_filters:date(DateTime, "Y-m-d H:i:s") ++ "'".
 
+pack_date(Date) ->
+    "'" ++ erlydtl_filters:date(Date, "Y-m-d") ++ "'".
+
 pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
 pack_value(null) ->
@@ -427,10 +430,8 @@ pack_value(V) when is_binary(V) ->
     pack_value(binary_to_list(V));
 pack_value(V) when is_list(V) ->
     "'" ++ escape_sql(V) ++ "'";
-pack_value({MegaSec, Sec, MicroSec}) when is_integer(MegaSec) andalso is_integer(Sec) andalso is_integer(MicroSec) ->
-    pack_now({MegaSec, Sec, MicroSec});
-pack_value({date, Date = {_,_,_}}) ->    
-    pack_datetime({Date,{0,0,0}});    
+pack_value({_, _, _} = Val) ->
+	pack_date(Val);    
 pack_value({{_, _, _}, {_, _, _}} = Val) ->
     pack_datetime(Val);
 pack_value(Val) when is_integer(Val) ->

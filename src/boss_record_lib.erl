@@ -102,6 +102,11 @@ convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}} = Val, timestamp) when is_int
 convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}} = Val, datetime) when is_integer(D1), is_integer(D2), is_integer(D3), 
                                                                          is_integer(T1), is_integer(T2), is_integer(T3) ->
     Val;
+convert_value_to_type({D1, D2, D3} = Val, date) when is_integer(D1), is_integer(D2), is_integer(D3) ->
+    Val;
+convert_value_to_type({date, {D1, D2, D3} = Val}, date) when is_integer(D1), is_integer(D2), is_integer(D3) ->
+	io:format("rumbera - convertion {dat??} = ~p~n", [Val]),
+    Val;
 convert_value_to_type(<<"1">>, boolean) -> true;
 convert_value_to_type(<<"0">>, boolean) -> false;
 convert_value_to_type(<<"true">>, boolean) -> true;
