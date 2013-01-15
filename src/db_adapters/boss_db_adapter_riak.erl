@@ -76,7 +76,11 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     end,
     case Max of
         all -> lists:nthtail(Skip, Sorted);
-        _ -> lists:sublist(Sorted, Skip + 1, Max)
+        Max when Skip < length(Sorted) ->
+            lists:sublist(Sorted, Skip + 1, Max);                                                                                             
+        _ ->  
+            []  
+
     end.
 
 % this is a stub just to make the tests runable
