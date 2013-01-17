@@ -208,6 +208,8 @@ build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
             [{Key, {regex, list_to_binary(Value), <<"i">>}}];
         {'matches', Value} ->
             [{Key, {regex, list_to_binary(Value), <<"">>}}];
+	{'regex', Value} ->
+	    [{Key, {regex, Value, <<"">>}}];
         {'contains', Value} ->
             WhereClause = where_clause(
                 ?CONTAINS_FORMAT, [Key, Value]),
