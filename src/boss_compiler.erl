@@ -187,7 +187,10 @@ transform_char(8869) -> % ⊥
 transform_char(10178) -> % ⊥ look-alike
     {ok, ",'contains_none',"};
 transform_char(Char) when Char > 127 ->
-    {ok, lists:flatten(io_lib:format("\\x{~.16B}", [Char]))};
+    Bytes = binary_to_list(unicode:characters_to_binary([Char], unicode, utf8)),
+    {ok, lists:flatten(lists:map(fun(Byte) ->
+                        io_lib:format("\\x{~.16B}", [Byte])
+                end, Bytes))};
 transform_char(_) ->
     error.
 
