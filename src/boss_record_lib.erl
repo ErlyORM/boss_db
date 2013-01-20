@@ -77,6 +77,10 @@ convert_value_to_type(Val, integer) when is_list(Val) ->
     list_to_integer(Val);
 convert_value_to_type(Val, integer) when is_binary(Val) ->
     list_to_integer(binary_to_list(Val));
+convert_value_to_type(Val, float) when is_float(Val) -> 
+    Val;
+convert_value_to_type(Val, float) when is_integer(Val) -> 
+    1.0 * Val;
 convert_value_to_type(Val, string) when is_integer(Val) ->
     integer_to_list(Val);
 convert_value_to_type(Val, string) when is_binary(Val) ->
@@ -117,6 +121,4 @@ convert_value_to_type("false", boolean) -> false;
 convert_value_to_type(1, boolean) -> true;
 convert_value_to_type(0, boolean) -> false;
 convert_value_to_type(true, boolean) -> true;
-convert_value_to_type(false, boolean) -> false;
-
-convert_value_to_type(Val, float) -> Val.
+convert_value_to_type(false, boolean) -> false.

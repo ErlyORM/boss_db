@@ -27,7 +27,7 @@ Usage
 
     boss_db:start(DBOptions),
     boss_cache:start(CacheOptions), % If you want cacheing with Memcached
-    boss_news:start() % If you want events
+    boss_news:start() % Mandatory! Hopefully will be optional one day
 
     DBOptions = [
         {adapter, mock | tyrant | riak | mysql | pgsql | mnesia | mongodb},
