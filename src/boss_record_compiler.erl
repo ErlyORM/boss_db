@@ -67,6 +67,7 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
     GeneratedForms = 
         attribute_names_forms(ModuleName, Parameters) ++
         attribute_types_forms(ModuleName, TokenInfo) ++
+        attribute_columns_forms(ModuleName, Parameters, Attributes) ++
         validate_types_forms(ModuleName) ++
         validate_forms(ModuleName) ++
         save_forms(ModuleName) ++
@@ -130,6 +131,23 @@ export_forms([], Acc) ->
     lists:reverse(Acc);
 export_forms([{Name, Arity}|Rest], Acc) ->
     export_forms(Rest, [erl_syntax:attribute(erl_syntax:atom(export), [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(Arity))])])|Acc]).
+
+attribute_columns_forms(ModuleName, Parameters, Attributes) ->
+    DefinedColumns = proplists:get_value(Attributes, columns, []),
+    Function = erl_syntax:function(
+        erl_syntax:atom(attribute_columns),
+        [erl_syntax:clause([], none, [erl_syntax:list(lists:map( fun(P) -> 
+                                    LC = parameter_to_colname(P),
+                                    AC = list_to_atom(LC),
+                                    Column = proplists:get_value(AC, DefinedColumns, LC),
+                                    erl_syntax:tuple([erl_syntax:atom(AC), erl_syntax:string(Column)])
+                            end, Parameters))])]),
+
+    [erl_syntax:add_precomments([erl_syntax:comment(
+                    ["% @spec attribute_columns() -> [{atom(), string()}]",
+                        lists:concat(["% @doc A proplist of the database field names of each `", ModuleName, "' parameter."])])],
+            Function)].
+
 
 attribute_types_forms(ModuleName, TypeInfo) ->
     [erl_syntax:add_precomments([erl_syntax:comment(
