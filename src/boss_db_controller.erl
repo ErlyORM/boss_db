@@ -53,8 +53,15 @@ handle_call({find, Key}, From, #state{ cache_enable = true, cache_prefix = Prefi
     case boss_cache:get(Prefix, Key) of
         undefined ->
             {reply, Res, _} = handle_call({find, Key}, From, State#state{ cache_enable = false }),
-            boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-            boss_news:set_watch(Key, lists:concat([Key, ", ", Key, ".*"]), fun boss_db_cache:handle_record_news/3, {Prefix, Key}, State#state.cache_ttl),
+            IsSuccess = (Res =:= undefined orelse (is_tuple(Res) andalso element(1, Res) =/= error)),
+            case IsSuccess of
+                true ->
+                    boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
+                    WatchString = lists:concat([Key, ", ", Key, ".*"]), 
+                    boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_record_news/3, 
+                        {Prefix, Key}, State#state.cache_ttl);
+                _ -> error % log it here?
+            end,
             {reply, Res, State};
         CachedValue ->
             boss_news:extend_watch(Key),
@@ -70,9 +77,14 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder} = Cmd, From,
     case boss_cache:get(Prefix, Key) of
         undefined ->
             {reply, Res, _} = handle_call(Cmd, From, State#state{ cache_enable = false }),
-            boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-            boss_news:set_watch(Key, lists:concat([inflector:pluralize(atom_to_list(Type)), ", ", Type, "-*.*"]), 
-                fun boss_db_cache:handle_collection_news/3, {Prefix, Key}, State#state.cache_ttl),
+            case is_list(Res) of
+                true ->
+                    boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
+                    WatchString = lists:concat([inflector:pluralize(atom_to_list(Type)), ", ", Type, "-*.*"]), 
+                    boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_collection_news/3, 
+                        {Prefix, Key}, State#state.cache_ttl);
+                _ -> error % log it here?
+            end,
             {reply, Res, State};
         CachedValue ->
             boss_news:extend_watch(Key),
