@@ -71,7 +71,7 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
 
 count(Pid, Type, Conditions) ->
     ConditionClause = build_conditions(Type, Conditions),
-    TableName = boss_sql_lib:type_to_table_name(Type),
+    TableName = boss_record_lib:database_table(Type),
     Res = fetch(Pid, ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
     case Res of
         {data, MysqlRes} ->
@@ -213,7 +213,7 @@ integer_to_id(Val, KeyString) ->
 
 activate_record(Record, Metadata, Type) ->
     AttributeTypes = boss_record_lib:attribute_types(Type),
-    AttributeColumns = boss_record_lib:attribute_columns(Type),
+    AttributeColumns = boss_record_lib:database_columns(Type),
     apply(Type, new, lists:map(fun
                 (id) ->
                     DBColumn = proplists:get_value('id', AttributeColumns),
@@ -252,8 +252,8 @@ sort_order_sql(ascending) ->
 
 build_insert_query(Record) ->
     Type = element(1, Record),
-    TableName = boss_sql_lib:type_to_table_name(Type),
-    AttributeColumns = Record:attribute_columns(),
+    TableName = boss_record_lib:database_table(Type),
+    AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
             ({'id', V}, {Attrs, Vals}) -> 
@@ -280,7 +280,7 @@ build_insert_query(Record) ->
 
 build_update_query(Record) ->
     {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Record:id()),
-    AttributeColumns = Record:attribute_columns(),
+    AttributeColumns = Record:database_columns(),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
             ({A, V}, Acc) -> 
@@ -298,7 +298,7 @@ build_update_query(Record) ->
         " WHERE ", IdColumn, " = ", pack_value(TableId)].
 
 build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->	
-    TableName = boss_sql_lib:type_to_table_name(Type),
+    TableName = boss_record_lib:database_table(Type),
     ["SELECT * FROM ", TableName, 
         " WHERE ", build_conditions(Type, Conditions),
         " ORDER BY ", atom_to_list(Sort), " ", sort_order_sql(SortOrder),
@@ -307,7 +307,7 @@ build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     ].
 
 build_conditions(Type, Conditions) ->
-    AttributeColumns = boss_record_lib:attribute_columns(Type),
+    AttributeColumns = boss_record_lib:database_columns(Type),
     Conditions2 = lists:map(fun
             ({'id' = Key, Op, Value}) ->
                 Key2 = proplists:get_value(Key, AttributeColumns, Key),

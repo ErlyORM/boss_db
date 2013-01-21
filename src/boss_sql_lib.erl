@@ -2,8 +2,7 @@
 -export([keytype/1,
         infer_type_from_id/1,
         convert_id_condition_to_use_table_ids/1,
-        is_foreign_key/1,
-        type_to_table_name/1
+        is_foreign_key/1
     ]).
 
 -define(DEFAULT_KEYTYPE, serial).
@@ -18,17 +17,12 @@ keytype(Record) when is_tuple(Record) andalso is_atom(element(1, Record)) ->
 infer_type_from_id(Id) when is_list(Id) ->
     [Type, TableId] = re:split(Id, "-", [{return, list}, {parts, 2}]),
     TypeAtom = list_to_atom(Type),
-    IdColumn = proplists:get_value(id, boss_record_lib:attribute_columns(TypeAtom)),
+    IdColumn = proplists:get_value(id, boss_record_lib:database_columns(TypeAtom)),
     IdValue = case keytype(Type) of
                 uuid -> TableId;
                 serial -> list_to_integer(TableId)
             end,
-    {TypeAtom, type_to_table_name(Type), IdColumn, IdValue}.
-
-type_to_table_name(Type) when is_atom(Type) ->
-    type_to_table_name(atom_to_list(Type));
-type_to_table_name(Type) when is_list(Type) ->
-    inflector:pluralize(Type).
+    {TypeAtom, boss_record_lib:database_table(Type), IdColumn, IdValue}.
 
 convert_id_condition_to_use_table_ids({Key, Op, Value}) when Op =:= 'equals'; Op =:= 'not_equals'; Op =:= 'gt';
                                                              Op =:= 'lt'; Op =:= 'ge'; Op =:= 'le' ->
