@@ -23,8 +23,8 @@ terminate(Conn) ->
     pgsql:close(Conn).
 
 find(Conn, Id) when is_list(Id) ->
-    {Type, TableName, TableId} = infer_type_from_id(Id),
-    Res = pgsql:equery(Conn, ["SELECT * FROM ", TableName, " WHERE id = $1"], [TableId]),
+    {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
+    Res = pgsql:equery(Conn, ["SELECT * FROM ", TableName, " WHERE ", IdColumn, " = $1"], [TableId]),
     case Res of
         {ok, _Columns, []} ->
             undefined;
@@ -63,7 +63,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_
 
 count(Conn, Type, Conditions) ->
     ConditionClause = build_conditions(Type, Conditions),
-    TableName = type_to_table_name(Type),
+    TableName = boss_record_lib:database_table(Type),
     {ok, _, [{Count}]} = pgsql:equery(Conn, 
         ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
     Count.
@@ -90,8 +90,8 @@ incr(Conn, Id, Count) ->
     end.
 
 delete(Conn, Id) when is_list(Id) ->
-    {_, TableName, TableId} = infer_type_from_id(Id),
-    Res = pgsql:equery(Conn, ["DELETE FROM ", TableName, " WHERE id = $1"], [TableId]),
+    {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
+    Res = pgsql:equery(Conn, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = $1"], [TableId]),
     case Res of
         {ok, _Count} -> 
             pgsql:equery(Conn, "DELETE FROM counters WHERE name = $1", [Id]),
@@ -149,24 +149,11 @@ id_value_to_string(Id) when is_integer(Id) -> integer_to_list(Id);
 id_value_to_string(Id) when is_binary(Id) -> binary_to_list(Id);
 id_value_to_string(Id) -> Id.
 
-infer_type_from_id(Id) when is_list(Id) ->
-    [Type, TableId] = re:split(Id, "-", [{return, list}, {parts, 2}]),
-    IdValue = case boss_record_lib:keytype(Type) of
-                uuid -> TableId;
-                serial -> list_to_integer(TableId)
-            end,
-    {list_to_atom(Type), type_to_table_name(Type), IdValue}.
-
 maybe_populate_id_value(Record) ->
-    case boss_record_lib:keytype(Record) of 
+    case boss_sql_lib:keytype(Record) of 
         uuid -> Record:set(id, uuid:to_string(uuid:uuid4()));
         _ -> Record
 end.
-
-type_to_table_name(Type) when is_atom(Type) ->
-    type_to_table_name(atom_to_list(Type));
-type_to_table_name(Type) when is_list(Type) ->
-    inflector:pluralize(Type).
 
 integer_to_id(Val, KeyString) ->
     ModelName = string:substr(KeyString, 1, string:len(KeyString) - string:len("_id")),
@@ -174,20 +161,22 @@ integer_to_id(Val, KeyString) ->
 
 activate_record(Record, Metadata, Type) ->
     AttributeTypes = boss_record_lib:attribute_types(Type),
+    AttributeColumns = boss_record_lib:database_columns(Type),
     apply(Type, new, lists:map(fun
                 (id) ->
-                    Index = keyindex(<<"id">>, 2, Metadata),
+                    DBColumn = proplists:get_value('id', AttributeColumns),
+                    Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     atom_to_list(Type) ++ "-" ++ id_value_to_string(element(Index, Record));
                 (Key) ->
-                    KeyString = atom_to_list(Key),
-                    Index = keyindex(list_to_binary(KeyString), 2, Metadata),
+                    DBColumn = proplists:get_value(Key, AttributeColumns),
+                    Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     AttrType = proplists:get_value(Key, AttributeTypes),
                     case element(Index, Record) of
                         undefined -> undefined;
                         null -> undefined;
                         Val -> 
-                            case lists:suffix("_id", KeyString) of
-                                true -> integer_to_id(Val, KeyString);
+                            case boss_sql_lib:is_foreign_key(Key) of
+                                true -> integer_to_id(Val, DBColumn);
                                 false -> boss_record_lib:convert_value_to_type(Val, AttrType)
                             end
                     end
@@ -211,22 +200,24 @@ sort_order_sql(ascending) ->
 
 build_insert_query(Record) ->
     Type = element(1, Record),
-    TableName = type_to_table_name(Type),
+    TableName = boss_record_lib:database_table(Type),
+    AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
-            ({id, V}, {Attrs, Vals}) when is_integer(V) -> {[atom_to_list(id)|Attrs], [pack_value(V)|Vals]};
-            ({id, V}, {Attrs, Vals}) when is_list(V) -> {[atom_to_list(id)|Attrs], [pack_value(V)|Vals]};
-            ({id, _}, Acc) -> Acc;
             ({_, undefined}, Acc) -> Acc;
+            ({'id', V}, {Attrs, Vals}) -> 
+                DBColumn = proplists:get_value('id', AttributeColumns),
+                {_, _, _, TableId} = boss_sql_lib:infer_type_from_id(V),
+                {[DBColumn|Attrs], [pack_value(TableId)|Vals]};
             ({A, V}, {Attrs, Vals}) ->
-                AString = atom_to_list(A),
-                Value = case lists:suffix("_id", AString) of
+                DBColumn = proplists:get_value(A, AttributeColumns),
+                Value = case boss_sql_lib:is_foreign_key(A) of
                     true ->
-                        {_, _, ForeignId} = infer_type_from_id(V),
+                        {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
                     false ->
                         V
                 end,
-                {[AString|Attrs], [pack_value(Value)|Vals]}
+                {[DBColumn|Attrs], [pack_value(Value)|Vals]}
         end, {[], []}, Record:attributes()),
     ["INSERT INTO ", TableName, " (", 
         string:join(Attributes, ", "),
@@ -237,25 +228,26 @@ build_insert_query(Record) ->
     ].
 
 build_update_query(Record) ->
-    {_, TableName, Id} = infer_type_from_id(Record:id()),
+    {_, TableName, IdColumn, Id} = boss_sql_lib:infer_type_from_id(Record:id()),
+    AttributeColumns = Record:database_columns(),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
             ({A, V}, Acc) -> 
-                AString = atom_to_list(A),
-                Value = case lists:suffix("_id", AString) of
-                    true ->
-                        {_, _, ForeignId} = infer_type_from_id(V),
+                DBColumn = proplists:get_value(A, AttributeColumns),
+                Value = case {boss_sql_lib:is_foreign_key(A), V =/= undefined} of
+                    {true, true} ->
+                        {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
-                    false ->
+                    _ ->
                         V
                 end,
-                [AString ++ " = " ++ pack_value(Value)|Acc]
+                [DBColumn ++ " = " ++ pack_value(Value)|Acc]
         end, [], Record:attributes()),
     ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
-        " WHERE id = ", pack_value(Id)].
+        " WHERE ", IdColumn, " = ", pack_value(Id)].
 
 build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
-    TableName = type_to_table_name(Type),
+    TableName = boss_record_lib:database_table(Type),
     ["SELECT * FROM ", TableName, 
         " WHERE ", build_conditions(Type, Conditions),
         " ORDER BY ", atom_to_list(Sort), " ", sort_order_sql(SortOrder),
@@ -263,52 +255,20 @@ build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
                     " OFFSET ", integer_to_list(Skip)] end
     ].
 
-join([], _) -> [];
-join([List|Lists], Separator) ->
-     lists:flatten([List | [[Separator,Next] || Next <- Lists]]).
-
-is_foreign_key(Key) when is_atom(Key) ->
-	KeyTokens = string:tokens(atom_to_list(Key), "_"),
-	LastToken = hd(lists:reverse(KeyTokens)),
-	case (length(KeyTokens) > 1 andalso LastToken == "id") of
-		true -> 
-			Module = join(lists:reverse(tl(lists:reverse(KeyTokens))), "_"),
-    		case code:is_loaded(list_to_atom(Module)) of
-        		{file, _Loaded} -> true;
-        		false -> false
-    		end;
-		false -> false
-	end;
-is_foreign_key(_Key) -> false.
-
-%% take the "type-" part out of id_values of "type-nnn" 
-%% it allows to assert([boss_db:find("type-nnn")] == boss_db:find(type, [{id, equals, "type-nnn"}]) 
-%% while it forbids boss_db:find(type, [{id, equals, "othertype-nnn"}] where othertype is from the untrusted input
-%% without this patch, the second part returns:
-%%    {error,{error,error,<<"22P02">>,
-%%              <<"invalid input syntax for integer: \"type-1\"">>,
-%%              [{position,<<"35">>}]}}
-de_type_id(Type, Conditions) ->
-    lists:map(fun({id, Operator, Operand}) when is_list(Operand) ->
-                    {id, Operator, sanitize_value(Type, Operand)};
-               ({id, Operator, Operand}) when is_binary(Operand) ->  %% allow for binary operands, dunno if that occurs.
-                    {id, Operator, sanitize_value(Type, binary_to_list(Operand))};
-               (Other) -> Other %% anything not an 'id' is passed on as-is to the DB.
-            end, Conditions).
-
-%% Make sure the value that goes in the WHERE-clause is the number-part of the Type-Number record identifier.
-sanitize_value(Type, Value) ->
-    TypeL = atom_to_list(Type),	    %% we must match the expected Type
-    case string:tokens(Value, "-") of
-      [Value] -> Value;             %% just a string, no record-123 composite, pass it on
-      [TypeL, IdValue] -> IdValue;  %% take out the record- part and give the supposed number.
-      %% don't let missing input validation go unnoticed, scream loudly:
-      _Err -> throw({error, "Id value must be of the same type as the requested record.\nExpected type: \"" ++ TypeL ++ "\". Got value: \"" ++ Value ++ "\"."})
-    end.
-
 build_conditions(Type, Conditions) ->
-    Conds = de_type_id(Type, Conditions),
-    build_conditions1(Conds, [" TRUE"]).
+    AttributeColumns = boss_record_lib:database_columns(Type),
+    Conditions2 = lists:map(fun
+            ({'id' = Key, Op, Value}) ->
+                Key2 = proplists:get_value(Key, AttributeColumns, Key),
+                boss_sql_lib:convert_id_condition_to_use_table_ids({Key2, Op, Value});
+            ({Key, Op, Value}) ->
+                Key2 = proplists:get_value(Key, AttributeColumns, Key),
+                case boss_sql_lib:is_foreign_key(Key) of
+                    true -> boss_sql_lib:convert_id_condition_to_use_table_ids({Key2, Op, Value});
+                    false -> {Key2, Op, Value}
+                end
+        end, Conditions),
+    build_conditions1(Conditions2, [" TRUE"]).
 
 build_conditions1([], Acc) ->
     Acc;
@@ -316,12 +276,7 @@ build_conditions1([], Acc) ->
 build_conditions1([{Key, 'equals', Value}|Rest], Acc) when Value == undefined ->
     build_conditions1(Rest, add_cond(Acc, Key, "is", pack_value(Value)));
 build_conditions1([{Key, 'equals', Value}|Rest], Acc) ->
-    case is_foreign_key(Key) of
-        true -> 
-            {_Type, _TableName, TableId} = infer_type_from_id(Value),
-            build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(TableId)));
-        false -> build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(Value)))
-    end;
+    build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(Value)));
 build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) when Value == undefined ->
     build_conditions1(Rest, add_cond(Acc, Key, "is not", pack_value(Value)));
 build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) ->

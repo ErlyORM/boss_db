@@ -48,12 +48,12 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     Type = element(1, Record),
     TypeString = atom_to_list(Type),
     {Id, IdCounter1} = case Record:id() of
-        id -> case boss_record_lib:keytype(Record) of
+        id -> case boss_sql_lib:keytype(Record) of
                   uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]), IdCounter};
                   _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
               end;
         ExistingId -> 
-            case boss_record_lib:keytype(Record) of
+            case boss_sql_lib:keytype(Record) of
                 uuid -> {ExistingId, IdCounter};
                 _    ->
                   [TypeString, IdNum] = string:tokens(ExistingId, "-"),

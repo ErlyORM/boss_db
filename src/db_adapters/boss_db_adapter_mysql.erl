@@ -25,8 +25,8 @@ terminate(Pid) ->
     exit(Pid, normal).
 
 find(Pid, Id) when is_list(Id) ->
-    {Type, TableName, TableId} = infer_type_from_id(Id),
-    Res = fetch(Pid, ["SELECT * FROM ", TableName, " WHERE id = ", pack_value(TableId)]),
+    {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
+    Res = fetch(Pid, ["SELECT * FROM ", TableName, " WHERE ", IdColumn, " = ", pack_value(TableId)]),
     case Res of
         {data, MysqlRes} ->
             case mysql:get_result_rows(MysqlRes) of
@@ -70,8 +70,8 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
     end.
 
 count(Pid, Type, Conditions) ->
-    ConditionClause = build_conditions(Conditions),
-    TableName = type_to_table_name(Type),
+    ConditionClause = build_conditions(Type, Conditions),
+    TableName = boss_record_lib:database_table(Type),
     Res = fetch(Pid, ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
     case Res of
         {data, MysqlRes} ->
@@ -106,8 +106,8 @@ incr(Pid, Id, Count) ->
     end.
 
 delete(Pid, Id) when is_list(Id) ->
-    {_, TableName, TableId} = infer_type_from_id(Id),
-    Res = fetch(Pid, ["DELETE FROM ", TableName, " WHERE id = ", 
+    {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
+    Res = fetch(Pid, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = ", 
             pack_value(TableId)]),
     case Res of
         {updated, _} ->
@@ -207,35 +207,28 @@ do_rollback(Pid,_)->
 
 % internal
 
-infer_type_from_id(Id) when is_list(Id) ->
-    [Type, TableId] = string:tokens(Id, "-"),
-    {list_to_atom(Type), type_to_table_name(Type), list_to_integer(TableId)}.
-
-type_to_table_name(Type) when is_atom(Type) ->
-    type_to_table_name(atom_to_list(Type));
-type_to_table_name(Type) when is_list(Type) ->
-    inflector:pluralize(Type).
-
 integer_to_id(Val, KeyString) ->
     ModelName = string:substr(KeyString, 1, string:len(KeyString) - string:len("_id")),
     ModelName ++ "-" ++ integer_to_list(Val).
 
 activate_record(Record, Metadata, Type) ->
     AttributeTypes = boss_record_lib:attribute_types(Type),
+    AttributeColumns = boss_record_lib:database_columns(Type),
     apply(Type, new, lists:map(fun
                 (id) ->
-                    Index = keyindex(<<"id">>, 2, Metadata),
+                    DBColumn = proplists:get_value('id', AttributeColumns),
+                    Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     atom_to_list(Type) ++ "-" ++ integer_to_list(lists:nth(Index, Record));
                 (Key) ->
-                    KeyString = atom_to_list(Key),
-                    Index = keyindex(list_to_binary(KeyString), 2, Metadata),
+                    DBColumn = proplists:get_value(Key, AttributeColumns),
+                    Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     AttrType = proplists:get_value(Key, AttributeTypes),
                     case lists:nth(Index, Record) of
                         undefined -> undefined;
                         {datetime, DateTime} -> boss_record_lib:convert_value_to_type(DateTime, AttrType);
                         Val -> 
-                            case lists:suffix("_id", KeyString) of
-                                true -> integer_to_id(Val, KeyString);
+                            case boss_sql_lib:is_foreign_key(Key) of
+                                true -> integer_to_id(Val, DBColumn);
                                 false -> boss_record_lib:convert_value_to_type(Val, AttrType)
                             end
                     end
@@ -259,21 +252,24 @@ sort_order_sql(ascending) ->
 
 build_insert_query(Record) ->
     Type = element(1, Record),
-    TableName = type_to_table_name(Type),
+    TableName = boss_record_lib:database_table(Type),
+    AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
-            ({id, V}, {Attrs, Vals}) when is_integer(V) -> {[atom_to_list(id)|Attrs], [pack_value(V)|Vals]};
-            ({id, _}, Acc) -> Acc;
             ({_, undefined}, Acc) -> Acc;
+            ({'id', V}, {Attrs, Vals}) -> 
+                DBColumn = proplists:get_value('id', AttributeColumns),
+                {_, _, _, TableId} = boss_sql_lib:infer_type_from_id(V),
+                {[DBColumn|Attrs], [pack_value(TableId)|Vals]};
             ({A, V}, {Attrs, Vals}) ->
-                AString = atom_to_list(A),
-                Value = case lists:suffix("_id", AString) of
+                DBColumn = proplists:get_value(A, AttributeColumns),
+                Value = case boss_sql_lib:is_foreign_key(A) of
                     true ->
-                        {_, _, ForeignId} = infer_type_from_id(V),
+                        {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
                     false ->
                         V
                 end,
-                {[AString|Attrs], [pack_value(Value)|Vals]}
+                {[DBColumn|Attrs], [pack_value(Value)|Vals]}
         end, {[], []}, Record:attributes()),
     ["INSERT INTO ", TableName, " (", 
         string:join(Attributes, ", "),
@@ -283,64 +279,54 @@ build_insert_query(Record) ->
     ].
 
 build_update_query(Record) ->
-    {_, TableName, Id} = infer_type_from_id(Record:id()),
+    {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Record:id()),
+    AttributeColumns = Record:database_columns(),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
             ({A, V}, Acc) -> 
-                AString = atom_to_list(A),
-                Value = case {lists:suffix("_id", AString), V =:= undefined} of
-                    {true, false} ->
-                        {_, _, ForeignId} = infer_type_from_id(V),
+                DBColumn = proplists:get_value(A, AttributeColumns),
+                Value = case {boss_sql_lib:is_foreign_key(A), V =/= undefined} of
+                    {true, true} ->
+                        {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
                     _ ->
                         V
                 end,
-                [AString ++ " = " ++ pack_value(Value)|Acc]
+                [DBColumn ++ " = " ++ pack_value(Value)|Acc]
         end, [], Record:attributes()),
     ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
-        " WHERE id = ", pack_value(Id)].
+        " WHERE ", IdColumn, " = ", pack_value(TableId)].
 
 build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->	
-    TableName = type_to_table_name(Type),
+    TableName = boss_record_lib:database_table(Type),
     ["SELECT * FROM ", TableName, 
-        " WHERE ", build_conditions(Conditions),
+        " WHERE ", build_conditions(Type, Conditions),
         " ORDER BY ", atom_to_list(Sort), " ", sort_order_sql(SortOrder),
         case Max of all -> ""; _ -> [" LIMIT ", integer_to_list(Max),
                     " OFFSET ", integer_to_list(Skip)] end
     ].
 
-join([], _) -> [];
-join([List|Lists], Separator) ->
-     lists:flatten([List | [[Separator,Next] || Next <- Lists]]).
-
-is_foreign_key(Key) when is_atom(Key) ->
-	KeyTokens = string:tokens(atom_to_list(Key), "_"),
-	LastToken = hd(lists:reverse(KeyTokens)),
-	case (length(KeyTokens) > 1 andalso LastToken == "id") of
-		true -> 
-			Module = join(lists:reverse(tl(lists:reverse(KeyTokens))), "_"),
-    		case code:is_loaded(list_to_atom(Module)) of
-        		{file, _Loaded} -> true;
-        		false -> false
-    		end;
-		false -> false
-	end;
-is_foreign_key(_Key) -> false.
-
-build_conditions(Conditions) ->
-    build_conditions1(Conditions, [" TRUE"]).
+build_conditions(Type, Conditions) ->
+    AttributeColumns = boss_record_lib:database_columns(Type),
+    Conditions2 = lists:map(fun
+            ({'id' = Key, Op, Value}) ->
+                Key2 = proplists:get_value(Key, AttributeColumns, Key),
+                boss_sql_lib:convert_id_condition_to_use_table_ids({Key2, Op, Value});
+            ({Key, Op, Value}) ->
+                Key2 = proplists:get_value(Key, AttributeColumns, Key),
+                case boss_sql_lib:is_foreign_key(Key) of
+                    true -> boss_sql_lib:convert_id_condition_to_use_table_ids({Key2, Op, Value});
+                    false -> {Key2, Op, Value}
+                end
+        end, Conditions),
+    build_conditions1(Conditions2, [" TRUE"]).
 
 build_conditions1([], Acc) ->
     Acc;
 build_conditions1([{Key, 'equals', Value}|Rest], Acc) when Value == undefined ->
     build_conditions1(Rest, add_cond(Acc, Key, "is", pack_value(Value)));
 build_conditions1([{Key, 'equals', Value}|Rest], Acc) ->
-	case is_foreign_key(Key) of
-		true -> 
-			{_Type, _TableName, TableId} = infer_type_from_id(Value),
-			build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(TableId)));
-		false -> build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(Value)))
-	end;
+    build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(Value)));
 build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) when Value == undefined ->
     build_conditions1(Rest, add_cond(Acc, Key, "is not", pack_value(Value)));
 build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) ->

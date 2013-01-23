@@ -156,6 +156,20 @@ Accepted types are:
 
 If the type validation fails, then validation_tests/0 will not be called.
 
+Working with existing SQL databases
+-----------------------------------
+
+By default, SQL columns must be underscored versions of the attribute names,
+and SQL tables must be plural versions of the model names. (If the model is
+"puppy", the database table should be "puppies".)
+
+You may want to override these defaults if you are working with an existing
+database. To specify your own column and table names, you can use the
+-columns() and -table() attributes in a model file like so:
+
+    -module(puppy, [Id, Name]).
+    -columns([{id, "puppy_id"}, {name, "puppy_name"}]).
+    -table("puppy_table").
 
 Events
 ------
