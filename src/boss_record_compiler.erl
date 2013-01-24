@@ -134,7 +134,7 @@ export_forms([{Name, Arity}|Rest], Acc) ->
     export_forms(Rest, [erl_syntax:attribute(erl_syntax:atom(export), [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(Arity))])])|Acc]).
 
 database_columns_forms(ModuleName, Parameters, Attributes) ->
-    DefinedColumns = proplists:get_value(Attributes, columns, []),
+    DefinedColumns = proplists:get_value(columns, Attributes, []),
     Function = erl_syntax:function(
         erl_syntax:atom(database_columns),
         [erl_syntax:clause([], none, [erl_syntax:list(lists:map( fun(P) -> 
@@ -150,7 +150,7 @@ database_columns_forms(ModuleName, Parameters, Attributes) ->
             Function)].
 
 database_table_forms(ModuleName, Attributes) ->
-    DefinedTableName = proplists:get_value(Attributes, table, inflector:pluralize(atom_to_list(ModuleName))),
+    DefinedTableName = proplists:get_value(table, Attributes, inflector:pluralize(atom_to_list(ModuleName))),
     Function = erl_syntax:function(
         erl_syntax:atom(database_table),
         [erl_syntax:clause([], none, [erl_syntax:string(DefinedTableName)])]),
