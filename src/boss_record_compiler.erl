@@ -78,7 +78,8 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
         counter_reset_forms(Counters) ++
         counter_incr_forms(Counters) ++
         association_forms(ModuleName, Attributes) ++
-        parameter_getter_forms(Parameters),
+        parameter_getter_forms(Parameters) ++
+        deep_get_forms(),
 
     UserFunctionList = list_functions(UserForms),
     GeneratedFunctionList = list_functions(GeneratedForms),
@@ -227,18 +228,66 @@ parameter_getter_forms(Parameters) ->
                         [erl_syntax:clause([], none, [erl_syntax:variable(P)])]))
         end, Parameters).
 
+deep_get_forms() ->
+    Function = erl_syntax:function(
+        erl_syntax:atom(get),
+        [erl_syntax:clause([erl_syntax:string("")], none,
+                [erl_syntax:variable("THIS")]),
+            erl_syntax:clause([erl_syntax:variable(?PREFIX++"Path")], none,
+                [erl_syntax:application(
+                        erl_syntax:atom(lists),
+                        erl_syntax:atom(foldl),
+                        [erl_syntax:fun_expr([
+                                    erl_syntax:clause([
+                                            erl_syntax:variable(?PREFIX++"Token"),
+                                            erl_syntax:tuple([erl_syntax:atom("ok"), erl_syntax:variable(?PREFIX++"BossRecord")])], none,
+                                        [erl_syntax:application(
+                                            erl_syntax:atom(apply),
+                                            [erl_syntax:variable(?PREFIX++"BossRecord"),
+                                                erl_syntax:application(
+                                                    erl_syntax:atom(list_to_existing_atom),
+                                                    [erl_syntax:variable(?PREFIX++"Token")]),
+                                                erl_syntax:list([])])]),
+                                    erl_syntax:clause([
+                                            erl_syntax:variable("_"++?PREFIX++"Token"),
+                                            erl_syntax:atom("undefined")], none,
+                                        [erl_syntax:atom("undefined")]),
+                                    erl_syntax:clause([
+                                            erl_syntax:variable(?PREFIX++"Token"),
+                                            erl_syntax:variable(?PREFIX++"BossRecord")], none,
+                                        [erl_syntax:application(
+                                            erl_syntax:atom(apply),
+                                            [erl_syntax:variable(?PREFIX++"BossRecord"),
+                                                erl_syntax:application(
+                                                    erl_syntax:atom(list_to_existing_atom),
+                                                    [erl_syntax:variable(?PREFIX++"Token")]),
+                                                erl_syntax:list([])])])
+                            ]),
+                            erl_syntax:variable("THIS"), 
+                            erl_syntax:application(
+                                erl_syntax:atom(string),
+                                erl_syntax:atom(tokens),
+                                [erl_syntax:variable(?PREFIX++"Path"),
+                                    erl_syntax:string(".")])])])]),
+
+    [erl_syntax:add_precomments([erl_syntax:comment(
+                [lists:concat(["% @spec get(Path::string()) -> Value"]),
+                    lists:concat(["% @doc Returns a deeply nested value described by a dot-separated `Path' ",
+                            "(e.g. \"puppy.mother.name\")"])])],
+        Function)].
+
 get_attributes_forms(ModuleName, Parameters) ->
+    Function = erl_syntax:function(erl_syntax:atom(attributes),
+        [erl_syntax:clause([], none,
+                [erl_syntax:list(lists:map(fun(P) ->
+                                    erl_syntax:tuple([
+                                            erl_syntax:atom(parameter_to_colname(P)),
+                                            erl_syntax:variable(P)])
+                            end, Parameters))])]),
     [erl_syntax:add_precomments([erl_syntax:comment(
                     ["% @spec attributes() -> [{Attribute::atom(), Value::string() | undefined}]",
                         lists:concat(["% @doc A proplist of the `", ModuleName, "' parameters and their values."])])],
-            erl_syntax:function(
-                erl_syntax:atom(attributes),
-                [erl_syntax:clause([], none,
-                        [erl_syntax:list(lists:map(fun(P) ->
-                                            erl_syntax:tuple([
-                                                    erl_syntax:atom(parameter_to_colname(P)),
-                                                    erl_syntax:variable(P)])
-                                    end, Parameters))])]))].
+            Function)].
 
 set_attributes_forms(ModuleName, Parameters) ->
     [erl_syntax:add_precomments([erl_syntax:comment(

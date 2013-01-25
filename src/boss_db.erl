@@ -12,6 +12,7 @@
         find_first/3,
         find_last/2,
         find_last/3,
+        get/1,
         count/1,
         count/2,
         counter/1, 
@@ -56,7 +57,7 @@ stop() ->
     ok.
 
 db_call(Msg) ->
-    case get(boss_db_transaction_info) of
+    case erlang:get(boss_db_transaction_info) of
         undefined ->
             boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
         State ->
@@ -71,6 +72,17 @@ find(Key) when is_list(Key) ->
     db_call({find, Key});
 find(_) ->
     {error, invalid_id}.
+
+%% @spec get(Path::string()) -> Value | {error, Reason} | undefined
+%% @doc Find a BossRecord or value described by the dot-separated `Path' (e.g., "employee-42.manager.name").
+get(Path) when is_list(Path) ->
+    [IdToken|Rest] = string:tokens(Path, "."),
+    case find(IdToken) of
+        {error, Reason} ->
+            {error, Reason};
+        BossRecord ->
+            BossRecord:get(string:join(Rest, "."))
+    end.
 
 %% @spec find(Type::atom(), Conditions) -> [ BossRecord ]
 %% @doc Query for BossRecords. Returns all BossRecords of type
