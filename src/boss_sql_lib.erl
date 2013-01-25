@@ -45,10 +45,7 @@ is_foreign_key(Key) when is_atom(Key) ->
 	case (length(KeyTokens) > 1 andalso LastToken == "id") of
 		true -> 
 			Module = join(lists:reverse(tl(lists:reverse(KeyTokens))), "_"),
-    		case code:is_loaded(list_to_atom(Module)) of
-        		{file, _Loaded} -> true;
-        		false -> false
-    		end;
+    		(code:which(list_to_atom(Module)) =/= non_existing);
 		false -> false
 	end;
 is_foreign_key(_Key) -> false.
