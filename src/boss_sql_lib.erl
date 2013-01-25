@@ -22,7 +22,7 @@ infer_type_from_id(Id) when is_list(Id) ->
                 uuid -> TableId;
                 serial -> list_to_integer(TableId)
             end,
-    {TypeAtom, boss_record_lib:database_table(Type), IdColumn, IdValue}.
+    {TypeAtom, boss_record_lib:database_table(TypeAtom), IdColumn, IdValue}.
 
 convert_id_condition_to_use_table_ids({Key, Op, Value}) when Op =:= 'equals'; Op =:= 'not_equals'; Op =:= 'gt';
                                                              Op =:= 'lt'; Op =:= 'ge'; Op =:= 'le' ->
