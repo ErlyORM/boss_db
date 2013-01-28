@@ -204,6 +204,7 @@ build_insert_query(Record) ->
     AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
+            ({'id', 'id'}, Acc) -> Acc;
             ({'id', V}, {Attrs, Vals}) -> 
                 DBColumn = proplists:get_value('id', AttributeColumns),
                 {_, _, _, TableId} = boss_sql_lib:infer_type_from_id(V),
