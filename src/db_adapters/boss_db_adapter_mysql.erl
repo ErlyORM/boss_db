@@ -256,6 +256,7 @@ build_insert_query(Record) ->
     AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
+            ({'id', 'id'}, Acc) -> Acc;
             ({'id', V}, {Attrs, Vals}) when is_integer(V) -> 
                  {[atom_to_list(id)|Attrs], [pack_value(V)|Vals]};
             ({'id', V}, {Attrs, Vals}) -> 
