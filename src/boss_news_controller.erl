@@ -194,10 +194,12 @@ handle_call({updated, Id, OldAttrs, NewAttrs}, _From, State0) ->
     AllWatchers = IdWatchers ++ WildcardWatchers,
     OldRecord = activate_record(Id, OldAttrs),
     NewRecord = activate_record(Id, NewAttrs),
+    OldAttributes = OldRecord:attributes(),
+    NewAttributes = NewRecord:attributes(),
     NewState = lists:foldr(fun
             ({Key, OldVal}, Acc0) ->
                 KeyString = atom_to_list(Key),
-                case NewRecord:Key() of
+                case proplists:get_value(Key, NewAttributes, OldVal) of
                     OldVal -> Acc0;
                     NewVal -> 
                         lists:foldr(fun(WatchId, Acc1) ->
@@ -221,7 +223,7 @@ handle_call({updated, Id, OldAttrs, NewAttrs}, _From, State0) ->
                                         end, Acc1, WatchList)
                             end, Acc0, AllWatchers)
                 end
-        end, State, OldRecord:attributes()),
+        end, State, OldAttributes),
     {reply, ok, NewState}.
 
 handle_cast(_Request, State) ->
