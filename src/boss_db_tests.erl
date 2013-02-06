@@ -1,17 +1,12 @@
--module(boss_db_test_app).
+-module(boss_db_tests).
 
--behaviour(application).
+-export([start/0, run_init/0, run_setup/0, run_tests/0]).
 
--export([start/2, stop/1, run_init/0, run_setup/0, run_tests/0]).
-
-start(_Type, _StartArgs) ->
+start() ->
     run_init(),
     run_setup(),
     run_tests(),
     erlang:halt().
-
-stop(_State) ->
-  ok.
 
 get_env(Key, Default) ->
     case application:get_env(Key) of
