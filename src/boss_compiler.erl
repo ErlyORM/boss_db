@@ -24,27 +24,23 @@ compile(File, Options) ->
                     end
             end,
             OTPVersion = erlang:system_info(otp_release),
-            {OTPVersionInt, _Rest} = string:to_integer(string:sub_string(OTPVersion, 2, 3)),
-            if
-                OTPVersionInt >= 16 ->
+            {Version, _Rest} = string:to_integer(string:sub_string(OTPVersion, 2, 3)),
+            {NewNewForms, BossDBParseTransforms} = case Version of
+                Version when Version >= 16 ->
                     % OTP Version starting with R16A needs boss_db_pmod_pt
                     % boss_db_pmod_pt needs the form to end with {eof, 0} tagged tupple
                     NewForms1 = NewForms ++ [{eof,0}],
                     % boss_db_pmod_pt needs the form to be in "new" format
-                    NewNewForm = erl_syntax:revert_forms(erl_syntax:revert(NewForms1)),
-                    % for debugging, write out forms
-                    % file:write_file("newforms1", io_lib:format("~p~n", [NewForms1])),
-                    % file:write_file("newnewform", io_lib:format("~p~n", [NewNewForm])),
-                    ParseTransforms = [boss_db_pmod_pt, boss_db_pt|proplists:get_value(parse_transforms, Options, [])],
-                    RevertedForms = lists:foldl(fun(Mod, Acc) ->
-                            Mod:parse_transform(Acc, CompilerOptions)
-                        end, NewNewForm, ParseTransforms);
-                true ->
-                    ParseTransforms = [boss_db_pt|proplists:get_value(parse_transforms, Options, [])],
-                    RevertedForms = lists:foldl(fun(Mod, Acc) ->
-                            Mod:parse_transform(Acc, CompilerOptions)
-                        end, erl_syntax:revert(NewForms), ParseTransforms)
+                    {erl_syntax:revert_forms(erl_syntax:revert(NewForms1)), [boss_db_pmod_pt, boss_db_pt]};
+                _ ->
+                    {erl_syntax:revert(NewForms), [boss_db_pt]}
             end,
+
+            ParseTransforms = BossDBParseTransforms ++ proplists:get_value(parse_transforms, Options, []),
+            RevertedForms = lists:foldl(fun(Mod, Acc) ->
+                    Mod:parse_transform(Acc, CompilerOptions)
+                end, NewNewForms, ParseTransforms),
+
             case compile_forms(RevertedForms, File, CompilerOptions) of
                 {ok, Module, Bin} ->
                     ok = case proplists:get_value(out_dir, Options) of
