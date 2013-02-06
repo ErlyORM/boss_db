@@ -2,7 +2,7 @@
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
--export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2]).
+-export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3]).
 
 start(_) ->
     ok.
@@ -21,6 +21,17 @@ init(Options) ->
 
 terminate(Conn) ->
     pgsql:close(Conn).
+
+%% TableDefinition looks like [{Columnname, Columntype, Options}]
+
+create_table(Conn, TableName, TableDefinition) ->
+    Res = pgsql:squery(Conn, ["CREATE TABLE ", TableName, " ( ", tabledefinition_to_sql(TableDefinition), " )"]),
+    case Res of
+        {ok, [], []} ->
+            ok;
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 find(Conn, Id) when is_list(Id) ->
     {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
@@ -376,3 +387,17 @@ pack_value(true) ->
     "TRUE";
 pack_value(false) ->
     "FALSE".
+
+%% Turns a table definition into an SQL string.
+
+tabledefinition_to_sql(TableDefinition) ->
+    string:join(
+      [ColumnName ++ " " ++ atom_to_list(ColumnType) ++ " " ++
+	   column_options_to_sql(Options) ||
+	  {ColumnName, ColumnType, Options} <- TableDefinition], ", ").
+
+column_options_to_sql(Options) ->
+    [option_to_sql({Option, Args}) || {Option, Args} <- proplists:unfold(Options)].
+
+option_to_sql({not_null, true}) ->
+    "NOT NULL".

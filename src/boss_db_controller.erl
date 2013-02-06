@@ -142,6 +142,11 @@ handle_call(dump, _From, State) ->
     Conn = State#state.connection,
     {reply, Adapter:dump(Conn), State};
 
+handle_call({create_table, TableName, TableDefinition}, _From, State) ->
+    Adapter = State#state.adapter,
+    Conn = State#state.connection,
+    {reply, Adapter:create_table(Conn, TableName, TableDefinition), State};
+
 handle_call({execute, Commands}, _From, State) ->
     Adapter = State#state.adapter,
     Conn = State#state.connection,

@@ -22,6 +22,7 @@
         save_record/1, 
         push/0,
         pop/0,
+	create_table/2,
         depth/0,
         dump/0,
         execute/1,
@@ -188,6 +189,9 @@ depth() ->
 
 dump() ->
     db_call(dump).
+
+create_table(TableName, TableDefinition) ->
+    db_call({create_table, TableName, TableDefinition}).
 
 %% @spec execute( Commands::iolist() ) -> RetVal
 %% @doc Execute raw database commands on SQL databases
