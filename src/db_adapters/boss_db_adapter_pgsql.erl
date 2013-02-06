@@ -392,9 +392,12 @@ pack_value(false) ->
 
 tabledefinition_to_sql(TableDefinition) ->
     string:join(
-      [ColumnName ++ " " ++ atom_to_list(ColumnType) ++ " " ++
+      [ColumnName ++ " " ++ column_type_to_sql(ColumnType) ++ " " ++
 	   column_options_to_sql(Options) ||
 	  {ColumnName, ColumnType, Options} <- TableDefinition], ", ").
+
+column_type_to_sql(string) ->
+    "VARCHAR".
 
 column_options_to_sql(Options) ->
     [option_to_sql({Option, Args}) || {Option, Args} <- proplists:unfold(Options)].
