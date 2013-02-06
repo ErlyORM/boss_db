@@ -1,24 +1,11 @@
 -module(boss_db_test_app).
 
 -behaviour(application).
--export([start/2, stop/1]).
+
+-export([start/2, stop/1, run_init/0, run_setup/0, run_tests/0]).
 
 start(_Type, _StartArgs) ->
-    DBOptions = lists:foldl(fun(OptName, Acc) ->
-                case application:get_env(OptName) of
-                    {ok, Val} -> [{OptName, Val}|Acc];
-                    _ -> Acc
-                end
-        end, [], [db_port, db_host, db_username, db_password, db_database]),
-    DBAdapter = get_env(db_adapter, mock),
-    DBShards = get_env(db_shards, []),
-    CacheEnable = get_env(cache_enable, false),
-    DBOptions1 = [{adapter, list_to_atom(lists:concat(["boss_db_adapter_", DBAdapter]))},
-        {cache_enable, CacheEnable}, {shards, DBShards}|DBOptions],
-
-    boss_db:start(DBOptions1),
-    boss_news:start(),
-
+    run_init(),
     run_setup(),
     run_tests(),
     erlang:halt().
@@ -32,9 +19,26 @@ get_env(Key, Default) ->
         _ -> Default
     end.
 
+run_init() ->
+    DBOptions = lists:foldl(fun(OptName, Acc) ->
+                case application:get_env(OptName) of
+                    {ok, Val} -> [{OptName, Val}|Acc];
+                    _ -> Acc
+                end
+        end, [], [db_port, db_host, db_username, db_password, db_database]),
+    DBAdapter = get_env(db_adapter, mock),
+    DBShards = get_env(db_shards, []),
+    CacheEnable = get_env(cache_enable, false),
+    DBOptions1 = [{adapter, list_to_atom(lists:concat([DBAdapter, ""]))},
+        {cache_enable, CacheEnable}, {shards, DBShards}|DBOptions],
+
+    boss_db:start(DBOptions1),
+    boss_news:start().
+
+
 run_setup() ->
-    ok = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_model.erl"])),
-    ok = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_parent_model.erl"])),
+  {ok, boss_db_test_model} = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_model.erl"])),
+  {ok, boss_db_test_parent_model} = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_parent_model.erl"])),
   DBAdapter = get_env(db_adapter, mock),
   case file:read_file(filename:join(["priv", "test_sql", lists:concat([DBAdapter, ".sql"])])) of
     {ok, FileContents} ->
@@ -170,7 +174,8 @@ run_tests() ->
               fun([Id1|_]) ->
                   do(fun() ->
                         Record = boss_db:find(Id1),
-                        {ok, SavedRecord} = (Record:some_integer(43)):save(),
+                        UpdatedRecord = Record:set([{some_integer, 43}]),
+                        {ok, SavedRecord} = UpdatedRecord:save(),
                         SavedRecord
                     end,
                     [
