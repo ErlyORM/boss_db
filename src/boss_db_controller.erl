@@ -93,6 +93,9 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder} = Cmd, From,
 handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = db_for_type(Type, State),
     {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
+handle_call({get_migrations_table}, _From, #state{ cache_enable = false } = State) ->
+    {Adapter, Conn} = {State#state.adapter, State#state.connection},
+    {reply, Adapter:get_migrations_table(Conn), State};
 
 handle_call({count, Type}, _From, State) ->
     {Adapter, Conn} = db_for_type(Type, State),
@@ -146,6 +149,11 @@ handle_call({create_table, TableName, TableDefinition}, _From, State) ->
     Adapter = State#state.adapter,
     Conn = State#state.connection,
     {reply, Adapter:create_table(Conn, TableName, TableDefinition), State};
+
+handle_call({table_exists, TableName}, _From, State) ->
+    Adapter = State#state.adapter,
+    Conn = State#state.connection,
+    {reply, Adapter:table_exists(Conn, TableName), State};
 
 handle_call({execute, Commands}, _From, State) ->
     Adapter = State#state.adapter,
