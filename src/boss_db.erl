@@ -5,6 +5,7 @@
 -export([start/1, stop/0]).
 
 -export([
+	 migrate/1,
         find/1, 
         find/2, 
         find/3, 
@@ -23,6 +24,7 @@
         push/0,
         pop/0,
 	create_table/2,
+	table_exists/1,
         depth/0,
         dump/0,
         execute/1,
@@ -65,6 +67,28 @@ db_call(Msg) ->
             {reply, Reply, _} = boss_db_controller:handle_call(Msg, self(), State),
             Reply
     end.
+
+migrate(Migrations) when is_list(Migrations) ->
+    %% 1. Do we have a migrations table?  If not, create it.
+    case table_exists(schema_migrations) of
+	false ->
+	    ok = create_table(schema_migrations, [{id, auto_increment, []},
+						    {version, string, [not_null]},
+						    {migrated_at, datetime, []}]);
+	_ ->
+	    noop
+    end,
+    %% 2. Get all the current migrations from it.
+    DoneMigrations = db_call({get_migrations_table}),
+    DoneMigrationTags = [list_to_atom(binary_to_list(Tag)) || {_Id, Tag, _MigratedAt} <- DoneMigrations],
+    %% 3. Run the ones that are not in this list.
+    transaction(fun() ->
+			[migrate({Tag, Fun}, up) || {Tag, Fun} <- Migrations, not lists:member(Tag, DoneMigrationTags)]
+		end).
+
+migrate({_Tag, Fun}, Direction) ->
+    Fun(Direction).
+
 
 %% @spec find(Id::string()) -> BossRecord | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id'.
@@ -190,8 +214,13 @@ depth() ->
 dump() ->
     db_call(dump).
 
+%% @spec create_table ( TableName::string(), TableDefinition ) -> ok | {error, Reason}
+%% @doc Create a table based on TableDefinition
 create_table(TableName, TableDefinition) ->
     db_call({create_table, TableName, TableDefinition}).
+
+table_exists(TableName) ->
+    db_call({table_exists, TableName}).
 
 %% @spec execute( Commands::iolist() ) -> RetVal
 %% @doc Execute raw database commands on SQL databases
