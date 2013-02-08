@@ -85,7 +85,9 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
                             ({RelationshipName, InnerInclude}, Acc) ->
                                 RecordList = case lists:member(RelationshipName, BelongsToNames) of
                                     true ->
-                                        IdList = lists:map(fun(Record) -> Record:id() end, Res),
+                                        IdList = lists:map(fun(Record) -> 
+                                                    Record:get(lists:concat([RelationshipName, "_id"]))
+                                            end, Res),
                                         handle_call({find, RelationshipName, 
                                                 [{'id', 'in', IdList}], all, 0, id, ascending,
                                                 InnerInclude}, From, State);
