@@ -2,7 +2,7 @@
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
--export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3]).
+-export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3, table_exists/2, get_migrations_table/1]).
 
 start(_) ->
     ok.
@@ -22,17 +22,6 @@ init(Options) ->
 terminate(Conn) ->
     pgsql:close(Conn).
 
-%% TableDefinition looks like [{Columnname, Columntype, Options}]
-
-create_table(Conn, TableName, TableDefinition) ->
-    Res = pgsql:squery(Conn, ["CREATE TABLE ", TableName, " ( ", tabledefinition_to_sql(TableDefinition), " )"]),
-    case Res of
-        {ok, [], []} ->
-            ok;
-        {error, Reason} ->
-            {error, Reason}
-    end.
-
 find(Conn, Id) when is_list(Id) ->
     {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
     Res = pgsql:equery(Conn, ["SELECT * FROM ", TableName, " WHERE ", IdColumn, " = $1"], [TableId]),
@@ -46,6 +35,15 @@ find(Conn, Id) when is_list(Id) ->
             end;
         {error, Reason} ->
             {error, Reason}
+    end.
+
+get_migrations_table(Conn) ->
+    Res = pgsql:equery(Conn, "SELECT * FROM SCHEMA_MIGRATIONS", []),
+    case Res of
+	{ok, Columns, ResultRows} ->
+	    ResultRows;
+	{error, Reason} ->
+	    {error, Reason}
     end.
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
@@ -388,20 +386,38 @@ pack_value(true) ->
 pack_value(false) ->
     "FALSE".
 
+table_exists(Conn, TableName) when is_atom(TableName) ->
+    Res = pgsql:squery(Conn, ["SELECT COUNT(tablename) FROM PG_TABLES WHERE SCHEMANAME='public' AND TABLENAME = '", atom_to_list(TableName), "'"]),
+    case Res of
+        {ok, _, [{Count}]} ->
+	    list_to_integer(binary_to_list(Count)) > 0;
+	{error, Reason} ->
+	    {error, Reason}
+    end.
+
+create_table(Conn, TableName, TableDefinition) when is_atom(TableName) ->
+    Res = pgsql:squery(Conn, ["CREATE TABLE ", atom_to_list(TableName), " ( ", tabledefinition_to_sql(TableDefinition), " )"]),
+    case Res of
+        {ok, [], []} ->
+            ok;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
 %% Turns a table definition into an SQL string.
 
 tabledefinition_to_sql(TableDefinition) ->
     string:join(
-      [ColumnName ++ " " ++ column_type_to_sql(ColumnType) ++ " " ++
+      [atom_to_list(ColumnName) ++ " " ++ column_type_to_sql(ColumnType) ++ " " ++
 	   column_options_to_sql(Options) ||
 	  {ColumnName, ColumnType, Options} <- TableDefinition], ", ").
 
+column_type_to_sql(auto_increment) ->
+    "SERIAL";
 column_type_to_sql(string) ->
-    "VARCHAR".
-
+    "VARCHAR";
 column_type_to_sql(integer) ->
-    "INTEGER".
-
+    "INTEGER";
 column_type_to_sql(datetime) ->
     "TIMESTAMP".
 
@@ -409,4 +425,6 @@ column_options_to_sql(Options) ->
     [option_to_sql({Option, Args}) || {Option, Args} <- proplists:unfold(Options)].
 
 option_to_sql({not_null, true}) ->
-    "NOT NULL".
+    "NOT NULL";
+option_to_sql({primary_key, true}) ->
+    "PRIMARY KEY".
