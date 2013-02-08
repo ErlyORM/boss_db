@@ -399,6 +399,12 @@ tabledefinition_to_sql(TableDefinition) ->
 column_type_to_sql(string) ->
     "VARCHAR".
 
+column_type_to_sql(integer) ->
+    "INTEGER".
+
+column_type_to_sql(datetime) ->
+    "TIMESTAMP".
+
 column_options_to_sql(Options) ->
     [option_to_sql({Option, Args}) || {Option, Args} <- proplists:unfold(Options)].
 
