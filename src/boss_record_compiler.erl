@@ -379,6 +379,7 @@ attribute_names_forms(ModuleName, Parameters) ->
 has_one_forms(HasOne, ModuleName, Opts) ->
     Type = proplists:get_value(module, Opts, HasOne),
     ForeignKey = proplists:get_value(foreign_key, Opts, atom_to_list(ModuleName) ++ "_id"),
+    Include = proplists:get_value(include, Opts, []),
     [erl_syntax:add_precomments([erl_syntax:comment(
                     [lists:concat(["% @spec ", HasOne, "() -> ", Type, " | undefined"]),
                         lists:concat(["% @doc Retrieves the `", Type, "' with `", ForeignKey, "' ",
@@ -386,7 +387,7 @@ has_one_forms(HasOne, ModuleName, Opts) ->
             erl_syntax:function(erl_syntax:atom(HasOne),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                has_many_application_forms(Type, ForeignKey, 1, id, false)
+                                has_many_application_forms(Type, ForeignKey, 1, id, false, Include)
                             )
                         ])]))
     ].
@@ -398,6 +399,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
     IsDescending = proplists:get_value(descending, Opts, false),
     Singular = inflector:singularize(atom_to_list(HasMany)),
     Type = proplists:get_value(module, Opts, Singular),
+    Include = proplists:get_value(include, Opts, []),
     ForeignKey = proplists:get_value(foreign_key, Opts, atom_to_list(ModuleName) ++ "_id"),
     [erl_syntax:add_precomments([erl_syntax:comment(
                     [
@@ -406,7 +408,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
                                 "set to the `Id' of this `", ModuleName, "'"])])],
             erl_syntax:function(erl_syntax:atom(HasMany),
                 [erl_syntax:clause([], none, [
-                            has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending)
+                            has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending, Include)
                         ])])),
         erl_syntax:add_precomments([erl_syntax:comment(
                     [
@@ -416,7 +418,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
             erl_syntax:function(erl_syntax:atom("first_"++Singular),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                has_many_application_forms(Type, ForeignKey, 1, Sort, IsDescending)
+                                has_many_application_forms(Type, ForeignKey, 1, Sort, IsDescending, Include)
                             )
                         ])])),
         erl_syntax:add_precomments([erl_syntax:comment(
@@ -427,7 +429,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
             erl_syntax:function(erl_syntax:atom("last_"++Singular),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                    has_many_application_forms(Type, ForeignKey, 1, Sort, not IsDescending)
+                                    has_many_application_forms(Type, ForeignKey, 1, Sort, not IsDescending, Include)
                                 )
                         ])]))
     ].
@@ -438,7 +440,7 @@ first_or_undefined_forms(Forms) ->
                 [erl_syntax:variable(?PREFIX++"Record")]),
             erl_syntax:clause([erl_syntax:underscore()], none, [erl_syntax:atom(undefined)])]).
 
-has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending) ->
+has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending, Include) ->
     erl_syntax:application(
         erl_syntax:atom(?DATABASE_MODULE), 
         erl_syntax:atom(find),
@@ -457,7 +459,10 @@ has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending) ->
                             erl_syntax:atom(Sort)]),
                     erl_syntax:tuple([
                             erl_syntax:atom(descending),
-                            erl_syntax:atom(IsDescending)])
+                            erl_syntax:atom(IsDescending)]),
+                    erl_syntax:tuple([
+                            erl_syntax:atom(include),
+                            erl_syntax:list(lists:map(fun erl_syntax:atom/1, Include))])
                 ])
         ]).
 

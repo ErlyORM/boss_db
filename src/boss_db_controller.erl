@@ -71,7 +71,7 @@ handle_call({find, Key}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = db_for_key(Key, State),
     {reply, Adapter:find(Conn, Key), State};
 
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder} = Cmd, From, 
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd, From, 
     #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
     Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
     case boss_cache:get(Prefix, Key) of
@@ -79,6 +79,24 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder} = Cmd, From,
             {reply, Res, _} = handle_call(Cmd, From, State#state{ cache_enable = false }),
             case is_list(Res) of
                 true ->
+                    DummyRecord = boss_record_lib:dummy_record(Type),
+                    BelongsToNames = DummyRecord:belongs_to_names(),
+                    IncludedRecords = lists:foldl(fun
+                            ({RelationshipName, InnerInclude}, Acc) ->
+                                RecordList = case lists:member(RelationshipName, BelongsToNames) of
+                                    true ->
+                                        IdList = lists:map(fun(Record) -> Record:id() end, Res),
+                                        handle_call({find, RelationshipName, 
+                                                [{'id', 'in', IdList}], all, 0, id, ascending,
+                                                InnerInclude}, From, State);
+                                    _ ->
+                                        []
+                                end,
+                                RecordList ++ Acc
+                        end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include)),
+                    lists:map(fun(Rec) ->
+                                boss_cache:set(Prefix, Rec:id(), Rec, State#state.cache_ttl)
+                        end, IncludedRecords),
                     boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
                     WatchString = lists:concat([inflector:pluralize(atom_to_list(Type)), ", ", Type, "-*.*"]), 
                     boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_collection_news/3, 
@@ -90,7 +108,7 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder} = Cmd, From,
             boss_news:extend_watch(Key),
             {reply, CachedValue, State}
     end;
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder}, _From, #state{ cache_enable = false } = State) ->
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = db_for_type(Type, State),
     {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
 
