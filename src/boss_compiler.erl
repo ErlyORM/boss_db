@@ -23,10 +23,24 @@ compile(File, Options) ->
                             TransformFun(Forms, TokenInfo)
                     end
             end,
-            ParseTransforms = [boss_db_pt|proplists:get_value(parse_transforms, Options, [])],
+            OTPVersion = erlang:system_info(otp_release),
+            {Version, _Rest} = string:to_integer(string:sub_string(OTPVersion, 2, 3)),
+            {NewNewForms, BossDBParseTransforms} = case Version of
+                Version when Version >= 16 ->
+                    % OTP Version starting with R16A needs boss_db_pmod_pt
+                    % boss_db_pmod_pt needs the form to end with {eof, 0} tagged tupple
+                    NewForms1 = NewForms ++ [{eof,0}],
+                    % boss_db_pmod_pt needs the form to be in "new" format
+                    {erl_syntax:revert_forms(erl_syntax:revert(NewForms1)), [boss_db_pmod_pt, boss_db_pt]};
+                _ ->
+                    {erl_syntax:revert(NewForms), [boss_db_pt]}
+            end,
+
+            ParseTransforms = BossDBParseTransforms ++ proplists:get_value(parse_transforms, Options, []),
             RevertedForms = lists:foldl(fun(Mod, Acc) ->
-                       Mod:parse_transform(Acc, CompilerOptions)
-               end, erl_syntax:revert(NewForms), ParseTransforms),
+                    Mod:parse_transform(Acc, CompilerOptions)
+                end, NewNewForms, ParseTransforms),
+
             case compile_forms(RevertedForms, File, CompilerOptions) of
                 {ok, Module, Bin} ->
                     ok = case proplists:get_value(out_dir, Options) of
