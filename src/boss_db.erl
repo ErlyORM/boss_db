@@ -13,7 +13,6 @@
         find_first/3,
         find_last/2,
         find_last/3,
-        get/1,
         count/1,
         count/2,
         counter/1, 
@@ -90,24 +89,19 @@ migrate({_Tag, Fun}, Direction) ->
     Fun(Direction).
 
 
-%% @spec find(Id::string()) -> BossRecord | {error, Reason}
-%% @doc Find a BossRecord with the specified `Id'.
+%% @spec find(Id::string()) -> Value | {error, Reason}
+%% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described
+%% by a dot-separated path (e.g. "employee-42.manager.name").
 find("") -> undefined;
 find(Key) when is_list(Key) ->
-    db_call({find, Key});
+    [IdToken|Rest] = string:tokens(Key, "."),
+    case db_call({find, IdToken}) of
+        undefined -> undefined;
+        {error, Reason} -> {error, Reason};
+        BossRecord -> BossRecord:get(string:join(Rest, "."))
+    end;
 find(_) ->
     {error, invalid_id}.
-
-%% @spec get(Path::string()) -> Value | {error, Reason} | undefined
-%% @doc Find a BossRecord or value described by the dot-separated `Path' (e.g., "employee-42.manager.name").
-get(Path) when is_list(Path) ->
-    [IdToken|Rest] = string:tokens(Path, "."),
-    case find(IdToken) of
-        {error, Reason} ->
-            {error, Reason};
-        BossRecord ->
-            BossRecord:get(string:join(Rest, "."))
-    end.
 
 %% @spec find(Type::atom(), Conditions) -> [ BossRecord ]
 %% @doc Query for BossRecords. Returns all BossRecords of type
@@ -119,8 +113,9 @@ find(Type, Conditions) ->
 %% @doc Query for BossRecords. Returns BossRecords of type
 %% `Type' matching all of the given `Conditions'. Options may include
 %% `limit' (maximum number of records to return), `offset' (number of records
-%% to skip), `order_by' (attribute to sort on), and `descending' (whether to
-%% sort the values from highest to lowest)
+%% to skip), `order_by' (attribute to sort on), `descending' (whether to
+%% sort the values from highest to lowest), and `include' (list of belongs_to
+%% associations to pre-cache)
 find(Type, Conditions, Options) ->
     Max = proplists:get_value(limit, Options, all),
     Skip = proplists:get_value(offset, Options, 0),
@@ -129,7 +124,8 @@ find(Type, Conditions, Options) ->
         true -> descending;
         _ -> ascending
     end,
-    db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder}).
+    Include = proplists:get_value(include, Options, []),
+    db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder, Include}).
 
 %% @spec find_first( Type::atom(), Conditions ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions'
