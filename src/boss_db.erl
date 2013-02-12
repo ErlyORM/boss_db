@@ -79,15 +79,17 @@ migrate(Migrations) when is_list(Migrations) ->
     end,
     %% 2. Get all the current migrations from it.
     DoneMigrations = db_call({get_migrations_table}),
-    DoneMigrationTags = [list_to_atom(binary_to_list(Tag)) || {_Id, Tag, _MigratedAt} <- DoneMigrations],
+    DoneMigrationTags = [list_to_atom(binary_to_list(Tag)) ||
+			    {_Id, Tag, _MigratedAt} <- DoneMigrations],
     %% 3. Run the ones that are not in this list.
     transaction(fun() ->
-			[migrate({Tag, Fun}, up) || {Tag, Fun} <- Migrations, not lists:member(Tag, DoneMigrationTags)]
+			[migrate({Tag, Fun}, up) ||
+			    {Tag, Fun} <- Migrations,
+			    not lists:member(Tag, DoneMigrationTags)]
 		end).
 
 migrate({_Tag, Fun}, Direction) ->
     Fun(Direction).
-
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described
