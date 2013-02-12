@@ -113,9 +113,14 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
 handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = db_for_type(Type, State),
     {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
+
 handle_call({get_migrations_table}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = {State#state.adapter, State#state.connection},
     {reply, Adapter:get_migrations_table(Conn), State};
+
+handle_call({migration_done, Tag}, _From, #state{ cache_enable = false } = State) ->
+    {Adapter, Conn} = {State#state.adapter, State#state.connection},
+    {reply, Adapter:migration_done(Conn, Tag), State};
 
 handle_call({count, Type}, _From, State) ->
     {Adapter, Conn} = db_for_type(Type, State),

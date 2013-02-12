@@ -88,8 +88,9 @@ migrate(Migrations) when is_list(Migrations) ->
 			    not lists:member(Tag, DoneMigrationTags)]
 		end).
 
-migrate({_Tag, Fun}, Direction) ->
-    Fun(Direction).
+migrate({Tag, Fun}, Direction) ->
+    Fun(Direction),
+    db_call({migration_done, Tag}).
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described
