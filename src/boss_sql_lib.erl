@@ -2,7 +2,7 @@
 -export([keytype/1,
         infer_type_from_id/1,
         convert_id_condition_to_use_table_ids/1,
-        is_foreign_key/1
+        is_foreign_key/2
     ]).
 
 -define(DEFAULT_KEYTYPE, serial).
@@ -39,16 +39,17 @@ convert_id_condition_to_use_table_ids({Key, Op, ValueList}) when is_list(ValueLi
         end, ValueList),
     {Key, Op, Value2}.
 
-is_foreign_key(Key) when is_atom(Key) ->
+is_foreign_key(Type, Key) when is_atom(Key) ->
 	KeyTokens = string:tokens(atom_to_list(Key), "_"),
 	LastToken = hd(lists:reverse(KeyTokens)),
 	case (length(KeyTokens) > 1 andalso LastToken == "id") of
 		true -> 
-			Module = join(lists:reverse(tl(lists:reverse(KeyTokens))), "_"),
-    		(code:which(list_to_atom(Module)) =/= non_existing);
+            Module = list_to_atom(join(lists:reverse(tl(lists:reverse(KeyTokens))), "_")),
+            DummyRecord = boss_record_lib:dummy_record(Type),
+            lists:member(Module, DummyRecord:belongs_to_names());
 		false -> false
 	end;
-is_foreign_key(_Key) -> false.
+is_foreign_key(_Type, _Key) -> false.
 
 join([], _) -> [];
 join([List|Lists], Separator) ->

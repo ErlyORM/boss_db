@@ -227,7 +227,7 @@ activate_record(Record, Metadata, Type) ->
                         undefined -> undefined;
                         {datetime, DateTime} -> boss_record_lib:convert_value_to_type(DateTime, AttrType);
                         Val -> 
-                            case boss_sql_lib:is_foreign_key(Key) of
+                            case boss_sql_lib:is_foreign_key(Type, Key) of
                                 true -> integer_to_id(Val, DBColumn);
                                 false -> boss_record_lib:convert_value_to_type(Val, AttrType)
                             end
@@ -265,7 +265,7 @@ build_insert_query(Record) ->
                 {[DBColumn|Attrs], [pack_value(TableId)|Vals]};
             ({A, V}, {Attrs, Vals}) ->
                 DBColumn = proplists:get_value(A, AttributeColumns),
-                Value = case boss_sql_lib:is_foreign_key(A) of
+                Value = case boss_sql_lib:is_foreign_key(Type, A) of
                     true ->
                         {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
@@ -282,13 +282,13 @@ build_insert_query(Record) ->
     ].
 
 build_update_query(Record) ->
-    {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Record:id()),
+    {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Record:id()),
     AttributeColumns = Record:database_columns(),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
             ({A, V}, Acc) -> 
                 DBColumn = proplists:get_value(A, AttributeColumns),
-                Value = case {boss_sql_lib:is_foreign_key(A), V =/= undefined} of
+                Value = case {boss_sql_lib:is_foreign_key(Type, A), V =/= undefined} of
                     {true, true} ->
                         {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
@@ -317,7 +317,7 @@ build_conditions(Type, Conditions) ->
                 boss_sql_lib:convert_id_condition_to_use_table_ids({Key2, Op, Value});
             ({Key, Op, Value}) ->
                 Key2 = proplists:get_value(Key, AttributeColumns, Key),
-                case boss_sql_lib:is_foreign_key(Key) of
+                case boss_sql_lib:is_foreign_key(Type, Key) of
                     true -> boss_sql_lib:convert_id_condition_to_use_table_ids({Key2, Op, Value});
                     false -> {Key2, Op, Value}
                 end

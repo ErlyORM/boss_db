@@ -80,19 +80,18 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
             case is_list(Res) of
                 true ->
                     DummyRecord = boss_record_lib:dummy_record(Type),
-                    BelongsToNames = DummyRecord:belongs_to_names(),
+                    BelongsToTypes = DummyRecord:belongs_to_types(),
                     IncludedRecords = lists:foldl(fun
                             ({RelationshipName, InnerInclude}, Acc) ->
-                                RecordList = case lists:member(RelationshipName, BelongsToNames) of
-                                    true ->
+                                RecordList = case proplists:get_value(RelationshipName, BelongsToTypes) of
+                                    undefined -> [];
+                                    RelationshipType ->
                                         IdList = lists:map(fun(Record) -> 
-                                                    Record:get(lists:concat([RelationshipName, "_id"]))
+                                                    Record:get(lists:concat([RelationshipType, "_id"]))
                                             end, Res),
                                         handle_call({find, RelationshipName, 
                                                 [{'id', 'in', IdList}], all, 0, id, ascending,
-                                                InnerInclude}, From, State);
-                                    _ ->
-                                        []
+                                                InnerInclude}, From, State)
                                 end,
                                 RecordList ++ Acc
                         end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include)),
