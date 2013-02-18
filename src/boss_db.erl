@@ -6,6 +6,7 @@
 
 -export([
 	 migrate/1,
+	 migrate/2,
         find/1, 
         find/2, 
         find/3, 
@@ -89,6 +90,7 @@ migrate(Migrations) when is_list(Migrations) ->
 		end).
 
 migrate({Tag, Fun}, Direction) ->
+    io:format("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
     db_call({migration_done, Tag}).
 
