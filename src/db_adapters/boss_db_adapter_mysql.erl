@@ -326,11 +326,11 @@ build_conditions(Type, Conditions) ->
 
 build_conditions1([], Acc) ->
     Acc;
-build_conditions1([{Key, 'equals', Value}|Rest], Acc) when Value == undefined ->
+build_conditions1([{Key, 'equals', Value}|Rest], Acc) when Value == undefined ; Value == null->
     build_conditions1(Rest, add_cond(Acc, Key, "is", pack_value(Value)));
 build_conditions1([{Key, 'equals', Value}|Rest], Acc) ->
     build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(Value)));
-build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) when Value == undefined ->
+build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) when Value == undefined ; Value == null ->
     build_conditions1(Rest, add_cond(Acc, Key, "is not", pack_value(Value)));
 build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) ->
     build_conditions1(Rest, add_cond(Acc, Key, "!=", pack_value(Value)));
