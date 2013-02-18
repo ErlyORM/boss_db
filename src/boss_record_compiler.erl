@@ -332,11 +332,13 @@ association_forms(ModuleName, Attributes) ->
             ({has, {HasMany, Limit, Opts}}, {Acc, BT}) ->
                 {has_many_forms(HasMany, ModuleName, Limit, Opts) ++ Acc, BT};
             ({belongs_to, BelongsTo}, {Acc, BT}) ->
-                {[belongs_to_forms(BelongsTo, BelongsTo, ModuleName)|Acc], [BelongsTo|BT]};
+                {[belongs_to_forms(BelongsTo, BelongsTo, ModuleName)|Acc], 
+                    [{BelongsTo, BelongsTo}|BT]};
             ({OtherAttr, BelongsTo}, {Acc, BT}) ->
                 case atom_to_list(OtherAttr) of
                     "belongs_to_"++Type ->
-                        {[belongs_to_forms(Type, BelongsTo, ModuleName)|Acc], [BelongsTo|BT]};
+                        {[belongs_to_forms(Type, BelongsTo, ModuleName)|Acc], 
+                            [{BelongsTo, list_to_atom(Type)}|BT]};
                     _ ->
                         {Acc, BT}
                 end;
@@ -348,12 +350,23 @@ association_forms(ModuleName, Attributes) ->
 
 belongs_to_list_forms(BelongsToList) ->
     [ erl_syntax:add_precomments([erl_syntax:comment(
-                    ["% @spec belongs_to_names() -> [{atom()}]",
+                    ["% @spec belongs_to_names() -> [atom()]",
                         lists:concat(["% @doc Retrieve a list of the names of `belongs_to' associations."])])],
             erl_syntax:function(
                 erl_syntax:atom(belongs_to_names),
                 [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
-                                    fun(P) -> erl_syntax:atom(P) end, BelongsToList))])])),
+                                    fun({Name, _Type}) -> erl_syntax:atom(Name) end, BelongsToList))])])),
+
+        erl_syntax:add_precomments([erl_syntax:comment(
+                    ["% @spec belongs_to_types() -> [{atom(), atom()}]",
+                        lists:concat(["% @doc Retrieve a proplist of the `belongs_to' associations and their types."])])],
+            erl_syntax:function(
+                erl_syntax:atom(belongs_to_types),
+                [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
+                                    fun({Name, Type}) -> erl_syntax:tuple([
+                                                    erl_syntax:atom(Name),
+                                                    erl_syntax:atom(Type)])
+                                    end, BelongsToList))])])),
     
     erl_syntax:add_precomments([erl_syntax:comment(
                 ["% @spec belongs_to() -> [{atom(), BossRecord}]",
@@ -361,9 +374,10 @@ belongs_to_list_forms(BelongsToList) ->
         erl_syntax:function(
             erl_syntax:atom(belongs_to),
             [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
-                                fun(P) -> erl_syntax:tuple([
-                                                erl_syntax:atom(P),
-                                                erl_syntax:application(none, erl_syntax:atom(P), [])]) end, BelongsToList))])]))
+                                fun({Name, _Type}) -> erl_syntax:tuple([
+                                                erl_syntax:atom(Name),
+                                                erl_syntax:application(none, erl_syntax:atom(Name), [])]) 
+                                end, BelongsToList))])]))
             ].
 
 attribute_names_forms(ModuleName, Parameters) ->
