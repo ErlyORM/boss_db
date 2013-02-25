@@ -83,7 +83,7 @@ migrate(Migrations) when is_list(Migrations) ->
     %% 2. Get all the current migrations from it.
     DoneMigrations = db_call({get_migrations_table}),
     DoneMigrationTags = [list_to_atom(binary_to_list(Tag)) ||
-                            {_Id, Tag, _Direction, _MigratedAt} <- DoneMigrations],
+                            {_Id, Tag, _MigratedAt} <- DoneMigrations],
     %% 3. Run the ones that are not in this list.
     transaction(fun() ->
                         [migrate({Tag, Fun}, up) ||
