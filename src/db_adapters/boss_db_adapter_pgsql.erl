@@ -162,7 +162,7 @@ migration_done(Conn, Tag, up) ->
             {error, Reason}
     end;
 migration_done(Conn, Tag, down) ->
-    Res = pgsql:equery(Conn, "DELETE FROM schema_migrations WHERE version = $1'", [atom_to_list(Tag)]),
+    Res = pgsql:equery(Conn, "DELETE FROM schema_migrations WHERE version = $1", [atom_to_list(Tag)]),
     case Res of
         {ok, _Result} ->
             ok;
