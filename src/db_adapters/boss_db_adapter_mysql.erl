@@ -205,32 +205,14 @@ do_commit(Pid,_)->
 do_rollback(Pid,_)->
     fetch(Pid, ["ROLLBACK"]).
 
-get_migrations_table(Conn) ->
-    Res = pgsql:equery(Conn, "SELECT * FROM schema_migrations", []),
-    case Res of
-        {ok, _Columns, ResultRows} ->
-            ResultRows;
-        {error, Reason} ->
-            {error, Reason}
-    end.
+get_migrations_table(Pid) ->
+    fetch(Pid, "SELECT * FROM schema_migrations").
 
-migration_done(Conn, Tag, up) ->
-    Res = pgsql:equery(Conn, "INSERT INTO schema_migrations (version, migrated_at) values ($1, NOW())",
-                       [atom_to_list(Tag)]),
-    case Res of
-        {ok, _ResultRows} ->
-            ok;
-        {error, Reason} ->
-            {error, Reason}
-    end;
-migration_done(Conn, Tag, down) ->
-    Res = pgsql:equery(Conn, "DELETE FROM schema_migrations WHERE version = $1'", [atom_to_list(Tag)]),
-    case Res of
-        {ok, _Result} ->
-            ok;
-        {error, Reason} ->
-            {error, Reason}
-    end.
+migration_done(Pid, Tag, up) ->
+    fetch(Pid, ["INSERT INTO schema_migrations (version, migrated_at) values (",
+                 atom_to_list(Tag), ", NOW())"]);
+migration_done(Pid, Tag, down) ->
+    fetch(Pid, ["DELETE FROM schema_migrations WHERE version = ", atom_to_list(Tag)]).
 
 % internal
 
