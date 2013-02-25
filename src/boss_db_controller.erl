@@ -117,9 +117,9 @@ handle_call({get_migrations_table}, _From, #state{ cache_enable = false } = Stat
     {Adapter, Conn} = {State#state.adapter, State#state.connection},
     {reply, Adapter:get_migrations_table(Conn), State};
 
-handle_call({migration_done, Tag}, _From, #state{ cache_enable = false } = State) ->
+handle_call({migration_done, Tag, Direction}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = {State#state.adapter, State#state.connection},
-    {reply, Adapter:migration_done(Conn, Tag), State};
+    {reply, Adapter:migration_done(Conn, Tag, Direction), State};
 
 handle_call({count, Type}, _From, State) ->
     {Adapter, Conn} = db_for_type(Type, State),

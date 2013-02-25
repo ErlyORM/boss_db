@@ -3,6 +3,7 @@
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, transaction/2]).
+-export([get_migrations_table/1, migration_done/3]).
 
 start(_) ->
     ok.
@@ -171,39 +172,65 @@ transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     
 do_transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     case do_begin(Pid, self()) of
- 	{error, _} = Err ->	
- 	    {aborted, Err};
- 	{updated,{mysql_result,[],[],0,0,[]}} ->
-	    case catch TransactionFun() of
-		error = Err ->  
-				do_rollback(Pid, self()),
-				{aborted, Err};
-		{error, _} = Err -> 
-				do_rollback(Pid, self()),
-				{aborted, Err};
-		{'EXIT', _} = Err -> 
-				do_rollback(Pid, self()),
-				{aborted, Err};
-		Res ->
-		    case do_commit(Pid, self()) of
-			{error, _} = Err ->
-			    do_rollback(Pid, self()),
-			    {aborted, Err};
-			_ ->
-			    {atomic, Res}
-		    end
-	    end
-    end.    
+        {error, _} = Err ->	
+            {aborted, Err};
+        {updated,{mysql_result,[],[],0,0,[]}} ->
+            case catch TransactionFun() of
+                error = Err ->  
+                    do_rollback(Pid, self()),
+                    {aborted, Err};
+                {error, _} = Err -> 
+                    do_rollback(Pid, self()),
+                    {aborted, Err};
+                {'EXIT', _} = Err -> 
+                    do_rollback(Pid, self()),
+                    {aborted, Err};
+                Res ->
+                    case do_commit(Pid, self()) of
+                        {error, _} = Err ->
+                            do_rollback(Pid, self()),
+                            {aborted, Err};
+                        _ ->
+                            {atomic, Res}
+                    end
+            end
+    end.
 
 do_begin(Pid,_)->
-	fetch(Pid, ["BEGIN"]).	
+    fetch(Pid, ["BEGIN"]).	
 
 do_commit(Pid,_)->
-	fetch(Pid, ["COMMIT"]).
+    fetch(Pid, ["COMMIT"]).
 
 do_rollback(Pid,_)->
-	fetch(Pid, ["ROLLBACK"]).
+    fetch(Pid, ["ROLLBACK"]).
 
+get_migrations_table(Conn) ->
+    Res = pgsql:equery(Conn, "SELECT * FROM schema_migrations", []),
+    case Res of
+        {ok, _Columns, ResultRows} ->
+            ResultRows;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+migration_done(Conn, Tag, up) ->
+    Res = pgsql:equery(Conn, "INSERT INTO schema_migrations (version, migrated_at) values ($1, NOW())",
+                       [atom_to_list(Tag)]),
+    case Res of
+        {ok, _ResultRows} ->
+            ok;
+        {error, Reason} ->
+            {error, Reason}
+    end;
+migration_done(Conn, Tag, down) ->
+    Res = pgsql:equery(Conn, "DELETE FROM schema_migrations WHERE version = $1'", [atom_to_list(Tag)]),
+    case Res of
+        {ok, _Result} ->
+            ok;
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 % internal
 
