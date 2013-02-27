@@ -96,9 +96,9 @@ list_functions([], DefinedFunctions) ->
     lists:reverse(DefinedFunctions);
 list_functions([{'function', _, Name, Arity, _}|Rest], DefinedFunctions) ->
     list_functions(Rest, [{Name, Arity}|DefinedFunctions]);
-list_functions([{tree, 'function', _, {Function, {tree, 'atom', _, Name}, 
+list_functions([{tree, 'function', _, {FunctionTag, {tree, 'atom', _, Name}, 
                 [{tree, 'clause', _, {'clause', Args, _, _}}|_]}}|Rest], 
-    DefinedFunctions) when Function =:= 'function'; Function =:= 'func' ->
+    DefinedFunctions) when FunctionTag =:= 'function'; FunctionTag =:= 'func' ->
     Arity = length(Args), 
     list_functions(Rest, [{Name, Arity}|DefinedFunctions]);
 list_functions([_H|T], DefinedFunctions) ->
@@ -112,10 +112,10 @@ override_functions([{'function', _, Name, Arity, _} = Function|Rest], Acc, Defin
         true -> override_functions(Rest, Acc, DefinedFunctions);
         false -> override_functions(Rest, [Function|Acc], [{Name, Arity}|DefinedFunctions])
     end;
-override_functions([{tree, 'function', _, {Function, {tree, 'atom', _, Name}, 
+override_functions([{tree, 'function', _, {FunctionTag, {tree, 'atom', _, Name}, 
                 [{tree, 'clause', _, {'clause', Args, _, _}}|_]
             }} = Function|Rest], 
-    Acc, DefinedFunctions) when Function =:= 'function'; Function =:= 'func' ->
+    Acc, DefinedFunctions) when FunctionTag =:= 'function'; FunctionTag =:= 'func' ->
     Arity = length(Args),
     case lists:member({Name, Arity}, DefinedFunctions) of
         true -> override_functions(Rest, Acc, DefinedFunctions);
