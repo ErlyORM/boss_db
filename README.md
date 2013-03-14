@@ -25,9 +25,19 @@ Write an adapter: https://github.com/evanmiller/ChicagoBoss/wiki/DB-Adapter-Quic
 Usage
 -----
 
-    boss_db:start(DBOptions),
-    boss_cache:start(CacheOptions), % If you want cacheing with Memcached
-    boss_news:start() % Mandatory! Hopefully will be optional one day
+`boss_db` now is ran as an Erlang/OTP application with application env
+configuration.  The `boss_db` application configuration can be specified
+within a config file (provide to -config on the erl command line):
+
+    [{boss_db, [
+        {db_options, []},       % DBOptions :: list({atom(), any()})
+        {cache_enable, false},  % BossCache :: true | false
+        {cache_options, []},    % CacheOptions :: list({atom(), any()})
+        {news_enable, true}     % BossNews :: true | false
+    ]}]
+      
+The default values are shown above, but other configuration possibilities are
+shown below:
 
     DBOptions = [
         {adapter, mock | tyrant | riak | mysql | pgsql | mnesia | mongodb},
@@ -48,6 +58,10 @@ Usage
         {adapter, memcached_bin}, % More in the future
         {cache_servers, [{HostName::string(), Port::integer(), Weight::integer()}]}
     ]
+
+If you needed to manually start `boss_db`, you could use
+`application:start(boss_db)`.  However, `boss_db` should be mentioned within
+your application file so this is done automatically.
 
 Introduction
 ------------

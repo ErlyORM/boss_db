@@ -16,6 +16,9 @@
 
 -define(TRILLION, 1000 * 1000 * 1000 * 1000).
 
+-define(CATCH_NOPROC(F),
+        try F catch exit:{noproc, _} -> ok end).
+
 start() ->
     start([]).
 
@@ -70,13 +73,16 @@ extend_watch(WatchId) ->
     gen_server:call({global, ?MODULE}, {extend_watch, WatchId}).
 
 deleted(Id, Attrs) ->
-    gen_server:call({global, ?MODULE}, {deleted, Id, Attrs}).
+    ?CATCH_NOPROC(gen_server:call({global, ?MODULE},
+                                  {deleted, Id, Attrs})).
 
 updated(Id, OldAttrs, NewAttrs) ->
-    gen_server:call({global, ?MODULE}, {updated, Id, OldAttrs, NewAttrs}).
+    ?CATCH_NOPROC(gen_server:call({global, ?MODULE},
+                                  {updated, Id, OldAttrs, NewAttrs})).
 
 created(Id, NewAttrs) ->
-    gen_server:call({global, ?MODULE}, {created, Id, NewAttrs}).
+    ?CATCH_NOPROC(gen_server:call({global, ?MODULE},
+                                  {created, Id, NewAttrs})).
 
 reset() ->
     gen_server:call({global, ?MODULE}, reset).
