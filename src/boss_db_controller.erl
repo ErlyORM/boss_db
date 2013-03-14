@@ -14,7 +14,8 @@
         cache_enable,
         cache_ttl,
         cache_prefix,
-        depth = 0}).
+        depth = 0,
+        boss_news}).
 
 start_link() ->
     start_link([]).
@@ -23,6 +24,8 @@ start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
 
 init(Options) ->
+    BossNews = proplists:get_value(boss_news, Options),
+    true = is_boolean(BossNews),
     AdapterName = proplists:get_value(adapter, Options, mock),
     Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
     CacheEnable = proplists:get_value(cache_enable, Options, false),
@@ -46,37 +49,60 @@ init(Options) ->
                         {[{ShardAdapter, ShardConn}|ShardAcc], NewDict}
                 end
         end, {[], dict:new()}, proplists:get_value(shards, Options, [])),
-    {ok, #state{adapter = Adapter, connection = Conn, shards = lists:reverse(Shards), model_dict = ModelDict,
-        cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}.
+    {ok, #state{adapter = Adapter, connection = Conn,
+                shards = lists:reverse(Shards), model_dict = ModelDict,
+                cache_enable = CacheEnable, cache_ttl = CacheTTL,
+                cache_prefix = db,
+                boss_news = BossNews}}.
 
-handle_call({find, Key}, From, #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
+handle_call({find, Key}, From,
+            #state{cache_enable = true, cache_prefix = Prefix,
+                   boss_news = BossNews} = State) ->
     case boss_cache:get(Prefix, Key) of
         undefined ->
-            {reply, Res, _} = handle_call({find, Key}, From, State#state{ cache_enable = false }),
-            IsSuccess = (Res =:= undefined orelse (is_tuple(Res) andalso element(1, Res) =/= error)),
+            {reply, Res, _} = handle_call({find, Key}, From,
+                                          State#state{cache_enable = false}),
+            IsSuccess = (Res =:= undefined orelse
+                         (is_tuple(Res) andalso element(1, Res) =/= error)),
             case IsSuccess of
                 true ->
                     boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-                    WatchString = lists:concat([Key, ", ", Key, ".*"]), 
-                    boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_record_news/3, 
-                        {Prefix, Key}, State#state.cache_ttl);
-                _ -> error % log it here?
+                    if
+                        BossNews =:= true ->
+                            WatchString = lists:concat([Key, ", ", Key, ".*"]), 
+                            boss_news:set_watch(Key, WatchString,
+                                fun boss_db_cache:handle_record_news/3, 
+                                {Prefix, Key}, State#state.cache_ttl);
+                        BossNews =:= false ->
+                            ok
+                    end;
+                _ ->
+                    error % log it here?
             end,
             {reply, Res, State};
         CachedValue ->
-            boss_news:extend_watch(Key),
+            if
+                BossNews =:= true ->
+                    boss_news:extend_watch(Key);
+                BossNews =:= false ->
+                    ok
+            end,
             {reply, CachedValue, State}
     end;
-handle_call({find, Key}, _From, #state{ cache_enable = false } = State) ->
+handle_call({find, Key}, _From,
+            #state{cache_enable = false} = State) ->
     {Adapter, Conn} = db_for_key(Key, State),
     {reply, Adapter:find(Conn, Key), State};
 
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd, From, 
-    #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
+handle_call({find, Type, Conditions, Max, Skip,
+             Sort, SortOrder, Include} = Cmd, From, 
+            #state{cache_enable = true, cache_prefix = Prefix,
+                   boss_news = BossNews} = State) ->
     Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
     case boss_cache:get(Prefix, Key) of
         undefined ->
-            {reply, Res, _} = handle_call(Cmd, From, State#state{ cache_enable = false }),
+            {reply, Res, _} = handle_call(Cmd, From,
+                                          State#state{cache_enable = false}),
             case is_list(Res) of
                 true ->
                     DummyRecord = boss_record_lib:dummy_record(Type),
@@ -96,22 +122,40 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
                                 RecordList ++ Acc
                         end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include)),
                     lists:map(fun(Rec) ->
-                                boss_cache:set(Prefix, Rec:id(), Rec, State#state.cache_ttl)
+                            boss_cache:set(Prefix, Rec:id(), Rec,
+                                           State#state.cache_ttl)
                         end, IncludedRecords),
                     boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-                    WatchString = lists:concat([inflector:pluralize(atom_to_list(Type)), ", ", Type, "-*.*"]), 
-                    boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_collection_news/3, 
-                        {Prefix, Key}, State#state.cache_ttl);
-                _ -> error % log it here?
+                    if
+                        BossNews =:= true ->
+                            WatchString = lists:concat([
+                                inflector:pluralize(atom_to_list(Type)), ", ",
+                                                    Type, "-*.*"]), 
+                            boss_news:set_watch(Key, WatchString,
+                                fun boss_db_cache:handle_collection_news/3, 
+                                {Prefix, Key}, State#state.cache_ttl);
+                        BossNews =:= false ->
+                            ok
+                    end;
+                _ ->
+                    error % log it here?
             end,
             {reply, Res, State};
         CachedValue ->
-            boss_news:extend_watch(Key),
+            if
+                BossNews =:= true ->
+                    boss_news:extend_watch(Key);
+                BossNews =:= false ->
+                    ok
+            end,
             {reply, CachedValue, State}
     end;
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #state{ cache_enable = false } = State) ->
+handle_call({find, Type, Conditions, Max, Skip,
+             Sort, SortOrder, _}, _From,
+            #state{cache_enable = false} = State) ->
     {Adapter, Conn} = db_for_type(Type, State),
-    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
+    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip,
+                         Sort, SortOrder), State};
 
 handle_call({count, Type}, _From, State) ->
     {Adapter, Conn} = db_for_type(Type, State),
