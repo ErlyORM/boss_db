@@ -4,6 +4,7 @@ BossDB: A sharded, caching, pooling, evented ORM for Erlang
 Supported databases
 -------------------
 
+* *NEW* DynamoDB (experimental)
 * Mnesia
 * MongoDB
 * MySQL
