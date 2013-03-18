@@ -24,7 +24,7 @@ start_link(Args) ->
     gen_server:start_link(?MODULE, Args, []).
 
 init(Options) ->
-    BossNews = proplists:get_value(boss_news, Options),
+    BossNews = proplists:get_value(news_enable, Options),
     true = is_boolean(BossNews),
     AdapterName = proplists:get_value(adapter, Options, mock),
     Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),

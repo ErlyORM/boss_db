@@ -11,13 +11,14 @@ start_link(Env) when is_list(Env) ->
 
 init([Env]) ->
     DBOptions = proplists:get_value(db_options, Env),
-    BossCache = proplists:get_value(boss_cache, Env),
-    BossNews = proplists:get_value(boss_news, Env),
+    CacheOptions = proplists:get_value(cache_options, Env, []),
+    BossCache = proplists:get_value(cache_enable, Env),
+    BossNews = proplists:get_value(news_enable, Env),
 
     Children0 = [child_specification(boss_db, DBOptions, BossNews /= false)],
     Children1 = if
-        is_list(BossCache) ->
-            Children0 ++ [child_specification(boss_cache, BossCache)];
+        BossCache =:= true ->
+            Children0 ++ [child_specification(boss_cache, CacheOptions)];
         BossCache =:= false ->
             Children0
     end,
@@ -34,15 +35,15 @@ init([Env]) ->
 
 child_specification(boss_db, DBOptions0, BossNews) ->
     true = is_boolean(BossNews),
-    DBOptions = lists:keystore(boss_news, 1, DBOptions0,
-                               {boss_news, BossNews}),
+    DBOptions = lists:keystore(news_enable, 1, DBOptions0,
+                               {news_enable, BossNews}),
     {boss_db_sup,
      {boss_db_sup, start_link, [DBOptions]},
      permanent, infinity, supervisor, [boss_db_sup]}.
 
-child_specification(boss_cache, BossCache) ->
+child_specification(boss_cache, CacheOptions) ->
     {boss_cache_sup,
-     {boss_cache_sup, start_link, [BossCache]},
+     {boss_cache_sup, start_link, [CacheOptions]},
      permanent, infinity, supervisor, [boss_cache_sup]}.
 
 child_specification(boss_news) ->

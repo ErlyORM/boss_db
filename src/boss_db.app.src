@@ -16,8 +16,8 @@
             ]},
     {env, [
         {db_options, []},
-        {boss_cache, false},
-        {boss_news, true}
+        {cache_enable, false},
+        {news_enable, true}
     ]},
     {mod, {boss_db_app,[]}},
     {start_phases, []}
