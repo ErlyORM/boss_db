@@ -30,9 +30,10 @@ configuration.  The `boss_db` application configuration can be specified
 within a config file (provide to -config on the erl command line):
 
     [{boss_db, [
-        {db_options, []},     % DBOptions :: list({atom(), any()})
-        {boss_cache, false},  % CacheOptions :: list({atom(), any()}) | false
-        {boss_news, true}     % BossNewsOptions :: true | false
+        {db_options, []},       % DBOptions :: list({atom(), any()})
+        {cache_enable, false},  % BossCache :: true | false
+        {cache_options, []},    % CacheOptions :: list({atom(), any()})
+        {news_enable, true}     % BossNews :: true | false
     ]}]
       
 The default values are shown above, but other configuration possibilities are
