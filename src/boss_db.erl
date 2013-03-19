@@ -95,7 +95,7 @@ migrate(Migrations) when is_list(Migrations) ->
 migrate({Tag, Fun}, Direction) ->
     io:format("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
-    db_call({migration_done, Tag, Direction});
+    db_call({migration_done, Tag, Direction}).
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described
