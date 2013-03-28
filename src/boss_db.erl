@@ -64,7 +64,8 @@ db_call(Msg) ->
         undefined ->
             boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
         State ->
-            {reply, Reply, _} = boss_db_controller:handle_call(Msg, self(), State),
+            {reply, Reply, State} =
+                boss_db_controller:handle_call(Msg, undefined, State),
             Reply
     end.
 
@@ -242,7 +243,9 @@ transaction(TransactionFun) ->
     Worker = poolboy:checkout(?POOLNAME),
     State = gen_server:call(Worker, state, ?DEFAULT_TIMEOUT),
     put(boss_db_transaction_info, State),
-    {reply, Reply, _} = boss_db_controller:handle_call({transaction, TransactionFun}, self(), State),
+    {reply, Reply, State} =
+        boss_db_controller:handle_call({transaction, TransactionFun},
+                                       undefined, State),
     put(boss_db_transaction_info, undefined),
     poolboy:checkin(?POOLNAME, Worker),
     Reply.
