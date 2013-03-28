@@ -199,15 +199,38 @@ build_conditions1([], Acc) ->
 build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
 %    ?LOG("Key, Operator, Value", {Key, Operator, Value}),
 
-    Condition = case {Operator, Value} of 
-        {'not_matches', "*"++Value1} ->
-            [{Key, {'$not', {regex, list_to_binary(Value1), <<"i">>}}}];
+    Condition = case {Operator, Value} of
+	%% Fixed for PCRE compliance
+        {'not_matches_i', Value1} ->
+            [{Key, {'$not', {regex, list_to_binary(Value1), <<"$options: 'i'">>}}}];
         {'not_matches', Value} ->
             [{Key, {'$not', {regex, list_to_binary(Value), <<"">>}}}];
-        {'matches', "*"++Value1} ->
-            [{Key, {regex, list_to_binary(Value1), <<"i">>}}];
+	%% Removed these lines as it breaks PCRE compliance
+        %% {'matches', "*"++Value1} ->
+        %%    [{Key, {regex, list_to_binary(Value1), <<"">>}}];
+	%% regular case sensitive match
         {'matches', Value} ->
             [{Key, {regex, list_to_binary(Value), <<"">>}}];
+        %% "m" matches multilines
+        {'matches_m', Value} ->
+            [{Key, {regex, list_to_binary(Value), <<"$options: 'm'">>}}];
+	%% "i" toggles case insensitivity, and allows all letters in the pattern
+	%% to match upper and lower cases.
+        {'matches_i', Value} ->
+            [{Key, {regex, list_to_binary(Value), <<"$options: 'i'">>}}];
+	%% "s" allows the dot (e.g. .) character to match all characters
+	%% including newline characters.
+        {'matches_s', Value} ->
+            [{Key, {regex, list_to_binary(Value), <<"$options: 's'">>}}];
+	%% "x" toggles an “extended” capability. When set, $regex ignores all
+	%% white space characters unless escaped or included in a character
+	%% class. Additionally, it ignores characters between an
+	%% un-escaped # character and the next new line, so that you may
+	%% include comments in complicated patterns. This only applies to
+	%% data characters; white space characters may never appear within
+	%% special character sequences in a pattern.
+        {'matches_x', Value} ->
+            [{Key, {regex, list_to_binary(Value), <<"$options: 'x'">>}}];
         {'contains', Value} ->
             WhereClause = where_clause(
                 ?CONTAINS_FORMAT, [Key, Value]),
