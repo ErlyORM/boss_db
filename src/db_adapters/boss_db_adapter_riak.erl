@@ -59,8 +59,9 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
         [] -> 
             riakc_pb_socket:list_keys(Conn, Bucket);
         _ ->
-            {ok, KeysExt} = riakc_pb_socket:search(Conn, Bucket, build_search_query(Conditions)),
-            {ok, lists:map(fun ([_,X])-> X end, KeysExt)}
+            {ok, {search_results, KeysExt, _, _}} = riakc_pb_socket:search(
+                Conn, Bucket, build_search_query(Conditions)),
+            {ok, lists:map(fun ([{_,X}])-> X end, KeysExt)}
     end,
     Records = find_acc(Conn, atom_to_list(Type) ++ "-", Keys, []),
     Sorted = if
