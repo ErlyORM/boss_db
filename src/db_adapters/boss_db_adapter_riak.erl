@@ -30,8 +30,8 @@ find(Conn, Id) ->
         {ok, Res} ->
             Value = riakc_obj:get_value(Res),
             Data = binary_to_term(Value),
-            ConvertedData = decode_data_from_riak(Data),
             AttributeTypes = boss_record_lib:attribute_types(Type),
+            ConvertedData = decode_data_from_riak(Data, AttributeTypes),
             Record = apply(Type, new, lists:map(fun (AttrName) ->
                             Val = proplists:get_value(AttrName, ConvertedData),
                             AttrType = proplists:get_value(AttrName, AttributeTypes),
@@ -62,11 +62,9 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
         _ ->
             {ok, {search_results, KeysExt, _, _}} = riakc_pb_socket:search(
                 Conn, Bucket, build_search_query(Conditions)),
-            ConvertedKeysExt = decode_search_from_riak(KeysExt),
             {ok, lists:map(fun ({_,X})->
-                             Id = proplists:get_value(id, X),
-                             list_to_binary(Id)
-                           end, ConvertedKeysExt)}
+                proplists:get_value(<<"id">>, X)
+            end, KeysExt)}
     end,
     Records = find_acc(Conn, atom_to_list(Type) ++ "-", Keys, []),
     Sorted = if
@@ -287,18 +285,13 @@ encode_data_for_riak(Data) ->
         {BinaryKey, ConvertedValue}
     end, Data).
 
-decode_data_from_riak(Data) ->
+decode_data_from_riak(Data, AttributeTypes) ->
     lists:map(fun({K, V}) ->
-        BinaryKey = binary_to_atom(K, utf8),
-        ConvertedValue = try
-                           binary_to_list(V)
-                         catch
-                           error:_ -> V
-                         end,
-        {BinaryKey, ConvertedValue}
-    end, Data).
-
-decode_search_from_riak(Data) ->
-    lists:map(fun({K, V}) ->
-        {K, decode_data_from_riak(V)}
+        AtomKey = list_to_atom(binary_to_list(K)),
+        AttributeType = proplists:get_value(AtomKey, AttributeTypes),
+        ConvertedValue = case AttributeType of
+            string -> binary_to_list(V);
+            _ -> V
+        end,
+        {AtomKey, boss_record_lib:convert_value_to_type(ConvertedValue, AttributeType)}
     end, Data).
