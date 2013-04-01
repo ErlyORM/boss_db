@@ -28,11 +28,12 @@ find(Conn, Id) ->
     {Type, Bucket, Key} = infer_type_from_id(Id),
     case riakc_pb_socket:get(Conn, Bucket, Key) of
         {ok, Res} ->
-            Value = riakc_obj:get_value (Res),
+            Value = riakc_obj:get_value(Res),
             Data = binary_to_term(Value),
+            ConvertedData = decode_data_from_riak(Data),
             AttributeTypes = boss_record_lib:attribute_types(Type),
             Record = apply(Type, new, lists:map(fun (AttrName) ->
-                            Val = proplists:get_value(AttrName, Data),
+                            Val = proplists:get_value(AttrName, ConvertedData),
                             AttrType = proplists:get_value(AttrName, AttributeTypes),
                             boss_record_lib:convert_value_to_type(Val, AttrType)
                     end, boss_record_lib:attribute_names(Type))),
@@ -56,12 +57,16 @@ find_acc(Conn, Prefix, [Id | Rest], Acc) ->
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     Bucket = type_to_bucket_name(Type),
     {ok, Keys} = case Conditions of
-        [] -> 
+        [] ->
             riakc_pb_socket:list_keys(Conn, Bucket);
         _ ->
             {ok, {search_results, KeysExt, _, _}} = riakc_pb_socket:search(
                 Conn, Bucket, build_search_query(Conditions)),
-            {ok, lists:map(fun ([{_,X}])-> X end, KeysExt)}
+            ConvertedKeysExt = decode_search_from_riak(KeysExt),
+            {ok, lists:map(fun ({_,X})->
+                             Id = proplists:get_value(id, X),
+                             list_to_binary(Id)
+                           end, ConvertedKeysExt)}
     end,
     Records = find_acc(Conn, atom_to_list(Type) ++ "-", Keys, []),
     Sorted = if
@@ -78,10 +83,9 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     case Max of
         all -> lists:nthtail(Skip, Sorted);
         Max when Skip < length(Sorted) ->
-            lists:sublist(Sorted, Skip + 1, Max);                                                                                             
-        _ ->  
-            []  
-
+            lists:sublist(Sorted, Skip + 1, Max);
+        _ ->
+            []
     end.
 
 % this is a stub just to make the tests runable
@@ -105,6 +109,7 @@ save_record(Conn, Record) ->
     Type = element(1, Record),
     Bucket = list_to_binary(type_to_bucket_name(Type)),
     PropList = [{K, V} || {K, V} <- Record:attributes(), K =/= id],
+    ConvertedPropList = encode_data_for_riak(PropList),
     Key = case Record:id() of
         id ->
             % TODO: The next release of Riak will support server-side ID
@@ -117,10 +122,10 @@ save_record(Conn, Record) ->
     BinKey = list_to_binary(Key),
     ok = case riakc_pb_socket:get(Conn, Bucket, BinKey) of
         {ok, O} ->
-            O2 = riakc_obj:update_value(O, PropList),
+            O2 = riakc_obj:update_value(O, ConvertedPropList),
             riakc_pb_socket:put(Conn, O2);
         {error, _} ->
-            O = riakc_obj:new(Bucket, BinKey, PropList, <<"application/x-erlang-term">>),
+            O = riakc_obj:new(Bucket, BinKey, ConvertedPropList, <<"application/x-erlang-term">>),
             riakc_pb_socket:put(Conn, O)
     end,
     {ok, Record:set(id, lists:concat([Type, "-", Key]))}.
@@ -264,9 +269,36 @@ escape_value(Value) ->
 
 escape_value([], Acc) ->
     lists:reverse(Acc);
-escape_value([H|T], Acc) when H=:=$+; H=:=$-; H=:=$&; H=:=$|; H=:=$!; H=:=$(; H=:=$); 
-                              H=:=$[; H=:=$]; H=:=${; H=:=$}; H=:=$^; H=:=$"; H=:=$~; 
+escape_value([H|T], Acc) when H=:=$+; H=:=$-; H=:=$&; H=:=$|; H=:=$!; H=:=$(; H=:=$);
+                              H=:=$[; H=:=$]; H=:=${; H=:=$}; H=:=$^; H=:=$"; H=:=$~;
                               H=:=$*; H=:=$?; H=:=$:; H=:=$\\ ->
     escape_value(T, lists:reverse([$\\, H], Acc));
 escape_value([H|T], Acc) ->
     escape_value(T, [H|Acc]).
+
+encode_data_for_riak(Data) ->
+    lists:map(fun({K, V}) ->
+        BinaryKey = list_to_binary(atom_to_list(K)),
+        ConvertedValue = try
+                           list_to_binary(V)
+                         catch
+                           error:_ -> V
+                         end,
+        {BinaryKey, ConvertedValue}
+    end, Data).
+
+decode_data_from_riak(Data) ->
+    lists:map(fun({K, V}) ->
+        BinaryKey = binary_to_atom(K, utf8),
+        ConvertedValue = try
+                           binary_to_list(V)
+                         catch
+                           error:_ -> V
+                         end,
+        {BinaryKey, ConvertedValue}
+    end, Data).
+
+decode_search_from_riak(Data) ->
+    lists:map(fun({K, V}) ->
+        {K, decode_data_from_riak(V)}
+    end, Data).
