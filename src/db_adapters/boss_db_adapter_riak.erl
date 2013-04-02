@@ -30,8 +30,8 @@ find(Conn, Id) ->
         {ok, Res} ->
             Value = riakc_obj:get_value(Res),
             Data = binary_to_term(Value),
+            ConvertedData = riak_search_decode_data(Data),
             AttributeTypes = boss_record_lib:attribute_types(Type),
-            ConvertedData = decode_data_from_riak(Data, AttributeTypes),
             Record = apply(Type, new, lists:map(fun (AttrName) ->
                             Val = proplists:get_value(AttrName, ConvertedData),
                             AttrType = proplists:get_value(AttrName, AttributeTypes),
@@ -106,8 +106,7 @@ delete(Conn, Id) ->
 save_record(Conn, Record) ->
     Type = element(1, Record),
     Bucket = list_to_binary(type_to_bucket_name(Type)),
-    PropList = [{K, V} || {K, V} <- Record:attributes(), K =/= id],
-    ConvertedPropList = encode_data_for_riak(PropList),
+    PropList = [{riak_search_encode_key(K), riak_search_encode_value(V)} || {K, V} <- Record:attributes(), K =/= id],
     Key = case Record:id() of
         id ->
             % TODO: The next release of Riak will support server-side ID
@@ -120,10 +119,10 @@ save_record(Conn, Record) ->
     BinKey = list_to_binary(Key),
     ok = case riakc_pb_socket:get(Conn, Bucket, BinKey) of
         {ok, O} ->
-            O2 = riakc_obj:update_value(O, ConvertedPropList),
+            O2 = riakc_obj:update_value(O, PropList),
             riakc_pb_socket:put(Conn, O2);
         {error, _} ->
-            O = riakc_obj:new(Bucket, BinKey, ConvertedPropList, <<"application/x-erlang-term">>),
+            O = riakc_obj:new(Bucket, BinKey, PropList, <<"application/x-erlang-term">>),
             riakc_pb_socket:put(Conn, O)
     end,
     {ok, Record:set(id, lists:concat([Type, "-", Key]))}.
@@ -274,24 +273,25 @@ escape_value([H|T], Acc) when H=:=$+; H=:=$-; H=:=$&; H=:=$|; H=:=$!; H=:=$(; H=
 escape_value([H|T], Acc) ->
     escape_value(T, [H|Acc]).
 
-encode_data_for_riak(Data) ->
+riak_search_encode_key(K) ->
+    list_to_binary(atom_to_list(K)).
+
+riak_search_encode_value(V) when is_list(V) ->
+    list_to_binary(V);
+riak_search_encode_value(V) ->
+    V.
+
+riak_search_decode_data(Data) ->
     lists:map(fun({K, V}) ->
-        BinaryKey = list_to_binary(atom_to_list(K)),
-        ConvertedValue = try
-                           list_to_binary(V)
-                         catch
-                           error:_ -> V
-                         end,
-        {BinaryKey, ConvertedValue}
+        DecodedKey = riak_search_decode_key(K),
+        DecodedValue = riak_search_decode_value(V),
+        {DecodedKey, DecodedValue}
     end, Data).
 
-decode_data_from_riak(Data, AttributeTypes) ->
-    lists:map(fun({K, V}) ->
-        AtomKey = list_to_atom(binary_to_list(K)),
-        AttributeType = proplists:get_value(AtomKey, AttributeTypes),
-        ConvertedValue = case AttributeType of
-            string -> binary_to_list(V);
-            _ -> V
-        end,
-        {AtomKey, boss_record_lib:convert_value_to_type(ConvertedValue, AttributeType)}
-    end, Data).
+riak_search_decode_key(K) ->
+    list_to_atom(binary_to_list(K)).
+
+riak_search_decode_value(V) when is_binary(V) ->
+    binary_to_list(V);
+riak_search_decode_value(V) ->
+    V.
