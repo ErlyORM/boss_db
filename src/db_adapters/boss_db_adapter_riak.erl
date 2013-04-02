@@ -8,10 +8,8 @@
 
 -define(HUGE_INT, 1000 * 1000 * 1000 * 1000).
 
-start(_Options) ->
-    % TODO: crypto is needed for unique_id_62/0. Remove it when
-    %       unique_id_62/0 is not needed.
-    crypto:start().
+start(_) ->
+    ok.
 
 stop() ->
     ok.
@@ -107,25 +105,21 @@ save_record(Conn, Record) ->
     Type = element(1, Record),
     Bucket = list_to_binary(type_to_bucket_name(Type)),
     PropList = [{riak_search_encode_key(K), riak_search_encode_value(V)} || {K, V} <- Record:attributes(), K =/= id],
-    Key = case Record:id() of
-        id ->
-            % TODO: The next release of Riak will support server-side ID
-            %       generating. Get rid of unique_id_62/0.
-            unique_id_62();
-        DefinedId when is_list(DefinedId) ->
+    RiakKey = case Record:id() of
+        id -> % New entry
+            O = riakc_obj:new(Bucket, undefined, PropList),
+            {ok, RO} = riakc_pb_socket:put(Conn, O),
+            binary_to_list(element(3, RO));
+        DefinedId when is_list(DefinedId) -> % Existing Entry
             [_ | Tail] = string:tokens(DefinedId, "-"),
-            string:join(Tail, "-")
-    end,
-    BinKey = list_to_binary(Key),
-    ok = case riakc_pb_socket:get(Conn, Bucket, BinKey) of
-        {ok, O} ->
+            Key = string:join(Tail, "-"),
+            BinKey = list_to_binary(Key),
+            {ok, O} = riakc_pb_socket:get(Conn, Bucket, BinKey),
             O2 = riakc_obj:update_value(O, PropList),
-            riakc_pb_socket:put(Conn, O2);
-        {error, _} ->
-            O = riakc_obj:new(Bucket, BinKey, PropList, <<"application/x-erlang-term">>),
-            riakc_pb_socket:put(Conn, O)
+            ok = riakc_pb_socket:put(Conn, O2),
+            Key
     end,
-    {ok, Record:set(id, lists:concat([Type, "-", Key]))}.
+    {ok, Record:set(id, lists:concat([Type, "-", RiakKey]))}.
 
 % These 2 functions are not part of the behaviour but are required for
 % tests to pass
@@ -148,53 +142,6 @@ type_to_bucket_name(Type) when is_atom(Type) ->
     type_to_bucket_name(atom_to_list(Type));
 type_to_bucket_name(Type) when is_list(Type) ->
     inflector:pluralize(Type).
-
-% Unique key generator (copy&pasted from riak_core_util.erl)
-% see https://github.com/basho/riak_core/blob/master/src/riak_core_util.erl#L131
-% for details.
-% TODO: Get rid of this code when server-side ID generating is available
-%       in Riak.
-
-%% @spec integer_to_list0(Integer :: integer(), Base :: integer()) ->
-%% string()
-%% @doc Convert an integer to its string representation in the given
-%% base. Bases 2-62 are supported.
-integer_to_list0(I, 10) ->
-    erlang:integer_to_list(I);
-integer_to_list0(I, Base)
-  when is_integer(I), is_integer(Base),Base >= 2, Base =< 1+$Z-$A+10+1+$z-$a ->
-    if I < 0 ->
-            [$-|integer_to_list0(-I, Base, [])];
-       true ->
-            integer_to_list0(I, Base, [])
-    end;
-integer_to_list0(I, Base) ->
-    erlang:error(badarg, [I, Base]).
-
-%% @spec integer_to_list0(integer(), integer(), string()) -> string()
-integer_to_list0(I0, Base, R0) ->
-    D = I0 rem Base,
-    I1 = I0 div Base,
-    R1 = if D >= 36 ->
-                [D-36+$a|R0];
-            D >= 10 ->
-                [D-10+$A|R0];
-            true ->
-                [D+$0|R0]
-         end,
-    if I1 =:= 0 ->
-            R1;
-       true ->
-            integer_to_list0(I1, Base, R1)
-    end.
-
-%% @spec unique_id_62() -> string()
-%% @doc Create a random identifying integer, returning its string
-%% representation in base 62.
-unique_id_62() ->
-    Rand = crypto:sha(term_to_binary({make_ref(), now()})),
-    <<I:160/integer>> = Rand,
-    integer_to_list0(I, 62).
 
 build_search_query(Conditions) ->
     Terms = build_search_query(Conditions, []),
