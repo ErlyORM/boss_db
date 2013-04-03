@@ -196,6 +196,12 @@ build_conditions(Conditions, OrderBy) ->
 build_conditions1([], Acc) ->
     Acc;
 
+build_conditions1([{Key, 'matches', Value, Options}|Rest], Acc) ->
+    MongoOptions = mongo_regex_options_for_re_module_options(Options),
+    build_conditions1(Rest, [{Key, {regex, list_to_binary(Value), list_to_binary(MongoOptions)}}|Acc]);
+build_conditions1([{Key, 'not_matches', Value, Options}|Rest], Acc) ->
+    MongoOptions = mongo_regex_options_for_re_module_options(Options),
+    build_conditions1(Rest, [{Key, {'$not', {regex, list_to_binary(Value), list_to_binary(MongoOptions)}}}|Acc]);
 build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
 %    ?LOG("Key, Operator, Value", {Key, Operator, Value}),
 
@@ -327,6 +333,20 @@ mongo_tuple_to_record(Type, Row) ->
                 unpack_value(AttrName, MongoValue, ValueType)
         end, boss_record_lib:attribute_names(Type)),
     apply(Type, new, Args).
+
+mongo_regex_options_for_re_module_options(Options) ->
+    mongo_regex_options_for_re_module_options(Options, []).
+
+mongo_regex_options_for_re_module_options([], Acc) ->
+    lists:reverse(Acc);
+mongo_regex_options_for_re_module_options([caseless|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$i|Acc]);
+mongo_regex_options_for_re_module_options([dotall|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$s|Acc]);
+mongo_regex_options_for_re_module_options([extended|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$x|Acc]);
+mongo_regex_options_for_re_module_options([multiline|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$m|Acc]).
 
 % Boss and MongoDB have a different conventions to id attributes (id vs. '_id').
 attr_value(id, MongoDoc) ->
