@@ -229,11 +229,7 @@ riak_search_encode_value(V) ->
     V.
 
 riak_search_decode_data(Data) ->
-    lists:map(fun({K, V}) ->
-        DecodedKey = riak_search_decode_key(K),
-        DecodedValue = riak_search_decode_value(V),
-        {DecodedKey, DecodedValue}
-    end, Data).
+    [{riak_search_decode_key(K), riak_search_decode_value(V)} || {K, V} <- Data].
 
 riak_search_decode_key(K) ->
     list_to_atom(binary_to_list(K)).
