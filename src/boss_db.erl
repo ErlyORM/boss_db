@@ -401,7 +401,9 @@ normalize_conditions([{Key, 'eq', Value}|Rest], Acc) when is_atom(Key) ->
 normalize_conditions([{Key, 'ne', Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'not_equals', Value}|Acc]);
 normalize_conditions([{Key, Operator, Value}|Rest], Acc) when is_atom(Key), is_atom(Operator) ->
-    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]).
+    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]);
+normalize_conditions([{Key, Operator, Value, Options}|Rest], Acc) when is_atom(Key), is_atom(Operator), is_list(Options) ->
+    normalize_conditions(Rest, [{Key, Operator, Value, Options}|Acc]).
 
 return_one(Result) ->
     case Result of
