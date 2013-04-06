@@ -9,7 +9,7 @@ Supported databases
 * MongoDB
 * MySQL
 * PostgreSQL
-* Riak (experimental)
+* Riak
 * Tokyo Tyrant
 
 Complete API references

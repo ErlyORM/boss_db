@@ -21,17 +21,26 @@ stop() ->
     ok.
 
 init(Options) ->
-    Host = proplists:get_value(db_host, Options, "localhost"),
-    Port = proplists:get_value(db_port, Options, 27017),
     Database = proplists:get_value(db_database, Options, test),
     WriteMode = proplists:get_value(db_write_mode, Options, safe),
     ReadMode = proplists:get_value(db_read_mode, Options, master),
-    {ok, Connection} = mongo:connect({Host, Port}),
+    Connection = case proplists:get_value(db_replication_set, Options) of
+        undefined ->
+            Host = proplists:get_value(db_host, Options, "localhost"),
+            Port = proplists:get_value(db_port, Options, 27017),
+            {ok, Conn} = mongo:connect({Host, Port}),
+            Conn;
+        ReplSet ->
+            mongo:rs_connect(ReplSet)
+    end,
     % We pass around arguments required by mongo:do/5
     {ok, {WriteMode, ReadMode, Connection, Database}}.
 
 terminate({_, _, Connection, _}) ->
-    mongo:disconnect(Connection).
+    case element(1, Connection) of
+        connection -> mongo:disconnect(Connection);
+        rs_connection -> mongo:rs_disconnect(Connection)
+    end.
 
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
     mongo:do(WriteMode, ReadMode, Connection, Database, Fun).
