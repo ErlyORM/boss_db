@@ -27,7 +27,7 @@
         execute/2,
         transaction/1,
         validate_record/1,
-        validate_record_constraints/2,
+        validate_record/2,
         validate_record_types/1,
         type/1,
         data_type/2]).
@@ -224,7 +224,8 @@ save_record(Record) ->
                         FoundOldRecord -> {false, FoundOldRecord}
                     end
             end,
-            case validate_record_constraints(Record, IsNew) of
+            % Action dependent valitation
+            case validate_record(Record, IsNew) of
                 ok ->
                     HookResult = case boss_record_lib:run_before_hooks(Record, IsNew) of
                                      ok -> {ok, Record};
@@ -273,23 +274,27 @@ validate_record(Record) ->
         _ -> {error, Errors2}
     end.
 
-%% @spec validate_record_constraints( BossRecord ) -> ok | {error, [ErrorMessages]}
+%% @spec validate_record_constraints( BossRecord, IsNew ) -> ok | {error, [ErrorMessages]}
 %% @doc Validate the given BossRecord without saving it in the database.
-%% `ErrorMessages' are generated from the list of constraints returned by the BossRecord's
-%% `constraints_create/0' or `constraints_update/0' function (if defined).
-%% The returned list should consist of `{ConstraintFunction, ErrorMessage}' tuples,
-%% where `ConstraintFunction' is a fun of arity 0
+%% `ErrorMessages' are generated from the list of tests returned by the BossRecord's
+%% `validation_tests/1' function (if defined), where parameter is atom() `on_create | on_update'.
+%% The returned list should consist of `{TestFunction, ErrorMessage}' tuples,
+%% where `TestFunction' is a fun of arity 0
 %% that returns `true' if the record is valid or `false' if it is invalid.
 %% `ErrorMessage' should be a (constant) string which will be included in `ErrorMessages'
-%% if the `ConstraintFunction' returns `false' on this particular BossRecord.
-validate_record_constraints(Record, IsNew) ->
+%% if the `TestFunction' returns `false' on this particular BossRecord.
+validate_record(Record, IsNew) ->
     Type = element(1, Record),
-    Function = case IsNew of
-                   true -> constraints_create;
-                   false -> constraints_update
+    Action = case IsNew of
+                   true -> on_update;
+                   false -> on_create
                end,
-    Errors = case erlang:function_exported(Type, Function, 1) of
-                 true -> [String || {ConstaintFun, String} <- Record:Function(), not ConstaintFun()];
+    Errors = case erlang:function_exported(Type, validation_tests, 2) of
+                 % makes Action optional
+                 true -> [String || {TestFun, String} <- try Record:validation_tests(Action)
+                                                         catch exit:{function_clause,_,_,_} -> []
+                                                         end,
+                                    not TestFun()];
                  false -> []
              end,
     case length(Errors) of
