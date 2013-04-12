@@ -292,7 +292,7 @@ validate_record(Record, IsNew) ->
     Errors = case erlang:function_exported(Type, validation_tests, 2) of
                  % makes Action optional
                  true -> [String || {TestFun, String} <- try Record:validation_tests(Action)
-                                                         catch error:{function_clause,_,_,_} -> []
+                                                         catch error:{function_clause,_} -> []
                                                          end,
                                     not TestFun()];
                  false -> []
