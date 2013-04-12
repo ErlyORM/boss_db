@@ -286,8 +286,8 @@ validate_record(Record) ->
 validate_record(Record, IsNew) ->
     Type = element(1, Record),
     Action = case IsNew of
-                   true -> on_update;
-                   false -> on_create
+                   true -> on_create;
+                   false -> on_update
                end,
     Errors = case erlang:function_exported(Type, validation_tests, 2) of
                  % makes Action optional
