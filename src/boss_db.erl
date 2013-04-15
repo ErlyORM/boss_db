@@ -5,6 +5,8 @@
 -export([start/1, stop/0]).
 
 -export([
+        migrate/1,
+        migrate/2,
         find/1,
         find/2,
         find/3,
@@ -21,6 +23,8 @@
         save_record/1,
         push/0,
         pop/0,
+        create_table/2,
+        table_exists/1,
         depth/0,
         dump/0,
         execute/1,
@@ -64,6 +68,35 @@ db_call(Msg) ->
             {reply, Reply, _} = boss_db_controller:handle_call(Msg, self(), State),
             Reply
     end.
+
+%% @doc Apply migrations from list [{Tag, Fun}]
+%% currently runs all migrations 'up'
+migrate(Migrations) when is_list(Migrations) ->
+    %% 1. Do we have a migrations table?  If not, create it.
+    case table_exists(schema_migrations) of
+        false ->
+            ok = create_table(schema_migrations, [{id, auto_increment, []},
+                                                  {version, string, [not_null]},
+                                                  {migrated_at, datetime, []}]);
+        _ ->
+            noop
+    end,
+    %% 2. Get all the current migrations from it.
+    DoneMigrations = db_call({get_migrations_table}),
+    DoneMigrationTags = [list_to_atom(binary_to_list(Tag)) ||
+                            {_Id, Tag, _MigratedAt} <- DoneMigrations],
+    %% 3. Run the ones that are not in this list.
+    transaction(fun() ->
+			[migrate({Tag, Fun}, up) ||
+			    {Tag, Fun} <- Migrations,
+			    not lists:member(Tag, DoneMigrationTags)]
+		end).
+
+%% @doc Run database migration {Tag, Fun} in Direction
+migrate({Tag, Fun}, Direction) ->
+    io:format("Running migration: ~p ~p~n", [Tag, Direction]),
+    Fun(Direction),
+    db_call({migration_done, Tag, Direction}).
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described
@@ -185,6 +218,14 @@ depth() ->
 
 dump() ->
     db_call(dump).
+
+%% @spec create_table ( TableName::string(), TableDefinition ) -> ok | {error, Reason}
+%% @doc Create a table based on TableDefinition
+create_table(TableName, TableDefinition) ->
+    db_call({create_table, TableName, TableDefinition}).
+
+table_exists(TableName) ->
+    db_call({table_exists, TableName}).
 
 %% @spec execute( Commands::iolist() ) -> RetVal
 %% @doc Execute raw database commands on SQL databases
@@ -394,7 +435,9 @@ normalize_conditions([{Key, 'eq', Value}|Rest], Acc) when is_atom(Key) ->
 normalize_conditions([{Key, 'ne', Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'not_equals', Value}|Acc]);
 normalize_conditions([{Key, Operator, Value}|Rest], Acc) when is_atom(Key), is_atom(Operator) ->
-    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]).
+    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]);
+normalize_conditions([{Key, Operator, Value, Options}|Rest], Acc) when is_atom(Key), is_atom(Operator), is_list(Options) ->
+    normalize_conditions(Rest, [{Key, Operator, Value, Options}|Acc]).
 
 return_one(Result) ->
     case Result of
