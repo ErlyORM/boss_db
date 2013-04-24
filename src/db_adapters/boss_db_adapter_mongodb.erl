@@ -21,7 +21,7 @@ stop() ->
     ok.
 
 init(Options) ->
-    Database = proplists:get_value(db_database, Options, test),
+    Database = proplists:get_value(db_database, Options, "test"),
     WriteMode = proplists:get_value(db_write_mode, Options, safe),
     ReadMode = proplists:get_value(db_read_mode, Options, master),
     Connection = case proplists:get_value(db_replication_set, Options) of
@@ -34,7 +34,7 @@ init(Options) ->
             mongo:rs_connect(ReplSet)
     end,
     % We pass around arguments required by mongo:do/5
-    {ok, {WriteMode, ReadMode, Connection, Database}}.
+    {ok, {WriteMode, ReadMode, Connection, list_to_atom(Database)}}.
 
 terminate({_, _, Connection, _}) ->
     case element(1, Connection) of
