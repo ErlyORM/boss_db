@@ -315,7 +315,7 @@ validate_record(Record) ->
         _ -> {error, Errors2}
     end.
 
-%% @spec validate_record_constraints( BossRecord, IsNew ) -> ok | {error, [ErrorMessages]}
+%% @spec validate_record( BossRecord, IsNew ) -> ok | {error, [ErrorMessages]}
 %% @doc Validate the given BossRecord without saving it in the database.
 %% `ErrorMessages' are generated from the list of tests returned by the BossRecord's
 %% `validation_tests/1' function (if defined), where parameter is atom() `on_create | on_update'.
