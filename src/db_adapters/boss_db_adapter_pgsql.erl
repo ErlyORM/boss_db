@@ -369,6 +369,21 @@ pack_set(Values) ->
 pack_range(Min, Max) ->
     pack_value(Min) ++ " AND " ++ pack_value(Max).
 
+binary_to_sql(B) when is_binary(B) ->
+    binary_to_sql(B, []).
+
+binary_to_sql(<<>>, L) ->
+    "E'\\\\x" ++ lists:reverse("'" ++ L);
+binary_to_sql(<<N1:4, N2:4, Rest/binary>>, L) ->
+    binary_to_sql(Rest, [int_to_hex(N2), int_to_hex(N1) | L]).
+
+-compile({inline, [{int_to_hex,1}]}).
+
+int_to_hex(I) when 16#0 =< I, I =< 16#9 ->
+    I + $0;
+int_to_hex(I) when 16#A =< I, I =< 16#F ->
+    (I - 16#A) + $A.
+
 escape_sql(Value) ->
     escape_sql1(Value, []).
 
@@ -389,7 +404,7 @@ pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 pack_value(undefined) ->
     "null";
 pack_value(V) when is_binary(V) ->
-    pack_value(binary_to_list(V));
+    binary_to_sql(V);
 pack_value(V) when is_list(V) ->
     "'" ++ escape_sql(V) ++ "'";
 pack_value({MegaSec, Sec, MicroSec}) when is_integer(MegaSec) andalso is_integer(Sec) andalso is_integer(MicroSec) ->
