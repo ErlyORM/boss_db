@@ -47,6 +47,7 @@
         save_record/1, 
         save_record/2, 
         validate_record/1,
+        validate_record/2,
         validate_record_types/1,
         type/1,
         type/2,
@@ -251,10 +252,10 @@ delete(Key, Timeout) when is_list(Key) ->
                 ok ->
                     Result = db_call({delete, Key}, Timeout),
                     case Result of
-                        ok -> 
+                        ok ->
                             boss_news:deleted(Key, AboutToDelete:attributes()),
                             ok;
-                        _ -> 
+                        _ ->
                             Result
                     end;
                 {error, Reason} ->
@@ -369,17 +370,22 @@ save_record(Record, Timeout) ->
                         FoundOldRecord -> {false, FoundOldRecord}
                     end
             end,
-            HookResult = case boss_record_lib:run_before_hooks(Record, IsNew) of
-                ok -> {ok, Record};
-                {ok, Record1} -> {ok, Record1};
-                {error, Reason} -> {error, Reason}
-            end,
-            case HookResult of
-                {ok, PossiblyModifiedRecord} ->
-                    case db_call({save_record, PossiblyModifiedRecord}, Timeout) of
-                        {ok, SavedRecord} ->
-                            boss_record_lib:run_after_hooks(OldRecord, SavedRecord, IsNew),
-                            {ok, SavedRecord};
+            % Action dependent valitation
+            case validate_record(Record, IsNew) of
+                ok ->
+                    HookResult = case boss_record_lib:run_before_hooks(Record, IsNew) of
+                                     ok -> {ok, Record};
+                                     {ok, Record1} -> {ok, Record1};
+                                     {error, Reason} -> {error, Reason}
+                                 end,
+                    case HookResult of
+                        {ok, PossiblyModifiedRecord} ->
+                            case db_call({save_record, PossiblyModifiedRecord}, Timeout) of
+                                {ok, SavedRecord} ->
+                                    boss_record_lib:run_after_hooks(OldRecord, SavedRecord, IsNew),
+                                    {ok, SavedRecord};
+                                Err -> Err
+                            end;
                         Err -> Err
                     end;
                 Err -> Err
@@ -389,10 +395,10 @@ save_record(Record, Timeout) ->
 
 %% @spec validate_record( BossRecord ) -> ok | {error, [ErrorMessages]}
 %% @doc Validate the given BossRecord without saving it in the database.
-%% `ErrorMessages' are generated from the list of tests returned by the BossRecord's 
+%% `ErrorMessages' are generated from the list of tests returned by the BossRecord's
 %% `validation_tests/0' function (if defined). The returned list should consist of
-%% `{TestFunction, ErrorMessage}' tuples, where `TestFunction' is a fun of arity 0 
-%% that returns `true' if the record is valid or `false' if it is invalid. 
+%% `{TestFunction, ErrorMessage}' tuples, where `TestFunction' is a fun of arity 0
+%% that returns `true' if the record is valid or `false' if it is invalid.
 %% `ErrorMessage' should be a (constant) string which will be included in `ErrorMessages'
 %% if the `TestFunction' returns `false' on this particular BossRecord.
 validate_record(Record) ->
@@ -414,6 +420,34 @@ validate_record(Record) ->
         _ -> {error, Errors2}
     end.
 
+%% @spec validate_record( BossRecord, IsNew ) -> ok | {error, [ErrorMessages]}
+%% @doc Validate the given BossRecord without saving it in the database.
+%% `ErrorMessages' are generated from the list of tests returned by the BossRecord's
+%% `validation_tests/1' function (if defined), where parameter is atom() `on_create | on_update'.
+%% The returned list should consist of `{TestFunction, ErrorMessage}' tuples,
+%% where `TestFunction' is a fun of arity 0
+%% that returns `true' if the record is valid or `false' if it is invalid.
+%% `ErrorMessage' should be a (constant) string which will be included in `ErrorMessages'
+%% if the `TestFunction' returns `false' on this particular BossRecord.
+validate_record(Record, IsNew) ->
+    Type = element(1, Record),
+    Action = case IsNew of
+                   true -> on_create;
+                   false -> on_update
+               end,
+    Errors = case erlang:function_exported(Type, validation_tests, 2) of
+                 % makes Action optional
+                 true -> [String || {TestFun, String} <- try Record:validation_tests(Action)
+                                                         catch error:function_clause -> []
+                                                         end,
+                                    not TestFun()];
+                 false -> []
+             end,
+    case length(Errors) of
+        0 -> ok;
+        _ -> {error, Errors}
+    end.
+
 %% @spec validate_record_types( BossRecord ) -> ok | {error, [ErrorMessages]}
 %% @doc Validate the parameter types of the given BossRecord without saving it
 %% to the database.
@@ -422,7 +456,7 @@ validate_record_types(Record) ->
             ({Attr, Type}, Acc) ->
                 case Attr of
                   id -> Acc;
-                  _  ->                                 
+                  _  ->
                     Data = Record:Attr(),
                     GreatSuccess = case {Data, Type} of
                         {undefined, _} ->
@@ -431,7 +465,7 @@ validate_record_types(Record) ->
                             true;
                         {Data, binary} when is_binary(Data) ->
                             true;
-                        {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3), 
+                        {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3),
                                                                       is_integer(T1), is_integer(T2), is_integer(T3) ->
                             true;
                         {{D1, D2, D3}, date} when is_integer(D1), is_integer(D2), is_integer(D3) ->
@@ -452,7 +486,7 @@ validate_record_types(Record) ->
                     if
                         GreatSuccess ->
                             Acc;
-                        true -> 
+                        true ->
                             [lists:concat(["Invalid data type for ", Attr])|Acc]
                     end
                   end
@@ -509,7 +543,9 @@ normalize_conditions([{Key, 'eq', Value}|Rest], Acc) when is_atom(Key) ->
 normalize_conditions([{Key, 'ne', Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'not_equals', Value}|Acc]);
 normalize_conditions([{Key, Operator, Value}|Rest], Acc) when is_atom(Key), is_atom(Operator) ->
-    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]).
+    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]);
+normalize_conditions([{Key, Operator, Value, Options}|Rest], Acc) when is_atom(Key), is_atom(Operator), is_list(Options) ->
+    normalize_conditions(Rest, [{Key, Operator, Value, Options}|Acc]).
 
 return_one([]) -> undefined;
 return_one([Record]) -> Record.
