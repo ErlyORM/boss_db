@@ -38,13 +38,15 @@ find(Conn, Id) when is_list(Id) ->
             {error, Reason}
     end.
 
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
-                                                              is_integer(Max) orelse Max =:= all, is_integer(Skip), 
-                                                              is_atom(Sort), is_atom(SortOrder) ->
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder)
+    when is_atom(Type), is_list(Conditions), 
+         is_integer(Max) orelse Max =:= all, is_integer(Skip), 
+         is_atom(Sort), is_atom(SortOrder) ->
     case boss_record_lib:ensure_loaded(Type) of
         true ->
-            Query = build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder),
-            Res = pgsql:equery(Conn, Query, []),
+            Query = build_select_query(Type, Conditions, Max,
+                                       Skip, Sort, SortOrder),
+            Res = pgsql:equery(Conn, Query, build_parameters(Conditions)),
             case Res of
                 {ok, Columns, ResultRows} ->
                     FilteredRows = case {Max, Skip} of
@@ -66,7 +68,8 @@ count(Conn, Type, Conditions) ->
     ConditionClause = build_conditions(Type, Conditions),
     TableName = boss_record_lib:database_table(Type),
     {ok, _, [{Count}]} = pgsql:equery(Conn, 
-        ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
+        ["SELECT COUNT(*) AS count FROM ", TableName,
+         " WHERE ", ConditionClause], build_parameters(Conditions)),
     Count.
 
 counter(Conn, Id) when is_list(Id) ->
@@ -106,7 +109,7 @@ save_record(Conn, Record) when is_tuple(Record) ->
             Record1 = maybe_populate_id_value(Record),
             Type = element(1, Record1),
             Query = build_insert_query(Record1),
-            Res = pgsql:equery(Conn, Query, []),
+            Res = pgsql:equery(Conn, Query, build_insert_parameters(Record1)),
             case Res of
                 {ok, _, _, [{Id}]} ->
                     {ok, Record1:set(id, lists:concat([Type, "-", id_value_to_string(Id)]))};
@@ -114,7 +117,7 @@ save_record(Conn, Record) when is_tuple(Record) ->
             end;
         Defined when is_list(Defined) ->
             Query = build_update_query(Record),
-            Res = pgsql:equery(Conn, Query, []),
+            Res = pgsql:equery(Conn, Query, build_update_parameters(Record)),
             case Res of
                 {ok, _} -> {ok, Record};
                 {error, Reason} -> {error, Reason}
@@ -230,24 +233,27 @@ build_insert_query(Record) ->
     Type = element(1, Record),
     TableName = boss_record_lib:database_table(Type),
     AttributeColumns = Record:database_columns(),
-    {Attributes, Values} = lists:foldl(fun
+    {Attributes, Values, _} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
             ({'id', 'id'}, Acc) -> Acc;
-            ({'id', V}, {Attrs, Vals}) -> 
+            ({'id', V}, {Attrs, Vals, I}) -> 
                 DBColumn = proplists:get_value('id', AttributeColumns),
                 {_, _, _, TableId} = boss_sql_lib:infer_type_from_id(V),
-                {[DBColumn|Attrs], [pack_value(TableId)|Vals]};
-            ({A, V}, {Attrs, Vals}) ->
+                {PackedValue, NextI} = pack_value(TableId, I),
+                {[DBColumn|Attrs], [PackedValue|Vals], NextI};
+            ({A, V}, {Attrs, Vals, I}) ->
                 DBColumn = proplists:get_value(A, AttributeColumns),
                 Value = case boss_sql_lib:is_foreign_key(Type, A) of
                     true ->
-                        {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
+                        {_, _, _, ForeignId} =
+                            boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
                     false ->
                         V
                 end,
-                {[DBColumn|Attrs], [pack_value(Value)|Vals]}
-        end, {[], []}, Record:attributes()),
+                {PackedValue, NextI} = pack_value(Value, I),
+                {[DBColumn|Attrs], [PackedValue|Vals], NextI}
+        end, {[], [], 1}, Record:attributes()),
     ["INSERT INTO ", TableName, " (", 
         string:join(Attributes, ", "),
         ") values (",
@@ -256,24 +262,68 @@ build_insert_query(Record) ->
         " RETURNING id"
     ].
 
+build_insert_parameters(Record) ->
+    Type = element(1, Record),
+    lists:reverse(lists:foldl(fun
+            ({_, undefined}, Acc) -> Acc;
+            ({'id', 'id'}, Acc) -> Acc;
+            ({'id', V}, Acc) -> 
+                {_, _, _, TableId} = boss_sql_lib:infer_type_from_id(V),
+                add_parameter(Acc, TableId);
+            ({A, V}, Acc) ->
+                Value = case boss_sql_lib:is_foreign_key(Type, A) of
+                    true ->
+                        {_, _, _, ForeignId} =
+                            boss_sql_lib:infer_type_from_id(V),
+                        ForeignId;
+                    false ->
+                        V
+                end,
+                add_parameter(Acc, Value)
+        end, [], Record:attributes())).
+
 build_update_query(Record) ->
-    {Type, TableName, IdColumn, Id} = boss_sql_lib:infer_type_from_id(Record:id()),
+    {Type, TableName, IdColumn, Id} =
+        boss_sql_lib:infer_type_from_id(Record:id()),
     AttributeColumns = Record:database_columns(),
-    Updates = lists:foldl(fun
+    {Updates, NewI} = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({A, V}, Acc) -> 
+            ({A, V}, {Acc, I}) -> 
                 DBColumn = proplists:get_value(A, AttributeColumns),
-                Value = case {boss_sql_lib:is_foreign_key(Type, A), V =/= undefined} of
+                Value = case {boss_sql_lib:is_foreign_key(Type, A),
+                              V =/= undefined} of
                     {true, true} ->
-                        {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
+                        {_, _, _, ForeignId} =
+                            boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
                     _ ->
                         V
                 end,
-                [DBColumn ++ " = " ++ pack_value(Value)|Acc]
-        end, [], Record:attributes()),
+                {PackedValue, NextI} = pack_value(Value, I),
+                {[DBColumn ++ " = " ++ PackedValue|Acc], NextI}
+        end, {[], 1}, Record:attributes()),
+    {PackedId, _} = pack_value(Id, NewI),
     ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
-        " WHERE ", IdColumn, " = ", pack_value(Id)].
+        " WHERE ", IdColumn, " = ", PackedId].
+
+build_update_parameters(Record) ->
+    {Type, _, _, Id} =
+        boss_sql_lib:infer_type_from_id(Record:id()),
+    Parameters = lists:foldl(fun
+            ({id, _}, Acc) -> Acc;
+            ({A, V}, Acc) -> 
+                Value = case {boss_sql_lib:is_foreign_key(Type, A),
+                              V =/= undefined} of
+                    {true, true} ->
+                        {_, _, _, ForeignId} =
+                            boss_sql_lib:infer_type_from_id(V),
+                        ForeignId;
+                    _ ->
+                        V
+                end,
+                add_parameter(Acc, Value)
+        end, [], Record:attributes()),
+    lists:reverse(add_parameter(Parameters, Id)).
 
 build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     TableName = boss_record_lib:database_table(Type),
@@ -297,59 +347,90 @@ build_conditions(Type, Conditions) ->
                     false -> {Key2, Op, Value}
                 end
         end, Conditions),
-    build_conditions1(Conditions2, [" TRUE"]).
+    build_conditions1(Conditions2, [" TRUE"], 1).
 
-build_conditions1([], Acc) ->
+build_conditions1([], Acc, _) ->
     Acc;
-
-build_conditions1([{Key, 'equals', Value}|Rest], Acc) when Value == undefined ->
-    build_conditions1(Rest, add_cond(Acc, Key, "is", pack_value(Value)));
-build_conditions1([{Key, 'equals', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "=", pack_value(Value)));
-build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) when Value == undefined ->
-    build_conditions1(Rest, add_cond(Acc, Key, "is not", pack_value(Value)));
-build_conditions1([{Key, 'not_equals', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "!=", pack_value(Value)));
-build_conditions1([{Key, 'in', Value}|Rest], Acc) when is_list(Value) ->
-    PackedValues = pack_set(Value),
-    build_conditions1(Rest, add_cond(Acc, Key, "IN", PackedValues));
-build_conditions1([{Key, 'not_in', Value}|Rest], Acc) when is_list(Value) ->
-    PackedValues = pack_set(Value),
-    build_conditions1(Rest, add_cond(Acc, Key, "NOT IN", PackedValues));
-build_conditions1([{Key, 'in', {Min, Max}}|Rest], Acc) when Max >= Min ->
-    PackedValues = pack_range(Min, Max),
-    build_conditions1(Rest, add_cond(Acc, Key, "BETWEEN", PackedValues));
-build_conditions1([{Key, 'not_in', {Min, Max}}|Rest], Acc) when Max >= Min ->
-    PackedValues = pack_range(Min, Max),
-    build_conditions1(Rest, add_cond(Acc, Key, "NOT BETWEEN", PackedValues));
-build_conditions1([{Key, 'gt', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, ">", pack_value(Value)));
-build_conditions1([{Key, 'lt', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "<", pack_value(Value)));
-build_conditions1([{Key, 'ge', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, ">=", pack_value(Value)));
-build_conditions1([{Key, 'le', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "<=", pack_value(Value)));
-build_conditions1([{Key, 'matches', "*"++Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "~*", pack_value(Value)));
-build_conditions1([{Key, 'not_matches', "*"++Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "!~*", pack_value(Value)));
-build_conditions1([{Key, 'matches', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "~", pack_value(Value)));
-build_conditions1([{Key, 'not_matches', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, Key, "!~", pack_value(Value)));
-build_conditions1([{Key, 'contains', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@", pack_tsquery([Value], "&")));
-build_conditions1([{Key, 'not_contains', Value}|Rest], Acc) ->
-    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@", pack_tsquery_not([Value], "&")));
-build_conditions1([{Key, 'contains_all', Values}|Rest], Acc) when is_list(Values) ->
-    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@", pack_tsquery(Values, "&")));
-build_conditions1([{Key, 'not_contains_all', Values}|Rest], Acc) when is_list(Values) ->
-    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@", pack_tsquery_not(Values, "&")));
-build_conditions1([{Key, 'contains_any', Values}|Rest], Acc) when is_list(Values) ->
-    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@", pack_tsquery(Values, "|")));
-build_conditions1([{Key, 'contains_none', Values}|Rest], Acc) when is_list(Values) ->
-    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@", pack_tsquery_not(Values, "|"))).
+build_conditions1([{Key, 'equals', Value}|Rest], Acc, I)
+    when Value == undefined ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "is", PackedValue), NextI);
+build_conditions1([{Key, 'equals', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "=", PackedValue), NextI);
+build_conditions1([{Key, 'not_equals', Value}|Rest], Acc, I)
+    when Value == undefined ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "is not", PackedValue), NextI);
+build_conditions1([{Key, 'not_equals', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "!=", PackedValue), NextI);
+build_conditions1([{Key, 'in', Value}|Rest], Acc, I)
+    when is_list(Value) ->
+    {PackedValues, NextI} = pack_set(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "IN",
+                                     PackedValues), NextI);
+build_conditions1([{Key, 'not_in', Value}|Rest], Acc, I)
+    when is_list(Value) ->
+    {PackedValues, NextI} = pack_set(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "NOT IN",
+                                     PackedValues), NextI);
+build_conditions1([{Key, 'in', {Min, Max}}|Rest], Acc, I)
+    when Max >= Min ->
+    {PackedValues, NextI} = pack_range(Min, Max, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "BETWEEN",
+                                     PackedValues), NextI);
+build_conditions1([{Key, 'not_in', {Min, Max}}|Rest], Acc, I)
+    when Max >= Min ->
+    {PackedValues, NextI} = pack_range(Min, Max, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "NOT BETWEEN",
+                                     PackedValues), NextI);
+build_conditions1([{Key, 'gt', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, ">", PackedValue), NextI);
+build_conditions1([{Key, 'lt', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "<", PackedValue), NextI);
+build_conditions1([{Key, 'ge', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, ">=", PackedValue), NextI);
+build_conditions1([{Key, 'le', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "<=", PackedValue), NextI);
+build_conditions1([{Key, 'matches', "*"++Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "~*", PackedValue), NextI);
+build_conditions1([{Key, 'not_matches', "*"++Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "!~*", PackedValue), NextI);
+build_conditions1([{Key, 'matches', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "~", PackedValue), NextI);
+build_conditions1([{Key, 'not_matches', Value}|Rest], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    build_conditions1(Rest, add_cond(Acc, Key, "!~", PackedValue), NextI);
+build_conditions1([{Key, 'contains', Value}|Rest], Acc, I) ->
+    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@",
+                                     pack_tsquery([Value], "&")), I);
+build_conditions1([{Key, 'not_contains', Value}|Rest], Acc, I) ->
+    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@",
+                                     pack_tsquery_not([Value], "&")), I);
+build_conditions1([{Key, 'contains_all', Values}|Rest], Acc, I)
+    when is_list(Values) ->
+    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@",
+                                     pack_tsquery(Values, "&")), I);
+build_conditions1([{Key, 'not_contains_all', Values}|Rest], Acc, I)
+    when is_list(Values) ->
+    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@",
+                                     pack_tsquery_not(Values, "&")), I);
+build_conditions1([{Key, 'contains_any', Values}|Rest], Acc, I)
+    when is_list(Values) ->
+    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@",
+                                     pack_tsquery(Values, "|")), I);
+build_conditions1([{Key, 'contains_none', Values}|Rest], Acc, I)
+    when is_list(Values) ->
+    build_conditions1(Rest, add_cond(Acc, pack_tsvector(Key), "@@",
+                                     pack_tsquery_not(Values, "|")), I).
 
 add_cond(Acc, Key, Op, PackedVal) ->
     [lists:concat([Key, " ", Op, " ", PackedVal, " AND "])|Acc].
@@ -363,26 +444,19 @@ pack_tsquery(Values, Op) ->
 pack_tsquery_not(Values, Op) ->
     "'!(" ++ string:join(lists:map(fun escape_sql/1, Values), " "++Op++" ") ++ ")'::tsquery".
 
-pack_set(Values) ->
-    "(" ++ string:join(lists:map(fun pack_value/1, Values), ", ") ++ ")".
+pack_set(Values, I) ->
+    pack_set(Values, [], I).
 
-pack_range(Min, Max) ->
-    pack_value(Min) ++ " AND " ++ pack_value(Max).
-
-binary_to_sql(B) when is_binary(B) ->
-    binary_to_sql(B, []).
-
-binary_to_sql(<<>>, L) ->
-    "E'\\\\x" ++ lists:reverse("'" ++ L);
-binary_to_sql(<<N1:4, N2:4, Rest/binary>>, L) ->
-    binary_to_sql(Rest, [int_to_hex(N2), int_to_hex(N1) | L]).
-
--compile({inline, [{int_to_hex,1}]}).
-
-int_to_hex(I) when 16#0 =< I, I =< 16#9 ->
-    I + $0;
-int_to_hex(I) when 16#A =< I, I =< 16#F ->
-    (I - 16#A) + $A.
+pack_set([], Acc, I) ->
+    {"(" ++ string:join(lists:reverse(Acc), ", ") ++ ")", I};
+pack_set([Value | Values], Acc, I) ->
+    {PackedValue, NextI} = pack_value(Value, I),
+    pack_set(Values, [PackedValue | Acc], NextI).
+    
+pack_range(Min, Max, I) ->
+    {MinPackedValue, MinI} = pack_value(Min, I),
+    {MaxPackedValue, MaxI} = pack_value(Max, MinI),
+    {MinPackedValue ++ " AND " ++ MaxPackedValue, MaxI}.
 
 escape_sql(Value) ->
     escape_sql1(Value, []).
@@ -401,32 +475,105 @@ pack_datetime(DateTime) ->
 
 pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
-pack_value(undefined) ->
-    "null";
-pack_value(V) when is_binary(V) ->
-    binary_to_sql(V);
-pack_value(V) when is_list(V) ->
-    "'" ++ escape_sql(V) ++ "'";
-pack_value({MegaSec, Sec, MicroSec}) when is_integer(MegaSec) andalso is_integer(Sec) andalso is_integer(MicroSec) ->
-    pack_now({MegaSec, Sec, MicroSec});
-pack_value({{_, _, _}, {_, _, _}} = Val) ->
-    pack_datetime(Val);
-pack_value(Val) when is_integer(Val) ->
-    integer_to_list(Val);
-pack_value(Val) when is_float(Val) ->
-    float_to_list(Val);
-pack_value(true) ->
-    "TRUE";
-pack_value(false) ->
-    "FALSE".
+pack_value(undefined, I) ->
+    {"null", I};
+pack_value(V, I) when is_binary(V) ->
+    {"$" ++ integer_to_list(I), I + 1}; % equery parameter
+pack_value(V, I) when is_list(V) ->
+    {"'" ++ escape_sql(V) ++ "'", I};
+pack_value({MegaSec, Sec, MicroSec}, I)
+    when is_integer(MegaSec) andalso
+         is_integer(Sec) andalso
+         is_integer(MicroSec) ->
+    {pack_now({MegaSec, Sec, MicroSec}), I};
+pack_value({{_, _, _}, {_, _, _}} = Val, I) ->
+    {pack_datetime(Val), I};
+pack_value(Val, I) when is_integer(Val) ->
+    {integer_to_list(Val), I};
+pack_value(Val, I) when is_float(Val) ->
+    {float_to_list(Val), I};
+pack_value(true, I) ->
+    {"TRUE", I};
+pack_value(false, I) ->
+    {"FALSE", I}.
+
+build_parameters(Conditions) ->
+    build_parameters1(Conditions, []).
+
+build_parameters1([], Acc) ->
+    lists:reverse(Acc);
+build_parameters1([{_, 'equals', Value}|Rest], Acc)
+    when Value == undefined ->
+    build_parameters1(Rest, Acc);
+build_parameters1([{_, 'equals', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'not_equals', Value}|Rest], Acc)
+    when Value == undefined ->
+    build_parameters1(Rest, Acc);
+build_parameters1([{_, 'not_equals', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'in', Value}|Rest], Acc)
+    when is_list(Value) ->
+    build_parameters1(Rest, add_parameters(Acc, Value));
+build_parameters1([{_, 'not_in', Value}|Rest], Acc)
+    when is_list(Value) ->
+    build_parameters1(Rest, add_parameters(Acc, Value));
+build_parameters1([{_, 'in', {Min, Max}}|Rest], Acc)
+    when Max >= Min ->
+    build_parameters1(Rest, add_parameters(Acc, [Min, Max]));
+build_parameters1([{_, 'not_in', {Min, Max}}|Rest], Acc)
+    when Max >= Min ->
+    build_parameters1(Rest, add_parameters(Acc, [Min, Max]));
+build_parameters1([{_, 'gt', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'lt', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'ge', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'le', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'matches', "*"++Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'not_matches', "*"++Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'matches', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'not_matches', Value}|Rest], Acc) ->
+    build_parameters1(Rest, add_parameter(Acc, Value));
+build_parameters1([{_, 'contains', _}|Rest], Acc) ->
+    build_parameters1(Rest, Acc);
+build_parameters1([{_, 'not_contains', _}|Rest], Acc) ->
+    build_parameters1(Rest, Acc);
+build_parameters1([{_, 'contains_all', Values}|Rest], Acc)
+    when is_list(Values) ->
+    build_parameters1(Rest, Acc);
+build_parameters1([{_, 'not_contains_all', Values}|Rest], Acc)
+    when is_list(Values) ->
+    build_parameters1(Rest, Acc);
+build_parameters1([{_, 'contains_any', Values}|Rest], Acc)
+    when is_list(Values) ->
+    build_parameters1(Rest, Acc);
+build_parameters1([{_, 'contains_none', Values}|Rest], Acc)
+    when is_list(Values) ->
+    build_parameters1(Rest, Acc).
+
+add_parameter(Acc, Value) when is_binary(Value) ->
+    [Value | Acc];
+add_parameter(Acc, _) ->
+    Acc.
+
+add_parameters(Acc, []) ->
+    Acc;
+add_parameters(Acc, [Value | Values]) ->
+    add_parameters(add_parameter(Acc, Value), Values).
 
 table_exists(Conn, TableName) when is_atom(TableName) ->
     Res = pgsql:squery(Conn, ["SELECT COUNT(tablename) FROM PG_TABLES WHERE SCHEMANAME='public' AND TABLENAME = '", atom_to_list(TableName), "'"]),
     case Res of
         {ok, _, [{Count}]} ->
-	    list_to_integer(binary_to_list(Count)) > 0;
-	{error, Reason} ->
-	    {error, Reason}
+            list_to_integer(binary_to_list(Count)) > 0;
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 create_table(Conn, TableName, TableDefinition) when is_atom(TableName) ->
@@ -442,9 +589,10 @@ create_table(Conn, TableName, TableDefinition) when is_atom(TableName) ->
 
 tabledefinition_to_sql(TableDefinition) ->
     string:join(
-      [atom_to_list(ColumnName) ++ " " ++ column_type_to_sql(ColumnType) ++ " " ++
-	   column_options_to_sql(Options) ||
-	  {ColumnName, ColumnType, Options} <- TableDefinition], ", ").
+        [atom_to_list(ColumnName) ++ " " ++
+         column_type_to_sql(ColumnType) ++ " " ++
+         column_options_to_sql(Options) ||
+         {ColumnName, ColumnType, Options} <- TableDefinition], ", ").
 
 column_type_to_sql(auto_increment) ->
     "SERIAL";
