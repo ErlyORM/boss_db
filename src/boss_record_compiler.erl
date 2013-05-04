@@ -394,6 +394,7 @@ has_one_forms(HasOne, ModuleName, Opts) ->
     Type = proplists:get_value(module, Opts, HasOne),
     ForeignKey = proplists:get_value(foreign_key, Opts, atom_to_list(ModuleName) ++ "_id"),
     Include = proplists:get_value(include, Opts, []),
+    QueryForms = has_many_query_forms(ForeignKey),
     [erl_syntax:add_precomments([erl_syntax:comment(
                     [lists:concat(["% @spec ", HasOne, "() -> ", Type, " | undefined"]),
                         lists:concat(["% @doc Retrieves the `", Type, "' with `", ForeignKey, "' ",
@@ -401,7 +402,7 @@ has_one_forms(HasOne, ModuleName, Opts) ->
             erl_syntax:function(erl_syntax:atom(HasOne),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                has_many_application_forms(Type, ForeignKey, 1, id, false, Include)
+                                has_many_application_forms(Type, QueryForms, 1, id, false, Include)
                             )
                         ])]))
     ].
@@ -415,14 +416,26 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
     Type = proplists:get_value(module, Opts, Singular),
     Include = proplists:get_value(include, Opts, []),
     ForeignKey = proplists:get_value(foreign_key, Opts, atom_to_list(ModuleName) ++ "_id"),
-    [erl_syntax:add_precomments([erl_syntax:comment(
+    QueryForms = has_many_query_forms(ForeignKey),
+    QueryFormsWithConditions = has_many_query_forms_with_conditions(ForeignKey),
+    [
+        erl_syntax:add_precomments([erl_syntax:comment(
                     [
                         lists:concat(["% @spec ", HasMany, "() -> [ ", Type, " ]"]),
                         lists:concat(["% @doc Retrieves `", Type, "' records with `", ForeignKey, "' ",
                                 "set to the `Id' of this `", ModuleName, "'"])])],
             erl_syntax:function(erl_syntax:atom(HasMany),
                 [erl_syntax:clause([], none, [
-                            has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending, Include)
+                            has_many_application_forms(Type, QueryForms, Limit, Sort, IsDescending, Include)
+                        ])])),
+        erl_syntax:add_precomments([erl_syntax:comment(
+                    [
+                        lists:concat(["% @spec ", HasMany, "(Conditions) -> [ ", Type, " ]"]),
+                        lists:concat(["% @doc Retrieves `", Type, "' records with `", ForeignKey, "' ",
+                                "set to the `Id' of this `", ModuleName, "' and additional query `Conditions'"])])],
+            erl_syntax:function(erl_syntax:atom(HasMany),
+                [erl_syntax:clause([erl_syntax:variable(?PREFIX++"Conditions")], none, [
+                            has_many_application_forms(Type, QueryFormsWithConditions, Limit, Sort, IsDescending, Include)
                         ])])),
         erl_syntax:add_precomments([erl_syntax:comment(
                     [
@@ -432,7 +445,18 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
             erl_syntax:function(erl_syntax:atom("first_"++Singular),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                has_many_application_forms(Type, ForeignKey, 1, Sort, IsDescending, Include)
+                                has_many_application_forms(Type, QueryForms, 1, Sort, IsDescending, Include)
+                            )
+                        ])])),
+        erl_syntax:add_precomments([erl_syntax:comment(
+                    [
+                        lists:concat(["% @spec first_", Singular, "(Conditions) -> ", Type, " | undefined"]),
+                        lists:concat(["% @doc Retrieves the first `", Type, 
+                                "' that would be returned by `", HasMany, "(Conditions)'"])])],
+            erl_syntax:function(erl_syntax:atom("first_"++Singular),
+                [erl_syntax:clause([erl_syntax:variable(?PREFIX++"Conditions")], none, [
+                            first_or_undefined_forms(
+                                has_many_application_forms(Type, QueryFormsWithConditions, 1, Sort, IsDescending, Include)
                             )
                         ])])),
         erl_syntax:add_precomments([erl_syntax:comment(
@@ -443,7 +467,18 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
             erl_syntax:function(erl_syntax:atom("last_"++Singular),
                 [erl_syntax:clause([], none, [
                             first_or_undefined_forms(
-                                    has_many_application_forms(Type, ForeignKey, 1, Sort, not IsDescending, Include)
+                                    has_many_application_forms(Type, QueryForms, 1, Sort, not IsDescending, Include)
+                                )
+                        ])])),
+        erl_syntax:add_precomments([erl_syntax:comment(
+                    [
+                        lists:concat(["% @spec last_", Singular, "(Conditions) -> ", Type, " | undefined"]),
+                        lists:concat(["% @doc Retrieves the last `", Type,
+                                "' that would be returned by `", HasMany, "(Conditions)'"])])],
+            erl_syntax:function(erl_syntax:atom("last_"++Singular),
+                [erl_syntax:clause([erl_syntax:variable(?PREFIX++"Conditions")], none, [
+                            first_or_undefined_forms(
+                                    has_many_application_forms(Type, QueryFormsWithConditions, 1, Sort, not IsDescending, Include)
                                 )
                         ])]))
     ].
@@ -454,16 +489,25 @@ first_or_undefined_forms(Forms) ->
                 [erl_syntax:variable(?PREFIX++"Record")]),
             erl_syntax:clause([erl_syntax:underscore()], none, [erl_syntax:atom(undefined)])]).
 
-has_many_application_forms(Type, ForeignKey, Limit, Sort, IsDescending, Include) ->
+has_many_query_forms(ForeignKey) ->
+    erl_syntax:list([
+            erl_syntax:tuple([
+                    erl_syntax:atom(ForeignKey),
+                    erl_syntax:variable("Id")])
+        ]).
+
+has_many_query_forms_with_conditions(ForeignKey) ->
+    erl_syntax:cons(erl_syntax:tuple([
+                    erl_syntax:atom(ForeignKey),
+                    erl_syntax:variable("Id")]),
+            erl_syntax:variable(?PREFIX++"Conditions")).
+
+has_many_application_forms(Type, ConditionForms, Limit, Sort, IsDescending, Include) ->
     erl_syntax:application(
         erl_syntax:atom(?DATABASE_MODULE), 
         erl_syntax:atom(find),
         [erl_syntax:atom(Type),
-            erl_syntax:list([
-                    erl_syntax:tuple([
-                            erl_syntax:atom(ForeignKey),
-                            erl_syntax:variable("Id")])
-                ]),
+            ConditionForms,
             erl_syntax:list([
                     erl_syntax:tuple([
                             erl_syntax:atom(limit),
