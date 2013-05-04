@@ -5,28 +5,33 @@
 -export([start/1, stop/0]).
 
 -export([
-        find/1, 
-        find/2, 
-        find/3, 
+        migrate/1,
+        migrate/2,
+        find/1,
+        find/2,
+        find/3,
         find_first/2,
         find_first/3,
         find_last/2,
         find_last/3,
         count/1,
         count/2,
-        counter/1, 
-        incr/1, 
-        incr/2, 
-        delete/1, 
-        save_record/1, 
+        counter/1,
+        incr/1,
+        incr/2,
+        delete/1,
+        save_record/1,
         push/0,
         pop/0,
+        create_table/2,
+        table_exists/1,
         depth/0,
         dump/0,
         execute/1,
         execute/2,
         transaction/1,
         validate_record/1,
+        validate_record/2,
         validate_record_types/1,
         type/1,
         data_type/2]).
@@ -63,6 +68,35 @@ db_call(Msg) ->
             {reply, Reply, _} = boss_db_controller:handle_call(Msg, self(), State),
             Reply
     end.
+
+%% @doc Apply migrations from list [{Tag, Fun}]
+%% currently runs all migrations 'up'
+migrate(Migrations) when is_list(Migrations) ->
+    %% 1. Do we have a migrations table?  If not, create it.
+    case table_exists(schema_migrations) of
+        false ->
+            ok = create_table(schema_migrations, [{id, auto_increment, []},
+                                                  {version, string, [not_null]},
+                                                  {migrated_at, datetime, []}]);
+        _ ->
+            noop
+    end,
+    %% 2. Get all the current migrations from it.
+    DoneMigrations = db_call({get_migrations_table}),
+    DoneMigrationTags = [list_to_atom(binary_to_list(Tag)) ||
+                            {_Id, Tag, _MigratedAt} <- DoneMigrations],
+    %% 3. Run the ones that are not in this list.
+    transaction(fun() ->
+			[migrate({Tag, Fun}, up) ||
+			    {Tag, Fun} <- Migrations,
+			    not lists:member(Tag, DoneMigrationTags)]
+		end).
+
+%% @doc Run database migration {Tag, Fun} in Direction
+migrate({Tag, Fun}, Direction) ->
+    io:format("Running migration: ~p ~p~n", [Tag, Direction]),
+    Fun(Direction),
+    db_call({migration_done, Tag, Direction}).
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described
@@ -162,10 +196,10 @@ delete(Key) ->
                 ok ->
                     Result = db_call({delete, Key}),
                     case Result of
-                        ok -> 
+                        ok ->
                             boss_news:deleted(Key, AboutToDelete:attributes()),
                             ok;
-                        _ -> 
+                        _ ->
                             Result
                     end;
                 {error, Reason} ->
@@ -184,6 +218,14 @@ depth() ->
 
 dump() ->
     db_call(dump).
+
+%% @spec create_table ( TableName::string(), TableDefinition ) -> ok | {error, Reason}
+%% @doc Create a table based on TableDefinition
+create_table(TableName, TableDefinition) ->
+    db_call({create_table, TableName, TableDefinition}).
+
+table_exists(TableName) ->
+    db_call({table_exists, TableName}).
 
 %% @spec execute( Commands::iolist() ) -> RetVal
 %% @doc Execute raw database commands on SQL databases
@@ -223,17 +265,22 @@ save_record(Record) ->
                         FoundOldRecord -> {false, FoundOldRecord}
                     end
             end,
-            HookResult = case boss_record_lib:run_before_hooks(Record, IsNew) of
-                ok -> {ok, Record};
-                {ok, Record1} -> {ok, Record1};
-                {error, Reason} -> {error, Reason}
-            end,
-            case HookResult of
-                {ok, PossiblyModifiedRecord} ->
-                    case db_call({save_record, PossiblyModifiedRecord}) of
-                        {ok, SavedRecord} ->
-                            boss_record_lib:run_after_hooks(OldRecord, SavedRecord, IsNew),
-                            {ok, SavedRecord};
+            % Action dependent valitation
+            case validate_record(Record, IsNew) of
+                ok ->
+                    HookResult = case boss_record_lib:run_before_hooks(Record, IsNew) of
+                                     ok -> {ok, Record};
+                                     {ok, Record1} -> {ok, Record1};
+                                     {error, Reason} -> {error, Reason}
+                                 end,
+                    case HookResult of
+                        {ok, PossiblyModifiedRecord} ->
+                            case db_call({save_record, PossiblyModifiedRecord}) of
+                                {ok, SavedRecord} ->
+                                    boss_record_lib:run_after_hooks(OldRecord, SavedRecord, IsNew),
+                                    {ok, SavedRecord};
+                                Err -> Err
+                            end;
                         Err -> Err
                     end;
                 Err -> Err
@@ -243,10 +290,10 @@ save_record(Record) ->
 
 %% @spec validate_record( BossRecord ) -> ok | {error, [ErrorMessages]}
 %% @doc Validate the given BossRecord without saving it in the database.
-%% `ErrorMessages' are generated from the list of tests returned by the BossRecord's 
+%% `ErrorMessages' are generated from the list of tests returned by the BossRecord's
 %% `validation_tests/0' function (if defined). The returned list should consist of
-%% `{TestFunction, ErrorMessage}' tuples, where `TestFunction' is a fun of arity 0 
-%% that returns `true' if the record is valid or `false' if it is invalid. 
+%% `{TestFunction, ErrorMessage}' tuples, where `TestFunction' is a fun of arity 0
+%% that returns `true' if the record is valid or `false' if it is invalid.
 %% `ErrorMessage' should be a (constant) string which will be included in `ErrorMessages'
 %% if the `TestFunction' returns `false' on this particular BossRecord.
 validate_record(Record) ->
@@ -268,6 +315,34 @@ validate_record(Record) ->
         _ -> {error, Errors2}
     end.
 
+%% @spec validate_record( BossRecord, IsNew ) -> ok | {error, [ErrorMessages]}
+%% @doc Validate the given BossRecord without saving it in the database.
+%% `ErrorMessages' are generated from the list of tests returned by the BossRecord's
+%% `validation_tests/1' function (if defined), where parameter is atom() `on_create | on_update'.
+%% The returned list should consist of `{TestFunction, ErrorMessage}' tuples,
+%% where `TestFunction' is a fun of arity 0
+%% that returns `true' if the record is valid or `false' if it is invalid.
+%% `ErrorMessage' should be a (constant) string which will be included in `ErrorMessages'
+%% if the `TestFunction' returns `false' on this particular BossRecord.
+validate_record(Record, IsNew) ->
+    Type = element(1, Record),
+    Action = case IsNew of
+                   true -> on_create;
+                   false -> on_update
+               end,
+    Errors = case erlang:function_exported(Type, validation_tests, 2) of
+                 % makes Action optional
+                 true -> [String || {TestFun, String} <- try Record:validation_tests(Action)
+                                                         catch error:function_clause -> []
+                                                         end,
+                                    not TestFun()];
+                 false -> []
+             end,
+    case length(Errors) of
+        0 -> ok;
+        _ -> {error, Errors}
+    end.
+
 %% @spec validate_record_types( BossRecord ) -> ok | {error, [ErrorMessages]}
 %% @doc Validate the parameter types of the given BossRecord without saving it
 %% to the database.
@@ -276,7 +351,7 @@ validate_record_types(Record) ->
             ({Attr, Type}, Acc) ->
                 case Attr of
                   id -> Acc;
-                  _  ->                                 
+                  _  ->
                     Data = Record:Attr(),
                     GreatSuccess = case {Data, Type} of
                         {undefined, _} ->
@@ -285,7 +360,7 @@ validate_record_types(Record) ->
                             true;
                         {Data, binary} when is_binary(Data) ->
                             true;
-                        {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3), 
+                        {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3),
                                                                       is_integer(T1), is_integer(T2), is_integer(T3) ->
                             true;
                         {{D1, D2, D3}, date} when is_integer(D1), is_integer(D2), is_integer(D3) ->
@@ -306,7 +381,7 @@ validate_record_types(Record) ->
                     if
                         GreatSuccess ->
                             Acc;
-                        true -> 
+                        true ->
                             [lists:concat(["Invalid data type for ", Attr])|Acc]
                     end
                   end
@@ -360,7 +435,9 @@ normalize_conditions([{Key, 'eq', Value}|Rest], Acc) when is_atom(Key) ->
 normalize_conditions([{Key, 'ne', Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'not_equals', Value}|Acc]);
 normalize_conditions([{Key, Operator, Value}|Rest], Acc) when is_atom(Key), is_atom(Operator) ->
-    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]).
+    normalize_conditions(Rest, [{Key, Operator, Value}|Acc]);
+normalize_conditions([{Key, Operator, Value, Options}|Rest], Acc) when is_atom(Key), is_atom(Operator), is_list(Options) ->
+    normalize_conditions(Rest, [{Key, Operator, Value, Options}|Acc]).
 
 return_one(Result) ->
     case Result of
