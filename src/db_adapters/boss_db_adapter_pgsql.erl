@@ -190,6 +190,9 @@ integer_to_id(Val, KeyString) ->
 activate_record(Record, Metadata, Type) ->
     AttributeTypes = boss_record_lib:attribute_types(Type),
     AttributeColumns = boss_record_lib:database_columns(Type),
+
+    RetypedForeignKeys = boss_sql_lib:get_retyped_foreign_keys(Type),
+				  
     apply(Type, new, lists:map(fun
                 (id) ->
                     DBColumn = proplists:get_value('id', AttributeColumns),
@@ -203,10 +206,7 @@ activate_record(Record, Metadata, Type) ->
                         undefined -> undefined;
                         null -> undefined;
                         Val -> 
-                            case boss_sql_lib:is_foreign_key(Type, Key) of
-                                true -> integer_to_id(Val, DBColumn);
-                                false -> boss_record_lib:convert_value_to_type(Val, AttrType)
-                            end
+                            boss_sql_lib:convert_possible_foreign_key(RetypedForeignKeys, Type, Key, Val, AttrType, DBColumn)
                     end
             end, boss_record_lib:attribute_names(Type))).
 

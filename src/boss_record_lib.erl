@@ -8,6 +8,7 @@
         attribute_types/1,
         database_columns/1,
         database_table/1,
+	belongs_to_types/1,
         convert_value_to_type/2,
         ensure_loaded/1
     ]).
@@ -62,6 +63,9 @@ database_columns(Module) ->
 database_table(Module) ->
     DummyRecord = dummy_record(Module),
     DummyRecord:database_table().
+
+belongs_to_types(Module) when is_atom(Module) ->
+    (dummy_record(Module)):belongs_to_types().
 
 ensure_loaded(Module) ->
     case code:ensure_loaded(Module) of
