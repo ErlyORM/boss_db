@@ -31,7 +31,12 @@ init(Options) ->
             {ok, Conn} = mongo:connect({Host, Port}),
             Conn;
         ReplSet ->
-            mongo:rs_connect(ReplSet)
+            RSConn = mongo:rs_connect(ReplSet),
+            {ok, RSConn1} = case ReadMode of
+                master -> mongo_replset:primary(RSConn);
+                slave_ok -> mongo_replset:secondary_ok(RSConn)
+            end,
+            RSConn1
     end,
     % We pass around arguments required by mongo:do/5
     {ok, {WriteMode, ReadMode, Connection, list_to_atom(Database)}}.
