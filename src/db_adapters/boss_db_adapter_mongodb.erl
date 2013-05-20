@@ -2,8 +2,9 @@
 -behaviour(boss_db_adapter).
 -export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
--export([execute/2]).
+-export([execute/2, transaction/2]).
 -export([push/2, pop/2]).
+-export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
 -define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
 
@@ -49,6 +50,11 @@ terminate({_, _, Connection, _}) ->
 
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
     mongo:do(WriteMode, ReadMode, Connection, Database, Fun).
+
+% Transactions are not currently supported, but we'll treat them as if they are.
+% Use at your own risk!
+transaction(_Conn, TransactionFun) ->
+    {atomic, TransactionFun()}.
 
 find(Conn, Id) when is_list(Id) ->
     {Type, Collection, MongoId} = infer_type_from_id(Id),
@@ -190,7 +196,42 @@ push(_Conn, _Depth) -> ok.
 
 pop(_Conn, _Depth) -> ok.
 
+% This is needed to support boss_db:migrate
+table_exists(_Conn, _TableName) -> ok.
 
+get_migrations_table(Conn) ->
+    Res = execute(Conn, fun() ->
+                mongo:find(schema_migrations, {})
+        end),
+    case Res of
+        {ok, Curs} ->
+            lists:map(fun(Row) ->
+                            MongoDoc = tuple_to_proplist(Row),
+                            {attr_value('_id', MongoDoc), attr_value(version, MongoDoc), attr_value(migrated_at, MongoDoc)}
+                    end, mongo:rest(Curs));
+        {failure, Reason} -> {error, Reason};
+        {connection_failure, Reason} -> {error, Reason}
+    end.
+
+migration_done(Conn, Tag, up) ->
+    Res = execute(Conn, fun() ->
+                Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
+                mongo:insert(schema_migrations, Doc)
+        end),
+    case Res of
+        {ok, _} -> ok;
+        {failure, Reason} -> {error, Reason};
+        {connection_failure, Reason} -> {error, Reason}
+    end;
+migration_done(Conn, Tag, down) ->
+    Res = execute(Conn, fun() ->
+                mongo:delete(schema_migrations, {version, pack_value(atom_to_list(Tag))})
+        end),
+    case Res of
+        {ok, ok} -> ok;
+        {failure, Reason} -> {error, Reason};
+        {connection_failure, Reason} -> {error, Reason}
+    end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
