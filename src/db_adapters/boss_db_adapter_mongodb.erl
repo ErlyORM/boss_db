@@ -25,7 +25,7 @@ init(Options) ->
     Database = proplists:get_value(db_database, Options, "test"),
     WriteMode = proplists:get_value(db_write_mode, Options, safe),
     ReadMode = proplists:get_value(db_read_mode, Options, master),
-    Connection = case proplists:get_value(db_replication_set, Options) of
+    ReadConnection = case proplists:get_value(db_replication_set, Options) of
         undefined ->
             Host = proplists:get_value(db_host, Options, "localhost"),
             Port = proplists:get_value(db_port, Options, 27017),
@@ -39,8 +39,19 @@ init(Options) ->
             end,
             RSConn1
     end,
+    WriteConnection = case proplists:get_value(db_write_host, Options) of
+        undefined ->
+            ReadConnection;
+        WHost ->
+            WPort = proplists:get_value(db_write_host_port, Options, 27017),
+            {ok, WConn} = mongo:connect({WHost, WPort}),
+            WConn
+    end,
     % We pass around arguments required by mongo:do/5
-    {ok, {WriteMode, ReadMode, Connection, list_to_atom(Database)}}.
+    {ok, {readwrite, 
+            {WriteMode, ReadMode, ReadConnection, list_to_atom(Database)},
+            {WriteMode, ReadMode, WriteConnection, list_to_atom(Database)}}
+    }.
 
 terminate({_, _, Connection, _}) ->
     case element(1, Connection) of
