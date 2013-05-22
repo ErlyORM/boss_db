@@ -2,8 +2,9 @@
 -behaviour(boss_db_adapter).
 -export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
--export([execute/2]).
+-export([execute/2, transaction/2]).
 -export([push/2, pop/2]).
+-export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
 -define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
 
@@ -21,20 +22,75 @@ stop() ->
     ok.
 
 init(Options) ->
-    Host = proplists:get_value(db_host, Options, "localhost"),
-    Port = proplists:get_value(db_port, Options, 27017),
-    Database = proplists:get_value(db_database, Options, test),
+    Database = proplists:get_value(db_database, Options, "test"),
     WriteMode = proplists:get_value(db_write_mode, Options, safe),
     ReadMode = proplists:get_value(db_read_mode, Options, master),
-    {ok, Connection} = mongo:connect({Host, Port}),
+    WriteConnection = case proplists:get_value(db_write_host, Options) of
+			  undefined ->
+			      [];
+			  _ ->
+			      WHost = proplists:get_value(db_write_host, Options, []),
+			      WPort = proplists:get_value(db_write_host_port, Options, 27017),
+			      {ok, WConn} = mongo:connect({WHost, WPort}),
+			      WConn
+			  end,
+    Connection = case proplists:get_value(db_replication_set, Options) of
+        undefined ->
+            Host = proplists:get_value(db_host, Options, "localhost"),
+            Port = proplists:get_value(db_port, Options, 27017),
+            {ok, Conn} = mongo:connect({Host, Port}),
+            Conn;
+        ReplSet ->
+	    Pool = resource_pool:new (mongo:rs_connect_factory (ReplSet), 10),
+	    {ok, RSConn} = resource_pool:get (Pool),
+            %% RSConn = mongo:rs_connect(ReplSet),
+            {ok, RSConn1} = case ReadMode of
+                master -> mongo_replset:primary(RSConn);
+                slave_ok -> mongo_replset:secondary_ok(RSConn)
+            end,
+            RSConn1
+    end,
     % We pass around arguments required by mongo:do/5
-    {ok, {WriteMode, ReadMode, Connection, Database}}.
+    {ok, {WriteMode, ReadMode, {Connection, WriteConnection}, list_to_atom(Database)}}.
+
 
 terminate({_, _, Connection, _}) ->
-    mongo:disconnect(Connection).
+    case element(1, Connection) of
+        connection ->
+	    mongo:disconnect(Connection);
+	rs_connection ->
+	    mongo:rs_disconnect(Connection)
+    end.
+
+%% terminate({_, _, Conn1, _}) ->
+%%     {Connection, WriteConnection} = Conn1,
+%%     case WriteConnection of
+%% 	[] ->
+%% 	    case element(1, Connection) of
+%% 		connection -> mongo:disconnect(Connection);
+%% 		rs_connection -> mongo:rs_disconnect(Connection)
+%% 	    end;
+%% 	_ ->
+%% 	    case element(1, Connection) of
+%% 		connection -> mongo:disconnect(Connection);
+%% 		rs_connection -> mongo:rs_disconnect(Connection)
+%% 	    end,
+%% 	    case element(1, WriteConnection) of
+%% 		connection -> mongo:disconnect(WriteConnection);
+%% 		rs_connection -> mongo:rs_disconnect(WriteConnection)
+%% 	    end
+%%     end.
+	    
 
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
+    %% {_,_,{Connection1, WriteConnection},_} = Connection2,
+    %% Connection = case WriteConnection of [] -> Connection1; _ -> WriteConnection end,
     mongo:do(WriteMode, ReadMode, Connection, Database, Fun).
+
+% Transactions are not currently supported, but we'll treat them as if they are.
+% Use at your own risk!
+transaction(_Conn, TransactionFun) ->
+    {atomic, TransactionFun()}.
 
 find(Conn, Id) when is_list(Id) ->
     {Type, Collection, MongoId} = infer_type_from_id(Id),
@@ -87,7 +143,7 @@ count(Conn, Type, Conditions) ->
 %    ?LOG("Count", Count),
     Count.
 
-counter(Conn, Id) when is_list(Id) ->
+counter({_,_,{Conn,_},_}, Id) when is_list(Id) ->
     Res = execute(Conn, fun() ->
                 mongo:find_one(boss_counters, {'name', list_to_binary(Id)})
         end),
@@ -99,10 +155,12 @@ counter(Conn, Id) when is_list(Id) ->
         {connection_failure, Reason} -> {error, Reason}
     end.
 
-incr(Conn, Id) ->
-    incr(Conn, Id, 1).
+incr({_,_,{Conn1,WConn},_}, Id) ->
+    Conn = case WConn of [] -> Conn1; _ -> WConn end, 
+    incr({Conn,WConn}, Id, 1).
 
-incr(Conn, Id, Count) ->
+incr({_,_,{Conn1, WConn},_}, Id, Count) ->
+    Conn = case WConn of [] -> Conn1; _ -> WConn end, 
     Res = execute(Conn, fun() -> 
                  mongo:repsert(boss_counters, 
                          {'name', list_to_binary(Id)},
@@ -110,12 +168,13 @@ incr(Conn, Id, Count) ->
                          )
         end),
     case Res of
-        {ok, ok} -> counter(Conn, Id);
+        {ok, ok} -> counter({Conn,WConn}, Id);
         {failure, Reason} -> {error, Reason};
         {connection_failure, Reason} -> {error, Reason}
     end.
 
-delete(Conn, Id) when is_list(Id) ->
+delete({_,_,{Conn1, WConn},_}, Id) when is_list(Id) ->
+    Conn = case WConn of [] -> Conn1; _ -> WConn end,
     {_Type, Collection, MongoId} = infer_type_from_id(Id),
     
     Res = execute(Conn, fun() ->
@@ -129,6 +188,7 @@ delete(Conn, Id) when is_list(Id) ->
 
 
 save_record(Conn, Record) when is_tuple(Record) ->
+    %% Conn = case WConn of [] -> Conn1; _ -> WConn end,
     Type = element(1, Record),
     Collection = type_to_collection(Type),
     Res = case Record:id() of
@@ -176,7 +236,44 @@ push(_Conn, _Depth) -> ok.
 
 pop(_Conn, _Depth) -> ok.
 
+% This is needed to support boss_db:migrate
+table_exists(_Conn, _TableName) -> ok.
 
+get_migrations_table({_,_,{Conn, _},_}) ->
+    Res = execute(Conn, fun() ->
+                mongo:find(schema_migrations, {})
+        end),
+    case Res of
+        {ok, Curs} ->
+            lists:map(fun(Row) ->
+                            MongoDoc = tuple_to_proplist(Row),
+                            {attr_value('_id', MongoDoc), attr_value(version, MongoDoc), attr_value(migrated_at, MongoDoc)}
+                    end, mongo:rest(Curs));
+        {failure, Reason} -> {error, Reason};
+        {connection_failure, Reason} -> {error, Reason}
+    end.
+
+migration_done({_,_,{Conn1, WConn},_}, Tag, up) ->
+    Conn = case WConn of [] -> Conn1; _ -> WConn end,
+    Res = execute(Conn, fun() ->
+                Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
+                mongo:insert(schema_migrations, Doc)
+        end),
+    case Res of
+        {ok, _} -> ok;
+        {failure, Reason} -> {error, Reason};
+        {connection_failure, Reason} -> {error, Reason}
+    end;
+migration_done({_,_,{Conn1, WConn},_}, Tag, down) ->
+    Conn = case WConn of [] -> Conn1; _ -> WConn end,
+    Res = execute(Conn, fun() ->
+                mongo:delete(schema_migrations, {version, pack_value(atom_to_list(Tag))})
+        end),
+    case Res of
+        {ok, ok} -> ok;
+        {failure, Reason} -> {error, Reason};
+        {connection_failure, Reason} -> {error, Reason}
+    end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -196,41 +293,24 @@ build_conditions(Conditions, OrderBy) ->
 build_conditions1([], Acc) ->
     Acc;
 
+build_conditions1([{Key, 'matches', Value, Options}|Rest], Acc) ->
+    MongoOptions = mongo_regex_options_for_re_module_options(Options),
+    build_conditions1(Rest, [{Key, {regex, list_to_binary(Value), list_to_binary(MongoOptions)}}|Acc]);
+build_conditions1([{Key, 'not_matches', Value, Options}|Rest], Acc) ->
+    MongoOptions = mongo_regex_options_for_re_module_options(Options),
+    build_conditions1(Rest, [{Key, {'$not', {regex, list_to_binary(Value), list_to_binary(MongoOptions)}}}|Acc]);
 build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
 %    ?LOG("Key, Operator, Value", {Key, Operator, Value}),
 
-    Condition = case {Operator, Value} of
-	%% Fixed for PCRE compliance
-        {'not_matches_i', Value1} ->
-            [{Key, {'$not', {regex, list_to_binary(Value1), <<"$options: 'i'">>}}}];
+    Condition = case {Operator, Value} of 
+        {'not_matches', "*"++Value1} ->
+            [{Key, {'$not', {regex, list_to_binary(Value1), <<"i">>}}}];
         {'not_matches', Value} ->
             [{Key, {'$not', {regex, list_to_binary(Value), <<"">>}}}];
-	%% Removed these lines as it breaks PCRE compliance
-        %% {'matches', "*"++Value1} ->
-        %%    [{Key, {regex, list_to_binary(Value1), <<"">>}}];
-	%% regular case sensitive match
+        {'matches', "*"++Value1} ->
+            [{Key, {regex, list_to_binary(Value1), <<"i">>}}];
         {'matches', Value} ->
             [{Key, {regex, list_to_binary(Value), <<"">>}}];
-        %% "m" matches multilines
-        {'matches_m', Value} ->
-            [{Key, {regex, list_to_binary(Value), <<"$options: 'm'">>}}];
-	%% "i" toggles case insensitivity, and allows all letters in the pattern
-	%% to match upper and lower cases.
-        {'matches_i', Value} ->
-            [{Key, {regex, list_to_binary(Value), <<"$options: 'i'">>}}];
-	%% "s" allows the dot (e.g. .) character to match all characters
-	%% including newline characters.
-        {'matches_s', Value} ->
-            [{Key, {regex, list_to_binary(Value), <<"$options: 's'">>}}];
-	%% "x" toggles an “extended” capability. When set, $regex ignores all
-	%% white space characters unless escaped or included in a character
-	%% class. Additionally, it ignores characters between an
-	%% un-escaped # character and the next new line, so that you may
-	%% include comments in complicated patterns. This only applies to
-	%% data characters; white space characters may never appear within
-	%% special character sequences in a pattern.
-        {'matches_x', Value} ->
-            [{Key, {regex, list_to_binary(Value), <<"$options: 'x'">>}}];
         {'contains', Value} ->
             WhereClause = where_clause(
                 ?CONTAINS_FORMAT, [Key, Value]),
@@ -351,6 +431,20 @@ mongo_tuple_to_record(Type, Row) ->
         end, boss_record_lib:attribute_names(Type)),
     apply(Type, new, Args).
 
+mongo_regex_options_for_re_module_options(Options) ->
+    mongo_regex_options_for_re_module_options(Options, []).
+
+mongo_regex_options_for_re_module_options([], Acc) ->
+    lists:reverse(Acc);
+mongo_regex_options_for_re_module_options([caseless|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$i|Acc]);
+mongo_regex_options_for_re_module_options([dotall|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$s|Acc]);
+mongo_regex_options_for_re_module_options([extended|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$x|Acc]);
+mongo_regex_options_for_re_module_options([multiline|Rest], Acc) ->
+    mongo_regex_options_for_re_module_options(Rest, [$m|Acc]).
+
 % Boss and MongoDB have a different conventions to id attributes (id vs. '_id').
 attr_value(id, MongoDoc) ->
     proplists:get_value('_id', MongoDoc);
@@ -365,7 +459,7 @@ pack_id(BossId) ->
     catch
         Error:Reason -> 
             error_logger:warning_msg("Error parsing Boss record id: ~p:~p~n", 
-                [Error, Reason]),
+				     [Error, Reason]),
             []
     end.
 
