@@ -48,8 +48,11 @@ init(Options) ->
                 end
         end, {[], dict:new()}, proplists:get_value(shards, Options, [])),
     {DBWriteMode,DBReadMode,{RC,WConn},Database} = Conn,
-    {ok, #state{adapter = Adapter, connection = {DBWriteMode,DBReadMode,RC,Database}, writeconnection = {DBWriteMode,DBReadMode,WConn,Database}, shards = lists:reverse(Shards), model_dict = ModelDict,
-        cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}.
+    {ok, #state{adapter = Adapter,
+		connection = {DBWriteMode,DBReadMode,RC,Database},
+		writeconnection = {DBWriteMode,DBReadMode,WConn,Database},
+		shards = lists:reverse(Shards), model_dict = ModelDict,
+		cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}.
 
 handle_call({find, Key}, From, #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
     case boss_cache:get(Prefix, Key) of
@@ -116,12 +119,11 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #sta
     {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
 
 handle_call({get_migrations_table}, _From, #state{ cache_enable = false } = State) ->
-    {Adapter, Conn} = {State#state.adapter, State#state.connection},
+    {Adapter, Conn} = {State#state.adapter, db_for_write()},
     {reply, Adapter:get_migrations_table(Conn), State};
 
 handle_call({migration_done, Tag, Direction}, _From, #state{ cache_enable = false } = State) ->
-    {Adapter, Conn1} = {State#state.adapter, State#state.connection},
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
+    {Adapter, Conn} = {State#state.adapter, db_for_write()},
     {reply, Adapter:migration_done(Conn, Tag, Direction), State};
 
 handle_call({count, Type}, _From, State) ->
@@ -137,31 +139,25 @@ handle_call({counter, Counter}, _From, State) ->
     {reply, Adapter:counter(Conn, Counter), State};
 
 handle_call({incr, Key}, _From, State) ->
-    {Adapter, _Conn1} = db_for_counter(Key, State),
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
+    {Adapter, Conn} = db_for_counter(Key, State),
     {reply, Adapter:incr(Conn, Key), State};
 
 handle_call({incr, Key, Count}, _From, State) ->
-    {Adapter, _Conn1} = db_for_counter(Key, State),
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
+    {Adapter, Conn} = db_for_counter(Key, State),
     {reply, Adapter:incr(Conn, Key, Count), State};
 
 handle_call({delete, Id}, _From, State) ->
     {Adapter, _Conn1} = db_for_key(Id, State),
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
-    {reply, Adapter:delete(Conn, Id), State};
+    {reply, Adapter:delete(db_for_write(), Id), State};
 
 handle_call({save_record, Record}, _From, State) ->
     {Adapter, _Conn1} = db_for_record(Record, State),
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
-    {reply, Adapter:save_record(Conn, Record), State};
+    {reply, Adapter:save_record(db_for_write(), Record), State};
 
 handle_call(push, _From, State) ->
     Adapter = State#state.adapter,
-    %% Conn = State#state.connection,
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
     Depth = State#state.depth,
-    {reply, Adapter:push(Conn, Depth), State#state{depth = Depth + 1}};
+    {reply, Adapter:push(db_for_write(), Depth), State#state{depth = Depth + 1}};
 
 handle_call(pop, _From, State) ->
     Adapter = State#state.adapter,
@@ -179,9 +175,7 @@ handle_call(dump, _From, State) ->
 
 handle_call({create_table, TableName, TableDefinition}, _From, State) ->
     Adapter = State#state.adapter,
-    %% Conn = State#state.connection,
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
-    {reply, Adapter:create_table(Conn, TableName, TableDefinition), State};
+    {reply, Adapter:create_table(db_for_write(), TableName, TableDefinition), State};
 
 handle_call({table_exists, TableName}, _From, State) ->
     Adapter = State#state.adapter,
@@ -190,21 +184,15 @@ handle_call({table_exists, TableName}, _From, State) ->
 
 handle_call({execute, Commands}, _From, State) ->
     Adapter = State#state.adapter,
-    %% Conn = State#state.connection,
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
-    {reply, Adapter:execute(Conn, Commands), State};
+    {reply, Adapter:execute(db_for_write(), Commands), State};
 
 handle_call({execute, Commands, Params}, _From, State) ->
     Adapter = State#state.adapter,
-    %%Conn = State#state.connection,
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
-    {reply, Adapter:execute(Conn, Commands, Params), State};
+    {reply, Adapter:execute(db_for_write(), Commands, Params), State};
 
 handle_call({transaction, TransactionFun}, _From, State) ->
     Adapter = State#state.adapter,
-    %% Conn = State#state.connection,
-    Conn = case State#state.writeconnection of [] -> State#state.connection; _ -> State#state.writeconnection end,
-    {reply, Adapter:transaction(Conn, TransactionFun), State};
+    {reply, Adapter:transaction(db_for_write(), TransactionFun), State};
 
 handle_call(state, _From, State) ->
     {reply, State, State}.
@@ -237,12 +225,7 @@ handle_info(_Info, State) ->
     {noreply, State}.
 
 db_for_counter(_Counter, State) ->
-    case State#state.writeconnection of
-	[] ->
-	    {State#state.adapter, State#state.connection};
-	_ ->
-	    {State#state.adapter, State#state.writeconnection}
-    end.
+    {State#state.adapter, db_for_write()}.
 
 db_for_record(Record, State) ->
     db_for_type(element(1, Record), State).
@@ -257,6 +240,12 @@ db_for_type(Type, State) ->
         _ ->
             {State#state.adapter, State#state.connection}
     end.
+
+db_for_write() ->
+    case State#state.writeconnection of
+	[] -> State#state.connection;
+	_ -> State#state.writeconnection
+    end,
 
 infer_type_from_id(Id) when is_binary(Id) ->
     infer_type_from_id(binary_to_list(Id));

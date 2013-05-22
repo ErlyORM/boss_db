@@ -62,29 +62,7 @@ terminate({_, _, Connection, _}) ->
 	    mongo:rs_disconnect(Connection)
     end.
 
-%% terminate({_, _, Conn1, _}) ->
-%%     {Connection, WriteConnection} = Conn1,
-%%     case WriteConnection of
-%% 	[] ->
-%% 	    case element(1, Connection) of
-%% 		connection -> mongo:disconnect(Connection);
-%% 		rs_connection -> mongo:rs_disconnect(Connection)
-%% 	    end;
-%% 	_ ->
-%% 	    case element(1, Connection) of
-%% 		connection -> mongo:disconnect(Connection);
-%% 		rs_connection -> mongo:rs_disconnect(Connection)
-%% 	    end,
-%% 	    case element(1, WriteConnection) of
-%% 		connection -> mongo:disconnect(WriteConnection);
-%% 		rs_connection -> mongo:rs_disconnect(WriteConnection)
-%% 	    end
-%%     end.
-	    
-
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
-    %% {_,_,{Connection1, WriteConnection},_} = Connection2,
-    %% Connection = case WriteConnection of [] -> Connection1; _ -> WriteConnection end,
     mongo:do(WriteMode, ReadMode, Connection, Database, Fun).
 
 % Transactions are not currently supported, but we'll treat them as if they are.
@@ -143,7 +121,7 @@ count(Conn, Type, Conditions) ->
 %    ?LOG("Count", Count),
     Count.
 
-counter({_,_,{Conn,_},_}, Id) when is_list(Id) ->
+counter(Conn, Id) when is_list(Id) ->
     Res = execute(Conn, fun() ->
                 mongo:find_one(boss_counters, {'name', list_to_binary(Id)})
         end),
@@ -155,12 +133,10 @@ counter({_,_,{Conn,_},_}, Id) when is_list(Id) ->
         {connection_failure, Reason} -> {error, Reason}
     end.
 
-incr({_,_,{Conn1,WConn},_}, Id) ->
-    Conn = case WConn of [] -> Conn1; _ -> WConn end, 
+incr(Conn, Id) ->
     incr({Conn,WConn}, Id, 1).
 
-incr({_,_,{Conn1, WConn},_}, Id, Count) ->
-    Conn = case WConn of [] -> Conn1; _ -> WConn end, 
+incr(Conn, Id, Count) ->
     Res = execute(Conn, fun() -> 
                  mongo:repsert(boss_counters, 
                          {'name', list_to_binary(Id)},
@@ -173,8 +149,7 @@ incr({_,_,{Conn1, WConn},_}, Id, Count) ->
         {connection_failure, Reason} -> {error, Reason}
     end.
 
-delete({_,_,{Conn1, WConn},_}, Id) when is_list(Id) ->
-    Conn = case WConn of [] -> Conn1; _ -> WConn end,
+delete(Conn, Id) when is_list(Id) ->
     {_Type, Collection, MongoId} = infer_type_from_id(Id),
     
     Res = execute(Conn, fun() ->
@@ -188,7 +163,6 @@ delete({_,_,{Conn1, WConn},_}, Id) when is_list(Id) ->
 
 
 save_record(Conn, Record) when is_tuple(Record) ->
-    %% Conn = case WConn of [] -> Conn1; _ -> WConn end,
     Type = element(1, Record),
     Collection = type_to_collection(Type),
     Res = case Record:id() of
@@ -239,7 +213,7 @@ pop(_Conn, _Depth) -> ok.
 % This is needed to support boss_db:migrate
 table_exists(_Conn, _TableName) -> ok.
 
-get_migrations_table({_,_,{Conn, _},_}) ->
+get_migrations_table(Conn) ->
     Res = execute(Conn, fun() ->
                 mongo:find(schema_migrations, {})
         end),
@@ -253,8 +227,7 @@ get_migrations_table({_,_,{Conn, _},_}) ->
         {connection_failure, Reason} -> {error, Reason}
     end.
 
-migration_done({_,_,{Conn1, WConn},_}, Tag, up) ->
-    Conn = case WConn of [] -> Conn1; _ -> WConn end,
+migration_done(Conn, Tag, up) ->
     Res = execute(Conn, fun() ->
                 Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
                 mongo:insert(schema_migrations, Doc)
@@ -264,8 +237,7 @@ migration_done({_,_,{Conn1, WConn},_}, Tag, up) ->
         {failure, Reason} -> {error, Reason};
         {connection_failure, Reason} -> {error, Reason}
     end;
-migration_done({_,_,{Conn1, WConn},_}, Tag, down) ->
-    Conn = case WConn of [] -> Conn1; _ -> WConn end,
+migration_done(Conn, Tag, down) ->
     Res = execute(Conn, fun() ->
                 mongo:delete(schema_migrations, {version, pack_value(atom_to_list(Tag))})
         end),
