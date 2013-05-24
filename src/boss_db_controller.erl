@@ -7,6 +7,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 -record(state, {
+	  connection_state,
         adapter, 
         read_connection, 
         write_connection, 
@@ -43,31 +44,14 @@ init(Options) ->
     CacheEnable = proplists:get_value(cache_enable, Options, false),
     CacheTTL = proplists:get_value(cache_exp_time, Options, 60),
     process_flag(trap_exit, true),
-    {ok, {ReadConn, WriteConn}} = connections_for_adapter(Adapter, Options),
-    {Shards, ModelDict} = lists:foldr(fun(ShardOptions, {ShardAcc, ModelDictAcc}) ->
-                case proplists:get_value(db_shard_models, ShardOptions, []) of
-                    [] ->
-                        {ShardAcc, ModelDictAcc};
-                    Models ->
-                        ShardAdapter = case proplists:get_value(db_adapter, ShardOptions) of
-                            undefined -> Adapter;
-                            ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
-                        end,
-                        MergedOptions = case proplists:get_value(db_replication_set, ShardOptions) of
-                            undefined -> ShardOptions ++ proplists:delete(db_replication_set, Options);
-                            _ -> ShardOptions ++ Options
-                        end,
-                        {ok, {ShardRead, ShardWrite}} = ShardAdapter:init(MergedOptions),
-                        Index = erlang:length(ShardAcc),
-                        NewDict = lists:foldr(fun(ModelAtom, Dict) ->
-                                    dict:store(ModelAtom, Index, Dict)
-                            end, ModelDictAcc, Models),
-                        {[{ShardAdapter, ShardRead, ShardWrite}|ShardAcc], NewDict}
-                end
-        end, {[], dict:new()}, proplists:get_value(shards, Options, [])),
-    {ok, #state{adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn, 
-            shards = lists:reverse(Shards), model_dict = ModelDict,
-            cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}.
+    gen_server:cast(self(), {try_connect, Options}),
+    {ok, #state{connection_state = connecting,
+		adapter = Adapter,
+		cache_enable = CacheEnable,
+		cache_ttl = CacheTTL, cache_prefix = db }}.
+
+handle_call(_Anything, _Anyone, State) when State#state.connection_state /= connected ->
+    {reply, db_connection_down, State};
 
 handle_call({find, Key}, From, #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
     case boss_cache:get(Prefix, Key) of
@@ -217,10 +201,42 @@ handle_call({transaction, TransactionFun}, _From, State) ->
 handle_call(state, _From, State) ->
     {reply, State, State}.
 
+handle_cast({try_connect, Options}, State) ->
+    Adapter = State#state.adapter,
+    CacheEnable = State#state.cache_enable,
+    CacheTTL = State#state.cache_ttl,
+    {ok, {ReadConn, WriteConn}} = connections_for_adapter(Adapter, Options),
+    {Shards, ModelDict} =
+	lists:foldr(fun(ShardOptions, {ShardAcc, ModelDictAcc}) ->
+			    case proplists:get_value(db_shard_models, ShardOptions, []) of
+				[] ->
+				    {ShardAcc, ModelDictAcc};
+				Models ->
+				    ShardAdapter = case proplists:get_value(db_adapter, ShardOptions) of
+						       undefined -> Adapter;
+						       ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
+						   end,
+				    MergedOptions = case proplists:get_value(db_replication_set, ShardOptions) of
+							undefined -> ShardOptions ++ proplists:delete(db_replication_set, Options);
+							_ -> ShardOptions ++ Options
+						    end,
+				    {ok, {ShardRead, ShardWrite}} = ShardAdapter:init(MergedOptions),
+				    Index = erlang:length(ShardAcc),
+				    NewDict = lists:foldr(fun(ModelAtom, Dict) ->
+								  dict:store(ModelAtom, Index, Dict)
+							  end, ModelDictAcc, Models),
+				    {[{ShardAdapter, ShardRead, ShardWrite}|ShardAcc], NewDict}
+			    end
+		    end, {[], dict:new()}, proplists:get_value(shards, Options, [])),
+
+    {noreply, #state{connection_state = connected, adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn, 
+		     shards = lists:reverse(Shards), model_dict = ModelDict,
+		     cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
+
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-terminate(_Reason, State) ->
+terminate(Reason, State) ->
     Adapter = State#state.adapter,
     terminate_connections(Adapter, State#state.read_connection, State#state.write_connection),
     lists:map(fun({A, RC, WC}) -> terminate_connections(A, RC, WC) end, State#state.shards).
