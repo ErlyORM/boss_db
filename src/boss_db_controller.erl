@@ -2,12 +2,16 @@
 
 -behaviour(gen_server).
 
--export([start_link/0, start_link/1]).
+-export([start_link/0, start_link/1, try_connection/2]).
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
+-define(MAXDELAY, 10000).
+
 -record(state, {
 	  connection_state,
+	  connection_delay,
+	  options,
         adapter, 
         read_connection, 
         write_connection, 
@@ -29,8 +33,24 @@ connections_for_adapter(Adapter, Options) ->
         {ok, {readwrite, Read, Write}} ->
             {ok, {Read, Write}};
         {ok, Other} ->
-            {ok, {Other, Other}}
+            {ok, {Other, Other}};
+	Error ->
+	    {connection_error, Error}
     end.
+
+setup_reconnect(State) ->
+    Delay = case State#state.connection_delay of
+		D when D < ?MAXDELAY ->
+		    D;
+		_ ->
+		    ?MAXDELAY
+	    end,
+    Pid = self(),
+    error_logger:info_msg("Database reconnection attempt in ~p ms", [Delay]),
+    timer:apply_after(Delay, boss_db_controller, try_connection, [Pid, State#state.options]).
+
+try_connection(Pid, Options) ->
+    gen_server:cast(Pid, {try_connect, Options}).
 
 terminate_connections(Adapter, RC, RC) ->
     Adapter:terminate(RC);
@@ -44,8 +64,10 @@ init(Options) ->
     CacheEnable = proplists:get_value(cache_enable, Options, false),
     CacheTTL = proplists:get_value(cache_exp_time, Options, 60),
     process_flag(trap_exit, true),
-    gen_server:cast(self(), {try_connect, Options}),
+    try_connection(self(), Options),
     {ok, #state{connection_state = connecting,
+		connection_delay = 1,
+		options = Options,
 		adapter = Adapter,
 		cache_enable = CacheEnable,
 		cache_ttl = CacheTTL, cache_prefix = db }}.
@@ -201,42 +223,58 @@ handle_call({transaction, TransactionFun}, _From, State) ->
 handle_call(state, _From, State) ->
     {reply, State, State}.
 
-handle_cast({try_connect, Options}, State) ->
+handle_cast({try_connect, Options}, State) when State#state.connection_state /= connected ->
     Adapter = State#state.adapter,
     CacheEnable = State#state.cache_enable,
     CacheTTL = State#state.cache_ttl,
-    {ok, {ReadConn, WriteConn}} = connections_for_adapter(Adapter, Options),
-    {Shards, ModelDict} =
-	lists:foldr(fun(ShardOptions, {ShardAcc, ModelDictAcc}) ->
-			    case proplists:get_value(db_shard_models, ShardOptions, []) of
-				[] ->
-				    {ShardAcc, ModelDictAcc};
-				Models ->
-				    ShardAdapter = case proplists:get_value(db_adapter, ShardOptions) of
-						       undefined -> Adapter;
-						       ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
-						   end,
-				    MergedOptions = case proplists:get_value(db_replication_set, ShardOptions) of
-							undefined -> ShardOptions ++ proplists:delete(db_replication_set, Options);
-							_ -> ShardOptions ++ Options
-						    end,
-				    {ok, {ShardRead, ShardWrite}} = ShardAdapter:init(MergedOptions),
-				    Index = erlang:length(ShardAcc),
-				    NewDict = lists:foldr(fun(ModelAtom, Dict) ->
-								  dict:store(ModelAtom, Index, Dict)
-							  end, ModelDictAcc, Models),
-				    {[{ShardAdapter, ShardRead, ShardWrite}|ShardAcc], NewDict}
-			    end
-		    end, {[], dict:new()}, proplists:get_value(shards, Options, [])),
-
-    {noreply, #state{connection_state = connected, adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn, 
-		     shards = lists:reverse(Shards), model_dict = ModelDict,
-		     cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
+    try connections_for_adapter(Adapter, Options) of
+	{ok, {ReadConn, WriteConn}} ->
+	    {Shards, ModelDict} =
+		lists:foldr(fun(ShardOptions, {ShardAcc, ModelDictAcc}) ->
+				    case proplists:get_value(db_shard_models, ShardOptions, []) of
+					[] ->
+					    {ShardAcc, ModelDictAcc};
+					Models ->
+					    ShardAdapter = case proplists:get_value(db_adapter, ShardOptions) of
+							       undefined -> Adapter;
+							       ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
+							   end,
+					    MergedOptions = case proplists:get_value(db_replication_set, ShardOptions) of
+								undefined -> ShardOptions ++ proplists:delete(db_replication_set, Options);
+								_ -> ShardOptions ++ Options
+							    end,
+					    {ok, {ShardRead, ShardWrite}} = ShardAdapter:init(MergedOptions),
+					    Index = erlang:length(ShardAcc),
+					    NewDict = lists:foldr(fun(ModelAtom, Dict) ->
+									  dict:store(ModelAtom, Index, Dict)
+								  end, ModelDictAcc, Models),
+					    {[{ShardAdapter, ShardRead, ShardWrite}|ShardAcc], NewDict}
+				    end
+			    end, {[], dict:new()}, proplists:get_value(shards, Options, [])),
+	    error_logger:info_msg("Successfully connected to database: ~p", [Adapter]),
+	    {noreply, #state{connection_state = connected, connection_delay = 1,
+			     adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn,
+			     shards = lists:reverse(Shards), model_dict = ModelDict, options = Options,
+			     cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
+	Failure ->
+	    error_logger:info_msg("Database connection failure ~p", [Failure]),
+	    setup_reconnect(State),
+	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
+			     adapter = Adapter, read_connection = undefined, write_connection = undefined,
+			     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}
+    catch
+	Error ->
+	    error_logger:info_msg("Database connection exception ~p", [Error]),
+	    setup_reconnect(State),
+	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
+			     adapter = Adapter, read_connection = undefined, write_connection = undefined,
+			     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}
+    end;
 
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-terminate(Reason, State) ->
+terminate(_Reason, State) ->
     Adapter = State#state.adapter,
     terminate_connections(Adapter, State#state.read_connection, State#state.write_connection),
     lists:map(fun({A, RC, WC}) -> terminate_connections(A, RC, WC) end, State#state.shards).
@@ -246,8 +284,14 @@ code_change(_OldVsn, State, _Extra) ->
 
 handle_info(stop, State) ->
     {stop, shutdown, State};
-handle_info({'EXIT', _, _}, State) ->
-    {stop, shutdown, State};
+
+handle_info({'EXIT', _From, _Reason}, State) when State#state.connection_state == connected ->
+    setup_reconnect(State),
+    {noreply, State#state { connection_state = disconnected, connection_delay = State#state.connection_delay * 2 } };
+
+handle_info({'EXIT', _From, _Reason}, State) ->
+    {noreply, State#state { connection_state = disconnected } };
+
 handle_info(_Info, State) ->
     {noreply, State}.
 

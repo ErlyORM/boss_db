@@ -20,6 +20,8 @@ init(Options) ->
     pgsql:connect(DBHost, DBUsername, DBPassword, 
         [{port, DBPort}, {database, DBDatabase}]).
 
+terminate(undefined) ->
+    noop;
 terminate(Conn) ->
     pgsql:close(Conn).
 
