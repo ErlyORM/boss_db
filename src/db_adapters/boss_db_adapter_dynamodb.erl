@@ -16,8 +16,8 @@ stop() ->
     ok.
 
 init(Options) ->
-	AccessKey 	= proplists:get_value(db_username, Options),
-	SecretKey	= proplists:get_value(db_password, Options),
+	AccessKey 	= proplists:get_value(db_username, Options, os:getenv("AMAZON_ACCESS_KEY_ID")),
+	SecretKey	= proplists:get_value(db_password, Options, os:getenv("AMAZON_SECRET_ACCESS_KEY")),
 	
 	%% startup dependencies.  some of these may have already been started, but that's ok.
 	inets:start(),
