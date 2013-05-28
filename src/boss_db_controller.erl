@@ -11,6 +11,7 @@
 -record(state, {
 	  connection_state,
 	  connection_delay,
+	  connection_retry_timer,
 	  options,
         adapter, 
         read_connection, 
@@ -258,15 +259,17 @@ handle_cast({try_connect, Options}, State) when State#state.connection_state /= 
 			     cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
 	Failure ->
 	    error_logger:info_msg("Database connection failure ~p", [Failure]),
-	    setup_reconnect(State),
+	    {ok, Tref} = setup_reconnect(State),
 	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
+			     connection_retry_timer = Tref,
 			     adapter = Adapter, read_connection = undefined, write_connection = undefined,
 			     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}
     catch
 	Error ->
 	    error_logger:info_msg("Database connection exception ~p", [Error]),
-	    setup_reconnect(State),
+	    {ok, Tref} = setup_reconnect(State),
 	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
+			     connection_retry_timer = Tref,
 			     adapter = Adapter, read_connection = undefined, write_connection = undefined,
 			     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}
     end;
@@ -276,6 +279,12 @@ handle_cast(_Request, State) ->
 
 terminate(_Reason, State) ->
     Adapter = State#state.adapter,
+    case State#state.connection_retry_timer of
+	undefined ->
+	    noop;
+	Timer ->
+	    timer:cancel(Timer)
+    end,
     terminate_connections(Adapter, State#state.read_connection, State#state.write_connection),
     lists:map(fun({A, RC, WC}) -> terminate_connections(A, RC, WC) end, State#state.shards).
 
