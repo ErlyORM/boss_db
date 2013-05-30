@@ -222,21 +222,17 @@ transform_char(Char) when Char > 127 ->
 transform_char(_) ->
     error.
 
-cut_at_location(CutLoc, FileContents, StartLoc) ->
-    cut_at_location1(CutLoc, FileContents, StartLoc, []).
+cut_at_location({CutLine, CutCol}, FileContents, {StartLine, StartCol}) ->
+    cut_at_location1({CutLine, CutCol}, FileContents, {StartLine, StartCol}, []).
 
 cut_at_location1(_, [], _, Acc) ->
     {lists:reverse(Acc), 0, ""};
-cut_at_location1(CutLoc, [C|Rest], CutLoc, Acc) ->
+cut_at_location1({Line, Col}, [C|Rest], {Line, Col}, Acc) ->
     {lists:reverse(Acc), C, Rest};
-cut_at_location1(CutLoc, [C|Rest], {ThisLine, _}, Acc) when C =:= $\n ->
-    cut_at_location1(CutLoc, Rest, {ThisLine + 1, 1}, [C|Acc]);
-cut_at_location1(CutLoc, [C|Rest], ThisLine, Acc) when C =:= $\n andalso is_integer(ThisLine) ->
-    cut_at_location1(CutLoc, Rest, ThisLine + 1, [C|Acc]);
-cut_at_location1(CutLoc, [C|Rest], {ThisLine, ThisCol}, Acc) ->
-    cut_at_location1(CutLoc, Rest, {ThisLine, ThisCol + 1}, [C|Acc]);
-cut_at_location1(CutLoc, [C|Rest], ThisLine, Acc) when is_integer(ThisLine) ->
-    cut_at_location1(CutLoc, Rest, ThisLine, [C|Acc]).
+cut_at_location1({Line, Col}, [C|Rest], {ThisLine, _}, Acc) when C =:= $\n ->
+    cut_at_location1({Line, Col}, Rest, {ThisLine + 1, 1}, [C|Acc]);
+cut_at_location1({Line, Col}, [C|Rest], {ThisLine, ThisCol}, Acc) ->
+    cut_at_location1({Line, Col}, Rest, {ThisLine, ThisCol + 1}, [C|Acc]).
 
 flatten_token_locations(Tokens) ->
     flatten_token_locations1(Tokens, []).
