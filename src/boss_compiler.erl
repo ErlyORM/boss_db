@@ -116,6 +116,16 @@ parse_tokens([{dot, _}=Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName) ->
     case erl_parse:parse_form(lists:reverse([Token|TokenAcc])) of
         {ok, {attribute, _, file, {NewFileName, _Line}} = AbsForm} ->
             parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, NewFileName);
+        {ok, {attribute, La, record, {Record, Fields}} = AbsForm} ->
+            case epp:normalize_typed_record_fields(Fields) of
+                {typed, NewFields} ->
+                    parse_tokens(Rest, [], lists:reverse([
+                                {attribute, La, record, {Record, NewFields}},
+                                {attribute, La, type, {{record, Record}, Fields, []}}],
+                            FormAcc), ErrorAcc, FileName);
+                not_typed ->
+                    parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, FileName)
+            end;
         {ok, AbsForm} ->
             parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, FileName);
         {error, ErrorInfo} ->
@@ -127,7 +137,9 @@ parse_tokens([Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName) ->
     parse_tokens(Rest, [Token|TokenAcc], FormAcc, ErrorAcc, FileName).
 
 scan_transform(FileContents) ->
-    scan_transform(FileContents, {1, 1}).
+    % Don't use {1, 1} for the location because the Erlang parser will choke
+    % on typed record definitions. Just use an integer line number instead.
+    scan_transform(FileContents, 1). 
 
 scan_transform([], StartLocation) ->
     {ok, [{eof, StartLocation}]};
