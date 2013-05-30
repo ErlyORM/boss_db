@@ -90,7 +90,11 @@ parse_text(FileName, FileContents, TokenTransform, IncludeDirs) ->
             end,
             case aleppo:process_tokens(NewTokens, [{file, FileName}, {include, IncludeDirs}]) of
                 {ok, ProcessedTokens} ->
-                    {Forms, Errors} = parse_tokens(ProcessedTokens, FileName),
+                    % We have to flatten the token locations because the Erlang parser
+                    % has a bug that chokes on {Line, Col} locations in typed record
+                    % definitions
+                    TokensWithOnlyLineNumbers = flatten_token_locations(ProcessedTokens), 
+                    {Forms, Errors} = parse_tokens(TokensWithOnlyLineNumbers, FileName),
                     case length(Errors) of
                         0 ->
                             {ok, Forms, TokenInfo};
@@ -137,9 +141,7 @@ parse_tokens([Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName) ->
     parse_tokens(Rest, [Token|TokenAcc], FormAcc, ErrorAcc, FileName).
 
 scan_transform(FileContents) ->
-    % Don't use {1, 1} for the location because the Erlang parser will choke
-    % on typed record definitions. Just use an integer line number instead.
-    scan_transform(FileContents, 1). 
+    scan_transform(FileContents, {1, 1}). 
 
 scan_transform([], StartLocation) ->
     {ok, [{eof, StartLocation}]};
@@ -220,14 +222,30 @@ transform_char(Char) when Char > 127 ->
 transform_char(_) ->
     error.
 
-cut_at_location({CutLine, CutCol}, FileContents, {StartLine, StartCol}) ->
-    cut_at_location1({CutLine, CutCol}, FileContents, {StartLine, StartCol}, []).
+cut_at_location(CutLoc, FileContents, StartLoc) ->
+    cut_at_location1(CutLoc, FileContents, StartLoc, []).
 
 cut_at_location1(_, [], _, Acc) ->
     {lists:reverse(Acc), 0, ""};
-cut_at_location1({Line, Col}, [C|Rest], {Line, Col}, Acc) ->
+cut_at_location1(CutLoc, [C|Rest], CutLoc, Acc) ->
     {lists:reverse(Acc), C, Rest};
-cut_at_location1({Line, Col}, [C|Rest], {ThisLine, _}, Acc) when C =:= $\n ->
-    cut_at_location1({Line, Col}, Rest, {ThisLine + 1, 1}, [C|Acc]);
-cut_at_location1({Line, Col}, [C|Rest], {ThisLine, ThisCol}, Acc) ->
-    cut_at_location1({Line, Col}, Rest, {ThisLine, ThisCol + 1}, [C|Acc]).
+cut_at_location1(CutLoc, [C|Rest], {ThisLine, _}, Acc) when C =:= $\n ->
+    cut_at_location1(CutLoc, Rest, {ThisLine + 1, 1}, [C|Acc]);
+cut_at_location1(CutLoc, [C|Rest], ThisLine, Acc) when C =:= $\n andalso is_integer(ThisLine) ->
+    cut_at_location1(CutLoc, Rest, ThisLine + 1, [C|Acc]);
+cut_at_location1(CutLoc, [C|Rest], {ThisLine, ThisCol}, Acc) ->
+    cut_at_location1(CutLoc, Rest, {ThisLine, ThisCol + 1}, [C|Acc]);
+cut_at_location1(CutLoc, [C|Rest], ThisLine, Acc) when is_integer(ThisLine) ->
+    cut_at_location1(CutLoc, Rest, ThisLine, [C|Acc]).
+
+flatten_token_locations(Tokens) ->
+    flatten_token_locations1(Tokens, []).
+
+flatten_token_locations1([], Acc) ->
+    lists:reverse(Acc);
+flatten_token_locations1([{Type, {Line, _Col}}|Rest], Acc) ->
+    flatten_token_locations1(Rest, [{Type, Line}|Acc]);
+flatten_token_locations1([{Type, {Line, _Col}, Extra}|Rest], Acc) ->
+    flatten_token_locations1(Rest, [{Type, Line, Extra}|Acc]);
+flatten_token_locations1([Other|Rest], Acc) ->
+    flatten_token_locations1(Rest, [Other|Acc]).
