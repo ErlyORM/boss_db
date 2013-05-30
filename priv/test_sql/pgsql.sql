@@ -10,7 +10,7 @@ CREATE TABLE boss_db_test_models (
 );
 
 DROP TABLE IF EXISTS boss_db_test_parent_models;
-CREATE TABLE boss_db_test_models (
+CREATE TABLE boss_db_test_parent_models (
     id                  SERIAL PRIMARY KEY,
     some_text           TEXT
 );
