@@ -10,8 +10,10 @@
         find/1,
         find/2,
         find/3,
+        find_first/1,
         find_first/2,
         find_first/3,
+        find_last/1,
         find_last/2,
         find_last/3,
         count/1,
@@ -136,6 +138,11 @@ find(Type, Conditions, Options) ->
     Include = proplists:get_value(include, Options, []),
     db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder, Include}).
 
+%% @spec find_first( Type::atom() ) -> Record | undefined
+%% @doc Query for the first BossRecord of type `Type'.
+find_first(Type) ->
+    return_one(find(Type, [], [{limit, 1}])).
+
 %% @spec find_first( Type::atom(), Conditions ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions'
 find_first(Type, Conditions) ->
@@ -146,6 +153,11 @@ find_first(Type, Conditions) ->
 %% sorted on the attribute `Sort'.
 find_first(Type, Conditions, Sort) ->
     return_one(find(Type, Conditions, [{limit, 1}, {order_by, Sort}])).
+
+%% @spec find_last( Type::atom() ) -> Record | undefined
+%% @doc Query for the last BossRecord of type `Type'.
+find_last(Type) ->
+    return_one(find(Type, [], [{limit, 1}, descending])).
 
 %% @spec find_last( Type::atom(), Conditions ) -> Record | undefined
 %% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
