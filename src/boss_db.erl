@@ -139,7 +139,7 @@ find(Type, Conditions, Options) ->
     db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder, Include}).
 
 %% @spec find_first( Type::atom() ) -> Record | undefined
-%% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions'
+%% @doc Query for the first BossRecord of type `Type'.
 find_first(Type) ->
     return_one(find(Type, [], [{limit, 1}])).
 
@@ -155,7 +155,7 @@ find_first(Type, Conditions, Sort) ->
     return_one(find(Type, Conditions, [{limit, 1}, {order_by, Sort}])).
 
 %% @spec find_last( Type::atom() ) -> Record | undefined
-%% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
+%% @doc Query for the last BossRecord of type `Type'.
 find_last(Type) ->
     return_one(find(Type, [], [{limit, 1}, descending])).
 
