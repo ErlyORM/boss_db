@@ -47,7 +47,6 @@ setup_reconnect(State) ->
 		    ?MAXDELAY
 	    end,
     Pid = self(),
-    error_logger:info_msg("Database reconnection attempt in ~p ms", [Delay]),
     timer:apply_after(Delay, boss_db_controller, try_connection, [Pid, State#state.options]).
 
 try_connection(Pid, Options) ->
@@ -252,13 +251,11 @@ handle_cast({try_connect, Options}, State) when State#state.connection_state /= 
 					    {[{ShardAdapter, ShardRead, ShardWrite}|ShardAcc], NewDict}
 				    end
 			    end, {[], dict:new()}, proplists:get_value(shards, Options, [])),
-	    error_logger:info_msg("Successfully connected to database: ~p", [Adapter]),
 	    {noreply, #state{connection_state = connected, connection_delay = 1,
 			     adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn,
 			     shards = lists:reverse(Shards), model_dict = ModelDict, options = Options,
 			     cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
 	Failure ->
-	    error_logger:info_msg("Database connection failure ~p", [Failure]),
 	    {ok, Tref} = setup_reconnect(State),
 	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
 			     connection_retry_timer = Tref,
@@ -266,7 +263,6 @@ handle_cast({try_connect, Options}, State) when State#state.connection_state /= 
 			     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}
     catch
 	Error ->
-	    error_logger:info_msg("Database connection exception ~p", [Error]),
 	    {ok, Tref} = setup_reconnect(State),
 	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
 			     connection_retry_timer = Tref,
