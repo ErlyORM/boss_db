@@ -255,14 +255,14 @@ handle_cast({try_connect, Options}, State) when State#state.connection_state /= 
 			     adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn,
 			     shards = lists:reverse(Shards), model_dict = ModelDict, options = Options,
 			     cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
-	Failure ->
+	_Failure ->
 	    {ok, Tref} = setup_reconnect(State),
 	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
 			     connection_retry_timer = Tref,
 			     adapter = Adapter, read_connection = undefined, write_connection = undefined,
 			     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }}
     catch
-	Error ->
+	_Error ->
 	    {ok, Tref} = setup_reconnect(State),
 	    {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
 			     connection_retry_timer = Tref,
