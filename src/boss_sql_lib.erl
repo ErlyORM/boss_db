@@ -2,7 +2,9 @@
 -export([keytype/1,
         infer_type_from_id/1,
         convert_id_condition_to_use_table_ids/1,
-        is_foreign_key/2
+        is_foreign_key/2,
+	convert_possible_foreign_key/6,
+	get_retyped_foreign_keys/1
     ]).
 
 -define(DEFAULT_KEYTYPE, serial).
@@ -50,6 +52,33 @@ is_foreign_key(Type, Key) when is_atom(Key) ->
 		false -> false
 	end;
 is_foreign_key(_Type, _Key) -> false.
+
+get_retyped_foreign_keys(Type) when is_atom(Type) ->
+    % a list of belongs_to-s that use a different module and field names.
+    % this mainly to reduce the complexity from O(N*M) to O(N*L)
+    % where N is all fields, M is all of the belongs_to-s, and L is only the differing ones.
+    lists:foldl(fun ({X, X}, Acc) when is_atom(X) ->
+			Acc;
+		    ({X, Y}, Acc) when is_atom(X) andalso is_atom(Y) ->
+			[{X, Y} | Acc]
+		end, [], boss_record_lib:belongs_to_types(Type)).
+
+integer_to_id(Val, KeyString) when is_list(KeyString) ->
+    ModelName = string:substr(KeyString, 1, string:len(KeyString) - string:len("_id")),
+    ModelName ++ "-" ++ boss_record_lib:convert_value_to_type(Val, string).
+
+convert_possible_foreign_key(AwkwardAssociations, Type, Key, Value, AttrType, DBColumn) ->
+    case boss_sql_lib:is_foreign_key(Type, Key) of
+	true -> 
+	    case [ ModuleName || {FieldName, ModuleName} <- AwkwardAssociations, list_to_atom(atom_to_list(FieldName) ++ "_id") =:= Key] of 
+		[] ->
+		    integer_to_id(Value, DBColumn);
+		[Module] when is_atom(Module) ->
+		    atom_to_list(Module) ++ "-" ++ boss_record_lib:convert_value_to_type(Value, string) 
+	    end;
+	false -> 
+	    boss_record_lib:convert_value_to_type(Value, AttrType)
+    end.
 
 join([], _) -> [];
 join([List|Lists], Separator) ->
