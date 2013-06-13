@@ -243,7 +243,12 @@ handle_cast({try_connect, Options}, State) when State#state.connection_state /= 
 								undefined -> ShardOptions ++ proplists:delete(db_replication_set, Options);
 								_ -> ShardOptions ++ Options
 							    end,
-					    {ok, {ShardRead, ShardWrite}} = ShardAdapter:init(MergedOptions),
+					    case ShardAdapter:init(MergedOptions) of
+						{ok, {ShardRead, ShardWrite}} -> 
+						    noop;
+						{ok, Conn} ->
+						    [ShardRead, ShardWrite] = [Conn, Conn]
+						end,
 					    Index = erlang:length(ShardAcc),
 					    NewDict = lists:foldr(fun(ModelAtom, Dict) ->
 									  dict:store(ModelAtom, Index, Dict)
