@@ -48,19 +48,38 @@ init(Options) ->
             WConn
     end,
     % We pass around arguments required by mongo:do/5
-    {ok, {readwrite, 
-            {WriteMode, ReadMode, ReadConnection, list_to_atom(Database)},
-            {WriteMode, ReadMode, WriteConnection, list_to_atom(Database)}}
-    }.
+ 	case {proplists:get_value(db_username, Options),proplists:get_value(db_password, Options)} of
+		{NoUser,NoPass} when NoUser == undefined;NoPass==undefined ->
+		   {ok, {readwrite, 
+					{WriteMode, ReadMode, ReadConnection, list_to_atom(Database)},
+					{WriteMode, ReadMode, WriteConnection, list_to_atom(Database)}}
+			};
+		{User,Pass} ->
+		   {ok, {readwrite, 
+					{WriteMode, ReadMode, ReadConnection, list_to_atom(Database),list_to_binary(User),list_to_binary(Pass)},
+					{WriteMode, ReadMode, WriteConnection, list_to_atom(Database),list_to_binary(User),list_to_binary(Pass)}}
+			}
+	end.
 
 terminate({_, _, Connection, _}) ->
     case element(1, Connection) of
         connection -> mongo:disconnect(Connection);
         rs_connection -> mongo:rs_disconnect(Connection)
+    end;
+terminate({_, _, Connection, _,_,_}) ->
+    case element(1, Connection) of
+        connection -> mongo:disconnect(Connection);
+        rs_connection -> mongo:rs_disconnect(Connection)
     end.
 
+
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
-    mongo:do(WriteMode, ReadMode, Connection, Database, Fun).
+    mongo:do(WriteMode, ReadMode, Connection, Database, Fun);
+execute({WriteMode, ReadMode, Connection, Database, User, Password}, Fun) ->
+    mongo:do(WriteMode, ReadMode, Connection, Database, fun() ->
+		true=mongo:auth(User,Password),
+		Fun()
+	end).
 
 % Transactions are not currently supported, but we'll treat them as if they are.
 % Use at your own risk!
