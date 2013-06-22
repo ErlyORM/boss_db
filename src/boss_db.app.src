@@ -3,7 +3,7 @@
     {description, "BossDB: a sharded, caching, evented ORM"},
     {vsn, "0.1.0"},
     {registered, [
-        boss_cache, boss_cache_sup,
+        boss_cache,
         boss_db, boss_db_sup, 
         boss_db_mock, boss_db_mock_sup,
         boss_news, boss_news_sup
