@@ -128,6 +128,8 @@ pop(_Conn, _Depth) -> ok.
 init_tables() ->
 	{ok, Tables} = ddb:tables(),
 	Models = boss_files:model_list(cx),  %% TODO make this more generic
+    [{loaded, LoadedModules}|_] = application:info(),
+    Models = lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- LoadedModules ] ),
 	BinModels = [ erlang:list_to_binary(X) || X <- Models],
 	Create = BinModels -- Tables,
 	init_models(Create).
