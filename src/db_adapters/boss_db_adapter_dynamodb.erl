@@ -7,7 +7,7 @@
 -define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
 
 % Number of seconds between beginning of gregorian calendar and 1970
--define(GREGORIAN_SECONDS_1970, 62167219200). 
+-define(GREGORIAN_SECONDS_1970, 62167219200).
 
 start(_Options) ->
     application:start(ddb).
@@ -18,20 +18,21 @@ stop() ->
 init(Options) ->
 	AccessKey 	= proplists:get_value(db_username, Options, os:getenv("AWS_ACCESS_KEY_ID")),
 	SecretKey	= proplists:get_value(db_password, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
-	
+    Endpoint = proplists:get_value(db_host, Options, "dynamodb.us-east-1.amazonaws.com"),
+
 	%% startup dependencies.  some of these may have already been started, but that's ok.
 	inets:start(),
 	ssl:start(),
 	%%lager:start(),
 	application:start(ibrowse),
-	
-	
+
+
 	%% init initial credentials.  note that these will be refeshed automatically as needed
 	ddb_iam:credentials(AccessKey, SecretKey),
 	{'ok', Key, Secret, Token} = ddb_iam:token(129600),  %% 129600 is the lifetime duration for the token
-	ddb:credentials(Key, Secret, Token),
+	ddb:credentials(Key, Secret, Token, Endpoint),
 
-	init_tables(),
+	init_tables(Options),
     {ok, undefined}.
 
 terminate(_Conn) ->
@@ -40,7 +41,7 @@ terminate(_Conn) ->
 find(_Conn, Id) when is_list(Id) ->
 	[Type | _BossId] = string:tokens(Id, "-"),
 	case ddb:get(list_to_binary(Type), ddb:key_value(list_to_binary(Id), 'string')) of
-		{ok, Rec} ->   
+		{ok, Rec} ->
 			create_from_ddbitem(Type, proplists:get_value(<<"Item">>, Rec));
 		{error, Error} ->
 			{error, Error};
@@ -48,11 +49,11 @@ find(_Conn, Id) when is_list(Id) ->
 			{error, X}
 	end.
 
-find(_Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
-                                                              is_integer(Max) orelse Max =:= all, is_integer(Skip), 
+find(_Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
+                                                              is_integer(Max) orelse Max =:= all, is_integer(Skip),
                                                               is_atom(Sort), is_atom(SortOrder) ->
-	
-	case boss_record_lib:ensure_loaded(Type) of 
+
+	case boss_record_lib:ensure_loaded(Type) of
 		true ->
 			DDB_cond	= convert_conditions(Conditions),
 			Items		= do_scan_loop(atom_to_binary(Type, latin1), DDB_cond, 'none'),
@@ -88,7 +89,7 @@ incr(Conn, Id, _Count) ->
     end.
 
 delete(_Conn, Id) when is_list(Id) ->
-    
+
     Res = {ok, ok},
 
     case Res of
@@ -105,7 +106,7 @@ save_record(_Conn, Record) when is_tuple(Record) ->
 		_Existing ->
 			update_existing(Record)
 	end.
-	
+
 
 % These 2 functions are not part of the behaviour but are required for
 % tests to pass
@@ -124,25 +125,64 @@ pop(_Conn, _Depth) -> ok.
 %% setup the DynamoDB tables as needed
 %%
 
-init_tables() ->
+init_tables(Options) ->
 	{ok, Tables} = ddb:tables(),
-	Models = boss_files:model_list(cx),  %% TODO make this more generic
+    Models = lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- application:which_applications() ] ),
 	BinModels = [ erlang:list_to_binary(X) || X <- Models],
 	Create = BinModels -- Tables,
-	init_models(Create).
-	
-init_models([]) ->
-	ok;
-init_models([Model | Tail]) ->
-	init_table(Model),
-	init_models(Tail).
+	init_models(Create, Options).
 
-init_table(Model) when is_binary(Model) ->
+init_models([], _Options) ->
+	ok;
+init_models([Model | Tail], Options) ->
+	init_table(Model, Options),
+	init_models(Tail, Options).
+
+init_table(Model, Options) when is_binary(Model) ->
 	%% it looks like we don't need to initialize the table with the field names for now
-	%%Attrs = (boss_record_lib:dummy_record(Model)):attribute_names(),
-	ddb:create_table(Model, ddb:key_type(<<"id">>, 'string'), 10, 10),
+    ModelAtom = erlang:binary_to_atom(Model, latin1),
+    Dummy = boss_record_lib:dummy_record(ModelAtom),
+
+    ModelAttributes = ModelAtom:module_info(attributes),
+
+    GlobalReadCap = proplists:get_value(db_read_capacity, Options, 2),
+    GlobalWriteCap = proplists:get_value(db_write_capacity, Options, 1),
+
+    LocalReadCaps = proplists:get_value(db_model_read_capacity, Options, []),
+    LocalWriteCaps = proplists:get_value(db_model_write_capacity, Options, []),
+
+    ReadCap = proplists:get_value(ModelAtom, LocalReadCaps, GlobalReadCap),
+    WriteCap = proplists:get_value(ModelAtom, LocalWriteCaps, GlobalWriteCap),
+
+    [PrimaryKey] = proplists:get_value(primary_key, ModelAttributes, [id]),
+    PrimaryKeyType = proplists:get_value(PrimaryKey, Dummy:attribute_types(), 'string'),
+
+    Keys =
+        case proplists:get_value(range_key, ModelAtom:module_info(attributes)) of
+            undefined ->
+                ddb:key_type(atom_to_binary(PrimaryKey, latin1), PrimaryKeyType);
+            [RangeKey] ->
+                RangeKeyType = convert_type_to_ddb(proplists:get_value(RangeKey, Dummy:attribute_types())),
+                ddb:key_type(atom_to_binary(PrimaryKey, latin1), PrimaryKeyType, atom_to_binary(RangeKey, latin1), RangeKeyType)
+        end,
+
+	ddb:create_table(Model, Keys, ReadCap, WriteCap),
 	init_meta_entry(Model).
-	
+
+%% Help function
+convert_type_to_ddb(string) ->
+    'string';
+convert_type_to_ddb(float) ->
+    'number';
+convert_type_to_ddb(integer) ->
+    'number';
+convert_type_to_ddb(datetime) ->
+    'number';
+convert_type_to_ddb(timestamp) ->
+    'number';
+convert_type_to_ddb(undefined) ->
+    'string'.
+
 init_meta_entry(Model) when is_binary(Model)->
 	ddb:put(Model, [{<<"id">>, <<"metadata">>, 'string'},
 					{<<"counter">>, <<"0">>, 'number'}]).
@@ -176,10 +216,10 @@ not_empty({}) ->
 	false;
 not_empty(_Val) ->
 	true.
-	
+
 %val_to_binary({{Y,M, D}, {H, M, S}} = Datetime) when is_integer(Y), is_integer(M), is_integer(D), is_integer(H), is_integer(M), is_integer(S) ->
 %	StringDate = httpd_util:rfc1123_date(Datetime),
-%	list_to_binary(StringDate);	
+%	list_to_binary(StringDate);
 val_to_binary(Val) when is_atom(Val) ->
 	atom_to_binary(Val, latin1);
 val_to_binary(Val) when is_list(Val) ->
@@ -214,7 +254,7 @@ type_of(_Val) ->
 	'string'.
 
 create_from_ddbitem(_Model, undefined) ->
-	{error, not_found};	
+	{error, not_found};
 create_from_ddbitem(Model, Item) when is_list(Model) ->
 	create_from_ddbitem(list_to_atom(Model), Item);
 create_from_ddbitem(Model, Item) when is_atom(Model) ->
@@ -235,7 +275,7 @@ create_from_ddbitem_list(Model, [Item | Tail]) ->
 convert_val(Val, <<"SS">>) when is_list(Val) ->
 	[ convert_val(V, <<"S">>) || V <- Val ];
 convert_val(Val, <<"NS">>) when is_list(Val) ->
-	[ convert_val(V, <<"N">>) || V <- Val ];	
+	[ convert_val(V, <<"N">>) || V <- Val ];
 convert_val(Val, <<"SS">>) ->
 	List = binary_to_list(Val),
 	list_to_term(List);
@@ -253,7 +293,7 @@ convert_val(Val, <<"S">>) ->
 convert_val(Val, <<"N">>) ->
 	String = binary_to_list(Val),
 	list_to_term(String).
-	
+
 list_to_term(String) ->
     {ok, T, _} = erl_scan:string(String++"."),
     case erl_parse:parse_term(T) of
@@ -278,7 +318,7 @@ get_new_unique_id(Model) when is_binary(Model) ->
 			ddb:update(Model, ddb:key_value(<<"metadata">>, 'string'), [{<<"counter">>, list_to_binary(io_lib:format("~p", [Id])), 'number', 'put'}]),
 			lists:flatten(io_lib:format("~p-~p", [binary_to_atom(Model, latin1), Id]))
 	end.
-	
+
 %%
 %% Query generation
 %%
@@ -304,18 +344,18 @@ convert_conditions([]) ->
 convert_conditions(Conditions) ->
 	CondList = convert_conditions(Conditions, []),
 	[{<<"ScanFilter">>, CondList}].
-	
+
 %%unfortuanately the 'IN' operator has a different syntax (sigh), treat special
 condition({Key, 'in', Value}) ->
 	AVL = [ [{ddb_type_of(V), val_to_binary(V)}] || V <- Value],
 	[{atom_to_binary(Key, latin1), [{<<"AttributeValueList">>, AVL}, {<<"ComparisonOperator">>, <<"IN">>}]}];
 condition({Key, Operator, Value}) ->
 	[{atom_to_binary(Key, latin1), [{<<"AttributeValueList">>, [[{ddb_type_of(Value), val_to_binary(Value)}]]}, {<<"ComparisonOperator">>, operator_to_ddb(Operator)}]}].
-	
+
 ddb_type_of(Value) when is_list(Value) ->
 	%% handle the case when the list is really a list of numbers or a list of strings
-	case io_lib:printable_list(Value) of 
-		true -> 
+	case io_lib:printable_list(Value) of
+		true ->
 			<<"S">>;
 		false ->
 			H = hd(Value),
@@ -330,7 +370,7 @@ ddb_type_of(Value) when is_number(Value) ->
 	<<"N">>;
 ddb_type_of(_Value) ->
 	<<"S">>.
-	
+
 operator_to_ddb('equals') ->
 	<<"EQ">>;
 operator_to_ddb('not_equals') ->
@@ -367,5 +407,3 @@ operator_to_ddb('matches') ->
 operator_to_ddb('not_matches') ->
 	exit(not_yet_implemented),
 	<<"NE">>.
-
-
