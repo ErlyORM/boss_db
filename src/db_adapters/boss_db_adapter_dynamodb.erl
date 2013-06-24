@@ -127,8 +127,7 @@ pop(_Conn, _Depth) -> ok.
 
 init_tables(Options) ->
 	{ok, Tables} = ddb:tables(),
-    [{loaded, LoadedModules}|_] = application:info(),
-    Models = lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- LoadedModules ] ),
+    Models = lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- application:which_applications() ] ),
 	BinModels = [ erlang:list_to_binary(X) || X <- Models],
 	Create = BinModels -- Tables,
 	init_models(Create, Options).
