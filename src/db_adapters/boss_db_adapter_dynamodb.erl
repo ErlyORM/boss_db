@@ -143,26 +143,27 @@ init_table(Model, Options) when is_binary(Model) ->
     ModelAtom = erlang:binary_to_atom(Model, latin1),
     Dummy = boss_record_lib:dummy_record(ModelAtom),
 
-    Settings =
-        case erlang:function_exported(ModelAtom, dynamodb_settings, 1) of
-            true ->
-                Dummy:dynamodb_settings();
-            _ ->
-                %% Fallback on global configuration
-                Options
-        end,
+    ModelAttributes = ModelAtom:module_info(attributes),
 
-    ReadCap = proplists:get_value(db_read_capacity, Settings, 2),
-    WriteCap = proplists:get_value(db_write_capacity, Settings, 1),
+    GlobalReadCap = proplists:get_value(db_read_capacity, Options, 2),
+    GlobalWriteCap = proplists:get_value(db_write_capacity, Options, 1),
+
+    LocalReadCaps = proplists:get_value(db_model_read_capacity, Options, []),
+    LocalWriteCaps = proplists:get_value(db_model_write_capacity, Options, []),
+
+    ReadCap = proplists:get_value(ModelAtom, LocalReadCaps, GlobalReadCap),
+    WriteCap = proplists:get_value(ModelAtom, LocalWriteCaps, GlobalWriteCap),
+
+    [PrimaryKey] = proplists:get_value(primary_key, ModelAttributes, [id]),
+    PrimaryKeyType = proplists:get_value(PrimaryKey, Dummy:attribute_types(), 'string'),
 
     Keys =
-        case proplists:get_value(range_key, Settings) of
+        case proplists:get_value(range_key, ModelAtom:module_info(attributes)) of
             undefined ->
-                ddb:key_type(<<"id">>, 'string');
-            RangeKey ->
-                ModelTypes = Dummy:attribute_types(),
-                RealType = convert_type_to_ddb(proplists:get_value(RangeKey, ModelTypes)),
-                ddb:key_type(<<"id">>, 'string', erlang:atom_to_binary(RangeKey, latin1), RealType)
+                ddb:key_type(atom_to_binary(PrimaryKey, latin1), PrimaryKeyType);
+            [RangeKey] ->
+                RangeKeyType = convert_type_to_ddb(proplists:get_value(RangeKey, Dummy:attribute_types())),
+                ddb:key_type(atom_to_binary(PrimaryKey, latin1), PrimaryKeyType, atom_to_binary(RangeKey, latin1), RangeKeyType)
         end,
 
 	ddb:create_table(Model, Keys, ReadCap, WriteCap),
@@ -178,7 +179,9 @@ convert_type_to_ddb(integer) ->
 convert_type_to_ddb(datetime) ->
     'number';
 convert_type_to_ddb(timestamp) ->
-    'number'.
+    'number';
+convert_type_to_ddb(undefined) ->
+    'string'.
 
 init_meta_entry(Model) when is_binary(Model)->
 	ddb:put(Model, [{<<"id">>, <<"metadata">>, 'string'},
