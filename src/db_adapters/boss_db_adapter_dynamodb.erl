@@ -32,7 +32,7 @@ init(Options) ->
 	{'ok', Key, Secret, Token} = ddb_iam:token(129600),  %% 129600 is the lifetime duration for the token
 	ddb:credentials(Key, Secret, Token, Endpoint),
 
-	init_tables(),
+	init_tables(Options),
     {ok, undefined}.
 
 terminate(_Conn) ->
@@ -125,26 +125,61 @@ pop(_Conn, _Depth) -> ok.
 %% setup the DynamoDB tables as needed
 %%
 
-init_tables() ->
+init_tables(Options) ->
 	{ok, Tables} = ddb:tables(),
-	Models = boss_files:model_list(cx),  %% TODO make this more generic
     [{loaded, LoadedModules}|_] = application:info(),
     Models = lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- LoadedModules ] ),
 	BinModels = [ erlang:list_to_binary(X) || X <- Models],
 	Create = BinModels -- Tables,
-	init_models(Create).
+	init_models(Create, Options).
 
-init_models([]) ->
+init_models([], _Options) ->
 	ok;
-init_models([Model | Tail]) ->
-	init_table(Model),
-	init_models(Tail).
+init_models([Model | Tail], Options) ->
+	init_table(Model, Options),
+	init_models(Tail, Options).
 
-init_table(Model) when is_binary(Model) ->
+init_table(Model, Options) when is_binary(Model) ->
 	%% it looks like we don't need to initialize the table with the field names for now
-	%%Attrs = (boss_record_lib:dummy_record(Model)):attribute_names(),
-	ddb:create_table(Model, ddb:key_type(<<"id">>, 'string'), 10, 10),
+    ModelAtom = erlang:binary_to_atom(Model, latin1),
+    Dummy = boss_record_lib:dummy_record(ModelAtom),
+
+    Settings =
+        case erlang:function_exported(ModelAtom, dynamodb_settings, 1) of
+            true ->
+                Dummy:dynamodb_settings();
+            _ ->
+                %% Fallback on global configuration
+                Options
+        end,
+
+    ReadCap = proplists:get_value(db_read_capacity, Settings, 2),
+    WriteCap = proplists:get_value(db_write_capacity, Settings, 1),
+
+    Keys =
+        case proplists:get_value(range_key, Settings) of
+            undefined ->
+                ddb:key_type(<<"id">>, 'string');
+            RangeKey ->
+                ModelTypes = Dummy:attribute_types(),
+                RealType = convert_type_to_ddb(proplists:get_value(RangeKey, ModelTypes)),
+                ddb:key_type(<<"id">>, 'string', erlang:atom_to_binary(RangeKey, latin1), RealType)
+        end,
+
+	ddb:create_table(Model, Keys, ReadCap, WriteCap),
 	init_meta_entry(Model).
+
+%% Help function
+convert_type_to_ddb(string) ->
+    'string';
+convert_type_to_ddb(float) ->
+    'number';
+convert_type_to_ddb(integer) ->
+    'number';
+convert_type_to_ddb(datetime) ->
+    'number';
+convert_type_to_ddb(timestamp) ->
+    'number'.
 
 init_meta_entry(Model) when is_binary(Model)->
 	ddb:put(Model, [{<<"id">>, <<"metadata">>, 'string'},
