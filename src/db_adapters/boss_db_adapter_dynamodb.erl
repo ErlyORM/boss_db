@@ -279,7 +279,15 @@ create_from_ddbitem_list(_Model, []) ->
 	[];
 create_from_ddbitem_list(Model, [Item | Tail]) ->
 	%% skip any metadata entries
-	case proplists:get_value(<<"id">>, Item) of
+    PrimaryKey =
+        case proplists:get_value(primary_key, Model:module_info(attributes)) of
+            undefined ->
+                <<"id">>;
+            [Key] ->
+                atom_to_binary(Key, latin1)
+        end,
+
+	case proplists:get_value(PrimaryKey, Item) of
 		[{<<"S">>, <<"__metadata">>}] ->
 			create_from_ddbitem_list(Model, Tail);
 		_X ->
