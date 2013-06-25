@@ -227,6 +227,13 @@ not_empty(_Val) ->
 %val_to_binary({{Y,M, D}, {H, M, S}} = Datetime) when is_integer(Y), is_integer(M), is_integer(D), is_integer(H), is_integer(M), is_integer(S) ->
 %	StringDate = httpd_util:rfc1123_date(Datetime),
 %	list_to_binary(StringDate);
+val_to_binary(Val) when is_boolean(Val) ->
+    case Val of
+        true ->
+            <<"__true">>;
+        false ->
+            <<"__false">>
+    end;
 val_to_binary(Val) when is_atom(Val) ->
 	atom_to_binary(Val, latin1);
 val_to_binary(Val) when is_list(Val) ->
@@ -283,6 +290,10 @@ convert_val(Val, <<"SS">>) when is_list(Val) ->
 	[ convert_val(V, <<"S">>) || V <- Val ];
 convert_val(Val, <<"NS">>) when is_list(Val) ->
 	[ convert_val(V, <<"N">>) || V <- Val ];
+convert_val(Val, _) when Val == <<"__true">> ->
+    true;
+convert_val(Val, _) when Val == <<"__false">> ->
+    false;
 convert_val(Val, <<"SS">>) ->
 	List = binary_to_list(Val),
 	list_to_term(List);
