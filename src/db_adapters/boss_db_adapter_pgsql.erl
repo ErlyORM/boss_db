@@ -267,6 +267,7 @@ build_insert_query(Record) ->
 build_update_query(Record) ->
     {Type, TableName, IdColumn, Id} = boss_sql_lib:infer_type_from_id(Record:id()),
     AttributeColumns = Record:database_columns(),
+    AttributeTypes = boss_record_lib:attribute_types(Type),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
             ({A, V}, Acc) -> 
@@ -278,7 +279,12 @@ build_update_query(Record) ->
                     _ ->
                         V
                 end,
-                [DBColumn ++ " = " ++ pack_value(Value)|Acc]
+                case lists:keyfind(A, 1, AttributeTypes) of
+                    {A, AttrType} ->
+                        [DBColumn ++ " = " ++ pack_typed_value(Value, AttrType)|Acc];
+                    _ ->
+                        [DBColumn ++ " = " ++ pack_value(Value)|Acc]
+                end
         end, [], Record:attributes()),
     ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
         " WHERE ", IdColumn, " = ", pack_value(Id)].
