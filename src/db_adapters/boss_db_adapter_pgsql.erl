@@ -232,6 +232,7 @@ build_insert_query(Record) ->
     Type = element(1, Record),
     TableName = boss_record_lib:database_table(Type),
     AttributeColumns = Record:database_columns(),
+    AttributeTypes = boss_record_lib:attribute_types(Type),
     {Attributes, Values} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
             ({'id', 'id'}, Acc) -> Acc;
@@ -248,7 +249,12 @@ build_insert_query(Record) ->
                     false ->
                         V
                 end,
-                {[DBColumn|Attrs], [pack_value(Value)|Vals]}
+                case lists:keyfind(A, 1, AttributeTypes) of
+                    {A, AttrType} ->
+                        {[DBColumn|Attrs], [pack_typed_value(Value, AttrType)|Vals]};
+                    _ ->
+                        {[DBColumn|Attrs], [pack_value(Value)|Vals]}
+                end
         end, {[], []}, Record:attributes()),
     ["INSERT INTO ", TableName, " (", 
         string:join(Attributes, ", "),
@@ -261,6 +267,7 @@ build_insert_query(Record) ->
 build_update_query(Record) ->
     {Type, TableName, IdColumn, Id} = boss_sql_lib:infer_type_from_id(Record:id()),
     AttributeColumns = Record:database_columns(),
+    AttributeTypes = boss_record_lib:attribute_types(Type),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
             ({A, V}, Acc) -> 
@@ -272,7 +279,12 @@ build_update_query(Record) ->
                     _ ->
                         V
                 end,
-                [DBColumn ++ " = " ++ pack_value(Value)|Acc]
+                case lists:keyfind(A, 1, AttributeTypes) of
+                    {A, AttrType} ->
+                        [DBColumn ++ " = " ++ pack_typed_value(Value, AttrType)|Acc];
+                    _ ->
+                        [DBColumn ++ " = " ++ pack_value(Value)|Acc]
+                end
         end, [], Record:attributes()),
     ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
         " WHERE ", IdColumn, " = ", pack_value(Id)].
@@ -380,6 +392,16 @@ escape_sql1([$'|Rest], Acc) ->
     escape_sql1(Rest, [$', $'|Acc]);
 escape_sql1([C|Rest], Acc) ->
     escape_sql1(Rest, [C|Acc]).
+
+pack_typed_value(Val, date) ->
+    pack_date(Val);
+pack_typed_value(Val, timestamp) ->
+    pack_now(Val);
+pack_typed_value(Val, _) ->
+    pack_value(Val).
+
+pack_date({Y, M, D}) ->
+    io_lib:format("'~p-~p-~p'", [Y, M, D]).
 
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
