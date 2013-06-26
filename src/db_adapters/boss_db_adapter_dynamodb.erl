@@ -184,8 +184,17 @@ convert_type_to_ddb(undefined) ->
     'string'.
 
 init_meta_entry(Model) when is_binary(Model)->
-	ddb:put(Model, [{<<"id">>, <<"metadata">>, 'string'},
-					{<<"counter">>, <<"0">>, 'number'}]).
+    ModelAtom = binary_to_atom(Model, latin1),
+    Attributes = ModelAtom:module_info(attributes),
+    case proplists:get_value(primary_key, Attributes) of
+        undefined ->
+            ddb:put(Model, [{<<"id">>, <<"__metadata">>, 'string'},
+                            {<<"__counter">>, <<"0">>, 'number'}]);
+        [Field] ->
+            FieldBin = atom_to_binary(Field, latin1),
+            ddb:put(Model, [{FieldBin, <<"__metadata">>, 'string'},
+                            {<<"__counter">>, <<"0">>, 'number'}])
+    end.
 
 %%
 %% Helper functions for creating records
@@ -196,10 +205,8 @@ create_new(Record) ->
 	Attrs = SavedRec:attributes(),
 	%% WEIRD: dynamodb does not allow empty strings as values, don't store them.
 	Fields = [ {atom_to_binary(K,latin1), val_to_binary(V), type_of(V)} || {K, V} <- Attrs, not_empty(V) ],
-
-	_Res = ddb:put(atom_to_binary(Model, latin1), Fields),
-
-	{ok, SavedRec}.
+	ddb:put(atom_to_binary(Model, latin1), Fields),
+    {ok, SavedRec}.
 
 update_existing(Record) ->
 	Model  = element(1, Record),
@@ -220,6 +227,13 @@ not_empty(_Val) ->
 %val_to_binary({{Y,M, D}, {H, M, S}} = Datetime) when is_integer(Y), is_integer(M), is_integer(D), is_integer(H), is_integer(M), is_integer(S) ->
 %	StringDate = httpd_util:rfc1123_date(Datetime),
 %	list_to_binary(StringDate);
+val_to_binary(Val) when is_boolean(Val) ->
+    case Val of
+        true ->
+            <<"__true">>;
+        false ->
+            <<"__false">>
+    end;
 val_to_binary(Val) when is_atom(Val) ->
 	atom_to_binary(Val, latin1);
 val_to_binary(Val) when is_list(Val) ->
@@ -265,8 +279,16 @@ create_from_ddbitem_list(_Model, []) ->
 	[];
 create_from_ddbitem_list(Model, [Item | Tail]) ->
 	%% skip any metadata entries
-	case proplists:get_value(<<"id">>, Item) of
-		[{<<"S">>, <<"metadata">>}] ->
+    PrimaryKey =
+        case proplists:get_value(primary_key, Model:module_info(attributes)) of
+            undefined ->
+                <<"id">>;
+            [Key] ->
+                atom_to_binary(Key, latin1)
+        end,
+
+	case proplists:get_value(PrimaryKey, Item) of
+		[{<<"S">>, <<"__metadata">>}] ->
 			create_from_ddbitem_list(Model, Tail);
 		_X ->
 			[create_from_ddbitem(Model, Item) | create_from_ddbitem_list(Model, Tail) ]
@@ -276,6 +298,10 @@ convert_val(Val, <<"SS">>) when is_list(Val) ->
 	[ convert_val(V, <<"S">>) || V <- Val ];
 convert_val(Val, <<"NS">>) when is_list(Val) ->
 	[ convert_val(V, <<"N">>) || V <- Val ];
+convert_val(Val, _) when Val == <<"__true">> ->
+    true;
+convert_val(Val, _) when Val == <<"__false">> ->
+    false;
 convert_val(Val, <<"SS">>) ->
 	List = binary_to_list(Val),
 	list_to_term(List);
@@ -306,16 +332,16 @@ list_to_term(String) ->
 get_new_unique_id(Model) when is_atom(Model) ->
 	get_new_unique_id(erlang:atom_to_binary(Model, latin1));
 get_new_unique_id(Model) when is_binary(Model) ->
-	{ok, Ret} = ddb:get(Model, ddb:key_value(<<"metadata">>, 'string')),
+	{ok, Ret} = ddb:get(Model, ddb:key_value(<<"__metadata">>, 'string')),
 	case proplists:get_value(<<"Item">>, Ret) of
 		undefined ->
 			init_meta_entry(Model),
 			get_new_unique_id(Model);
 		Attrs ->
-			[{<<"N">>, CounterBin}] = proplists:get_value(<<"counter">>, Attrs),
+			[{<<"N">>, CounterBin}] = proplists:get_value(<<"__counter">>, Attrs),
 			Counter = list_to_term(binary_to_list(CounterBin)),
 			Id = Counter + 1,
-			ddb:update(Model, ddb:key_value(<<"metadata">>, 'string'), [{<<"counter">>, list_to_binary(io_lib:format("~p", [Id])), 'number', 'put'}]),
+			ddb:update(Model, ddb:key_value(<<"__metadata">>, 'string'), [{<<"__counter">>, list_to_binary(io_lib:format("~p", [Id])), 'number', 'put'}]),
 			lists:flatten(io_lib:format("~p-~p", [binary_to_atom(Model, latin1), Id]))
 	end.
 
