@@ -232,6 +232,7 @@ build_insert_query(Record) ->
     Type = element(1, Record),
     TableName = boss_record_lib:database_table(Type),
     AttributeColumns = Record:database_columns(),
+    AttributeTypes = boss_record_lib:attribute_types(Type),
     {Attributes, Values} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
             ({'id', 'id'}, Acc) -> Acc;
@@ -248,7 +249,12 @@ build_insert_query(Record) ->
                     false ->
                         V
                 end,
-                {[DBColumn|Attrs], [pack_value(Value)|Vals]}
+                case lists:keyfind(A, 1, AttributeTypes) of
+                    {A, AttrType} ->
+                        {[DBColumn|Attrs], [pack_typed_value(Value, AttrType)|Vals]};
+                    _ ->
+                        {[DBColumn|Attrs], [pack_value(Value)|Vals]}
+                end
         end, {[], []}, Record:attributes()),
     ["INSERT INTO ", TableName, " (", 
         string:join(Attributes, ", "),
@@ -380,6 +386,16 @@ escape_sql1([$'|Rest], Acc) ->
     escape_sql1(Rest, [$', $'|Acc]);
 escape_sql1([C|Rest], Acc) ->
     escape_sql1(Rest, [C|Acc]).
+
+pack_typed_value(Val, date) ->
+    pack_date(Val);
+pack_typed_value(Val, timestamp) ->
+    pack_now(Val);
+pack_typed_value(Val, _) ->
+    pack_value(Val).
+
+pack_date({Y, M, D}) ->
+    io_lib:format("'~p-~p-~p'", [Y, M, D]).
 
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
