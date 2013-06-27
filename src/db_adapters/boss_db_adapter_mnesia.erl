@@ -3,6 +3,7 @@
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([transaction/2]).
+-export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
 %-define(TRILLION, (1000 * 1000 * 1000 * 1000)).
 
@@ -211,6 +212,41 @@ save_record(_, Record) when is_tuple(Record) ->
 
 transaction(_, TransactionFun) when is_function(TransactionFun) ->
     mnesia:transaction(TransactionFun).
+
+% This is needed to support boss_db:migrate
+table_exists(_, TableName) when is_atom(TableName) ->
+    lists:member(TableName, mnesia:table_info(schema, tables)).
+
+get_migrations_table(_) ->
+    mnesia:dirty_match_object({schema_migrations, '_', '_', '_'}).
+
+migration_done(_, Tag, up) ->
+    Id = "schema_migrations-" ++ integer_to_list(gen_uid(schema_migrations)),
+    RecordWithId = {schema_migrations, Id, atom_to_list(Tag), erlang:now()},
+
+    Fun = fun() -> mnesia:write(schema_migrations, RecordWithId, write) end,
+    
+    case mnesia:transaction(Fun) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end;
+migration_done(_, Tag, down) ->
+    case mnesia:dirty_match_object({schema_migrations, '_', atom_to_list(Tag), '_'}) of
+        [] ->
+            ok;
+        [Migration] ->
+            Id = element(2, Migration),
+            Fun = fun () -> mnesia:delete({schema_migrations,Id}) end,
+            
+            case mnesia:transaction(Fun)  of
+                {atomic,ok} ->
+                    ok;
+                {aborted, Reason} ->
+                    {error, Reason}
+            end
+    end.
 
 % -----
 
