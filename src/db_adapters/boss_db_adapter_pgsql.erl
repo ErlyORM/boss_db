@@ -107,22 +107,21 @@ save_record(Conn, Record) when is_tuple(Record) ->
         id ->
             Record1 = maybe_populate_id_value(Record),
             Type = element(1, Record1),
-            Query = build_insert_query(Record1),
-            Res = pgsql:equery(Conn, Query, []),
+            {Query,Params} = build_insert_query(Record1),
+            Res = pgsql:equery(Conn, Query, Params),
             case Res of
                 {ok, _, _, [{Id}]} ->
                     {ok, Record1:set(id, lists:concat([Type, "-", id_value_to_string(Id)]))};
                 {error, Reason} -> {error, Reason}
             end;
         Defined when is_list(Defined) ->
-            Query = build_update_query(Record),
-            Res = pgsql:equery(Conn, Query, []),
+            {Query,Params} = build_update_query(Record),
+            Res = pgsql:equery(Conn, Query, Params),
             case Res of
                 {ok, _} -> {ok, Record};
                 {error, Reason} -> {error, Reason}
             end
     end.
-
 
 push(Conn, Depth) ->
     case Depth of 0 -> pgsql:squery(Conn, "BEGIN"); _ -> ok end,
@@ -185,10 +184,6 @@ maybe_populate_id_value(Record) ->
         _ -> Record
 end.
 
-integer_to_id(Val, KeyString) ->
-    ModelName = string:substr(KeyString, 1, string:len(KeyString) - string:len("_id")),
-    ModelName ++ "-" ++ id_value_to_string(Val).
-
 activate_record(Record, Metadata, Type) ->
     AttributeTypes = boss_record_lib:attribute_types(Type),
     AttributeColumns = boss_record_lib:database_columns(Type),
@@ -232,14 +227,13 @@ build_insert_query(Record) ->
     Type = element(1, Record),
     TableName = boss_record_lib:database_table(Type),
     AttributeColumns = Record:database_columns(),
-    AttributeTypes = boss_record_lib:attribute_types(Type),
     {Attributes, Values} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
             ({'id', 'id'}, Acc) -> Acc;
             ({'id', V}, {Attrs, Vals}) -> 
                 DBColumn = proplists:get_value('id', AttributeColumns),
                 {_, _, _, TableId} = boss_sql_lib:infer_type_from_id(V),
-                {[DBColumn|Attrs], [pack_value(TableId)|Vals]};
+                {[DBColumn|Attrs], [TableId|Vals]};
             ({A, V}, {Attrs, Vals}) ->
                 DBColumn = proplists:get_value(A, AttributeColumns),
                 Value = case boss_sql_lib:is_foreign_key(Type, A) of
@@ -249,28 +243,24 @@ build_insert_query(Record) ->
                     false ->
                         V
                 end,
-                case lists:keyfind(A, 1, AttributeTypes) of
-                    {A, AttrType} ->
-                        {[DBColumn|Attrs], [pack_typed_value(Value, AttrType)|Vals]};
-                    _ ->
-                        {[DBColumn|Attrs], [pack_value(Value)|Vals]}
-                end
+                {[DBColumn|Attrs], [Value|Vals]}
         end, {[], []}, Record:attributes()),
-    ["INSERT INTO ", TableName, " (", 
+    TempList=lists:seq(1,length(Attributes)),
+    Params= lists:map(fun(E)->"$"++integer_to_list(E) end,TempList),
+    {["INSERT INTO ", TableName, " (", 
         string:join(Attributes, ", "),
         ") values (",
-        string:join(Values, ", "),
+        string:join(Params, ", "),
         ")",
         " RETURNING id"
-    ].
+    ],Values}.
 
 build_update_query(Record) ->
     {Type, TableName, IdColumn, Id} = boss_sql_lib:infer_type_from_id(Record:id()),
     AttributeColumns = Record:database_columns(),
-    AttributeTypes = boss_record_lib:attribute_types(Type),
-    Updates = lists:foldl(fun
+    {Attributes, Values} = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({A, V}, Acc) -> 
+            ({A, V}, {Attrs, Vals}) -> 
                 DBColumn = proplists:get_value(A, AttributeColumns),
                 Value = case {boss_sql_lib:is_foreign_key(Type, A), V =/= undefined} of
                     {true, true} ->
@@ -279,15 +269,11 @@ build_update_query(Record) ->
                     _ ->
                         V
                 end,
-                case lists:keyfind(A, 1, AttributeTypes) of
-                    {A, AttrType} ->
-                        [DBColumn ++ " = " ++ pack_typed_value(Value, AttrType)|Acc];
-                    _ ->
-                        [DBColumn ++ " = " ++ pack_value(Value)|Acc]
-                end
-        end, [], Record:attributes()),
-    ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
-        " WHERE ", IdColumn, " = ", pack_value(Id)].
+                {[DBColumn|Attrs], [Value|Vals]}
+        end, {[], []}, Record:attributes()),
+    {Updates,_}=lists:mapfoldl(fun(E,Index)->{E++"=$"++integer_to_list(Index),1+Index} end,1,Attributes),
+    {["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
+        " WHERE ", IdColumn, " = ", pack_value(Id)],Values}.
 
 build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     TableName = boss_record_lib:database_table(Type),
@@ -392,16 +378,6 @@ escape_sql1([$'|Rest], Acc) ->
     escape_sql1(Rest, [$', $'|Acc]);
 escape_sql1([C|Rest], Acc) ->
     escape_sql1(Rest, [C|Acc]).
-
-pack_typed_value(Val, date) ->
-    pack_date(Val);
-pack_typed_value(Val, timestamp) ->
-    pack_now(Val);
-pack_typed_value(Val, _) ->
-    pack_value(Val).
-
-pack_date({Y, M, D}) ->
-    io_lib:format("'~p-~p-~p'", [Y, M, D]).
 
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
