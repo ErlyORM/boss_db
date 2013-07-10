@@ -2,7 +2,7 @@
 -author('bronzeboyvn@gmail.com').
 -behaviour(boss_cache_adapter).
 
--export([init/1, start/0, start/1, stop/1]).
+-export([init/1, start/0, start/1, stop/1, terminate/1]).
 -export([get/3, set/5, delete/3]).
 
 start() ->
@@ -21,6 +21,9 @@ stop(_Conn) ->
     ok.
 
 init(_Options) ->
+    {ok, undefined}.
+
+terminate(_Conn) ->
     {ok, undefined}.
 
 get(_Conn, Prefix, Key) ->
