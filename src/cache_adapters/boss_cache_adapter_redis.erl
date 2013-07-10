@@ -2,22 +2,25 @@
 -author('ecestari@gmail.com').
 -behaviour(boss_cache_adapter).
 
--export([init/1, start/0, start/1, stop/1]).
+-export([init/1, start/0, start/1, stop/1, terminate/1]).
 -export([get/3, set/5, delete/3]).
 
 start() ->
     start([]).
 
 start(Options) ->
-    {ok, _Pid} = init(Options),
+    CacheServers = proplists:get_value(cache_servers, Options, []),
+    {ok, _Pid} = redo:start_link(undefined, CacheServers),
     ok.
 
 stop(Conn) ->
     redo:shutdown(Conn). 
 
 init(Options) ->
-    CacheServers = proplists:get_value(cache_servers, Options, []),
-    redo:start_link(undefined, CacheServers).
+    {ok, undefined}.
+
+terminate(_Conn) ->
+    {ok, undefined}.
 
 get(Conn, Prefix, Key) ->
     case redo:cmd(Conn,["GET", term_to_key(Prefix, Key)]) of
