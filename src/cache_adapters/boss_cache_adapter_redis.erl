@@ -16,11 +16,11 @@ start(Options) ->
 stop(Conn) ->
     redo:shutdown(Conn). 
 
-init(Options) ->
+init(_Options) ->
     {ok, undefined}.
 
 terminate(_Conn) ->
-    {ok, undefined}.
+    ok.
 
 get(Conn, Prefix, Key) ->
     case redo:cmd(Conn,["GET", term_to_key(Prefix, Key)]) of

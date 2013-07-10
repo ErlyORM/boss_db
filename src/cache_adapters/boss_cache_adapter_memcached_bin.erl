@@ -19,7 +19,7 @@ init(_Options) ->
     {ok, undefined}.
 
 terminate(_Conn) ->
-    {ok, undefined}.
+    ok.
 
 get(_Conn, Prefix, Key) ->
     case erlmc:get(term_to_key(Prefix, Key)) of
