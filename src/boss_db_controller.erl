@@ -52,11 +52,16 @@ setup_reconnect(State) ->
 try_connection(Pid, Options) ->
     gen_server:cast(Pid, {try_connect, Options}).
 
+terminate_if_defined(_Adapter, undefined) -> 
+    ok;
+terminate_if_defined(Adapter, Conn) -> 
+    Adapter:terminate(Conn).
+
 terminate_connections(Adapter, RC, RC) ->
-    Adapter:terminate(RC);
+    terminate_if_defined(Adapter, RC);
 terminate_connections(Adapter, RC, WC) ->
-    Adapter:terminate(RC),
-    Adapter:terminate(WC).
+    terminate_if_defined(Adapter, RC),
+    terminate_if_defined(Adapter, WC).
 
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
