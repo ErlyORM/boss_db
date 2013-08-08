@@ -258,8 +258,6 @@ build_update_query(Record) ->
     AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({_A, undefined}, {Attrs, Vals}) ->
-                {Attrs, Vals};            
             ({A, V}, {Attrs, Vals}) -> 
                 DBColumn = proplists:get_value(A, AttributeColumns),
                 Value = case {boss_sql_lib:is_foreign_key(Type, A), V =/= undefined} of
@@ -379,6 +377,8 @@ escape_sql1([$'|Rest], Acc) ->
 escape_sql1([C|Rest], Acc) ->
     escape_sql1(Rest, [C|Acc]).
 
+pack_datetime(undefined) ->
+    "null";
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
 pack_datetime(DateTime) ->
