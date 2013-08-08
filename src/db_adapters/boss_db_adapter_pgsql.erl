@@ -258,6 +258,8 @@ build_update_query(Record) ->
     AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
+            ({_A, undefined}, {Attrs, Vals}) ->
+                {Attrs, Vals};            
             ({A, V}, {Attrs, Vals}) -> 
                 DBColumn = proplists:get_value(A, AttributeColumns),
                 Value = case {boss_sql_lib:is_foreign_key(Type, A), V =/= undefined} of
