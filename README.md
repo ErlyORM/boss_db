@@ -75,6 +75,15 @@ Then compile it like:
 
 ...and you're ready to go.
 
+You can also enable boss_db_rebar plugin in your rebar.config to automatize
+compilation:
+
+    {plugin_dir, ["deps/boss_db/priv/rebar"]}.
+    {plugins, [boss_db_rebar]}.
+    {boss_db_opts, [
+        {model_root, "src/model"},
+    ]}.
+
 Associations
 ------------
 
