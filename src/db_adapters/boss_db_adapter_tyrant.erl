@@ -41,8 +41,8 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_
         true ->
             AttributeTypes = boss_record_lib:attribute_types(Type),
             TypedSortOrder = case {SortOrder, proplists:get_value(Sort, AttributeTypes)} of
-                {ascending, Type} when Type =:= float; Type =:= integer; Type =:= datetime; Type =:= timestamp -> num_ascending;
-                {descending, Type} when Type =:= float; Type =:= integer; Type =:= datetime; Type =:= timestamp -> num_descending;
+                {ascending, SortType} when SortType =:= float; SortType =:= integer; SortType =:= datetime; SortType =:= timestamp -> num_ascending;
+                {descending, SortType} when SortType =:= float; SortType =:= integer; SortType =:= datetime; SortType =:= timestamp -> num_descending;
                 {ascending, _} -> str_ascending;
                 {descending, _} -> str_descending
             end,
