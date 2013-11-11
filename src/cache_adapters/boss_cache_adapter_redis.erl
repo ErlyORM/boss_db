@@ -38,4 +38,4 @@ delete(Conn, Prefix, Key) ->
 
 % internal
 term_to_key(Prefix, Term) ->
-    lists:concat([Prefix, ":", mochihex:to_hex(erlang:md5(term_to_binary(Term)))]).
+    lists:concat([Prefix, ":", boss_cache:to_hex(erlang:md5(term_to_binary(Term)))]).
