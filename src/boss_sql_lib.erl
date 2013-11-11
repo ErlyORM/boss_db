@@ -3,7 +3,7 @@
         infer_type_from_id/1,
         convert_id_condition_to_use_table_ids/1,
         is_foreign_key/2,
-	convert_possible_foreign_key/6,
+	convert_possible_foreign_key/5,
 	get_retyped_foreign_keys/1
     ]).
 
@@ -67,12 +67,12 @@ integer_to_id(Val, KeyString) when is_list(KeyString) ->
     ModelName = string:substr(KeyString, 1, string:len(KeyString) - string:len("_id")),
     ModelName ++ "-" ++ boss_record_lib:convert_value_to_type(Val, string).
 
-convert_possible_foreign_key(AwkwardAssociations, Type, Key, Value, AttrType, DBColumn) ->
+convert_possible_foreign_key(AwkwardAssociations, Type, Key, Value, AttrType) ->
     case boss_sql_lib:is_foreign_key(Type, Key) of
 	true -> 
 	    case [ ModuleName || {FieldName, ModuleName} <- AwkwardAssociations, list_to_atom(atom_to_list(FieldName) ++ "_id") =:= Key] of 
 		[] ->
-		    integer_to_id(Value, DBColumn);
+		    integer_to_id(Value, atom_to_list(Key));
 		[Module] when is_atom(Module) ->
 		    atom_to_list(Module) ++ "-" ++ boss_record_lib:convert_value_to_type(Value, string) 
 	    end;

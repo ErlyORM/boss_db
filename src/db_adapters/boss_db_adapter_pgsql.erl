@@ -201,7 +201,7 @@ activate_record(Record, Metadata, Type) ->
                         undefined -> undefined;
                         null -> undefined;
                         Val -> 
-                            boss_sql_lib:convert_possible_foreign_key(RetypedForeignKeys, Type, Key, Val, AttrType, DBColumn)
+                            boss_sql_lib:convert_possible_foreign_key(RetypedForeignKeys, Type, Key, Val, AttrType)
                     end
             end, boss_record_lib:attribute_names(Type))).
 
