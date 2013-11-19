@@ -1,6 +1,6 @@
 -module(boss_db_adapter_riak).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/8]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
@@ -51,8 +51,10 @@ find_acc(Conn, Prefix, [Id | Rest], Acc) ->
             find_acc(Conn, Prefix, Rest, [Value | Acc])
     end.
 
+find(_, _, _, _, _, _, _, Capture) when Capture =/= model ->
+  error(not_yet_implemented);
 % this is a stub just to make the tests runable
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, _Capture) ->
     Bucket = type_to_bucket_name(Type),
     {ok, Keys} = case Conditions of
         [] ->
@@ -86,7 +88,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
 
 % this is a stub just to make the tests runable
 count(Conn, Type, Conditions) ->
-    length(find(Conn, Type, Conditions, all, 0, 0, 0)).
+    length(find(Conn, Type, Conditions, all, 0, 0, 0, model)).
 
 counter(_Conn, _Id) ->
     {error, notimplemented}.

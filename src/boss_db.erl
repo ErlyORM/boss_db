@@ -136,7 +136,17 @@ find(Type, Conditions, Options) ->
         _ -> ascending
     end,
     Include = proplists:get_value(include, Options, []),
-    db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder, Include}).
+    Capture = case proplists:get_value(capture, Options) of
+                undefined  -> model;
+                model -> model;
+                proplist -> {proplist, []};
+                {proplist, Fields} when is_list(Fields) -> {proplist, Fields};
+                map -> {map, []};
+                {map, Fields} when is_list(Fields) ->
+                  exit(not_yet_implemented); %% {map, Fields}; - %When maps with variable keys will be ready
+                _ -> exit(invalid_capture_type)
+              end,
+    db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder, Include, Capture}).
 
 %% @spec find_first( Type::atom() ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type'.

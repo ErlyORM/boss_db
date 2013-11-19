@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mnesia).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/8]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([transaction/2]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
@@ -42,7 +42,9 @@ find(_, Id) when is_list(Id) ->
     end.
 
 % -----
-find(_, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
+find(_, _, _, _, _, _, _, Capture) when Capture =/= model ->
+  error(not_yet_implemented);
+find(_, Type, Conditions, Max, Skip, Sort, SortOrder, _Capture) when is_atom(Type), is_list(Conditions),
                                                         is_integer(Max) orelse Max =:= all,
                                                         is_integer(Skip), is_atom(Sort), is_atom(SortOrder) ->
 % Mnesia allows a pattern to be provided against which it will check records.
@@ -161,7 +163,7 @@ test_rec(Rec,{Key, 'contains_none', Values}) when is_list(Values) ->
 
 % -----
 count(Conn, Type, Conditions) ->
-    length(find(Conn, Type, Conditions, all, 0, id, ascending)).
+    length(find(Conn, Type, Conditions, all, 0, id, ascending, model)).
 
 % -----
 counter(Conn, Id) when is_list(Id) ->
