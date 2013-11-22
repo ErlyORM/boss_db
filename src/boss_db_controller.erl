@@ -68,6 +68,7 @@ init(Options) ->
     Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
     CacheEnable = proplists:get_value(cache_enable, Options, false),
     CacheTTL = proplists:get_value(cache_exp_time, Options, 60),
+    CachePrefix = proplists:get_value(cache_prefix, Options, db),
     process_flag(trap_exit, true),
     try_connection(self(), Options),
     {ok, #state{connection_state = connecting,
@@ -75,7 +76,7 @@ init(Options) ->
 		options = Options,
 		adapter = Adapter,
 		cache_enable = CacheEnable,
-		cache_ttl = CacheTTL, cache_prefix = db }}.
+		cache_ttl = CacheTTL, cache_prefix = CachePrefix }}.
 
 handle_call(_Anything, _Anyone, State) when State#state.connection_state /= connected ->
     {reply, db_connection_down, State};
