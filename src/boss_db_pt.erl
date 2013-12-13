@@ -228,8 +228,9 @@ rpt_error(Reason, BeforeOrAfter, Fun, Info) ->
             ["*** ERROR in parse_transform function:~n"
              "*** Reason     = ~p~n"
              "*** applying ~w fun (~p)~n",
+             "*** function info: ~p~n",
              ["*** ~10w = ~p~n" || _ <- Info]]),
-    Args = [Reason, BeforeOrAfter, Fun | 
+    Args = [Reason, BeforeOrAfter, Fun, erlang:fun_info(Fun) | 
             lists:foldr(
               fun({K,V}, Acc) ->
                       [K, V | Acc]
