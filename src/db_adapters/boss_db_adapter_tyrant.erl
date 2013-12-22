@@ -14,7 +14,8 @@ stop() ->
 init(Options) ->
     Host = proplists:get_value(db_host, Options, "localhost"),
     Port = proplists:get_value(db_port, Options, 1978),
-    PrincipeOptions = [{hostname, Host}, {port, Port}],
+    DBConfigure = proplists:get_value(db_configure, Options, []),
+    PrincipeOptions = [{hostname, Host}, {port, Port} | DBConfigure],
     principe:connect(PrincipeOptions).
 
 terminate(Conn) ->
