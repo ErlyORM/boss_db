@@ -13,15 +13,15 @@
 	  connection_delay,
 	  connection_retry_timer,
 	  options,
-        adapter, 
-        read_connection, 
-        write_connection, 
-        shards = [],
-        model_dict = dict:new(),
-        cache_enable,
-        cache_ttl,
-        cache_prefix,
-        depth = 0}).
+	  adapter, 
+	  read_connection, 
+	  write_connection, 
+	  shards = [],
+	  model_dict = dict:new(),
+	  cache_enable,
+	  cache_ttl,
+	  cache_prefix,
+	  depth = 0}).
 
 start_link() ->
     start_link([]).
@@ -39,8 +39,8 @@ connections_for_adapter(Adapter, Options) ->
 	    {connection_error, Error}
     end.
 
-setup_reconnect(State) ->
-    Delay = case State#state.connection_delay of
+setup_reconnect(State =#state{connection_delay = DelayTime}) ->
+    Delay = case DelayTime of
 		D when D < ?MAXDELAY ->
 		    D;
 		_ ->
@@ -65,18 +65,19 @@ terminate_connections(Adapter, RC, WC) ->
 
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
-    Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
+    Adapter	= list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
     CacheEnable = proplists:get_value(cache_enable, Options, false),
-    CacheTTL = proplists:get_value(cache_exp_time, Options, 60),
+    CacheTTL	= proplists:get_value(cache_exp_time, Options, 60),
     CachePrefix = proplists:get_value(cache_prefix, Options, db),
     process_flag(trap_exit, true),
     try_connection(self(), Options),
-    {ok, #state{connection_state = connecting,
-		connection_delay = 1,
-		options = Options,
-		adapter = Adapter,
-		cache_enable = CacheEnable,
-		cache_ttl = CacheTTL, cache_prefix = CachePrefix }}.
+    {ok, #state{connection_state	= connecting,
+		connection_delay	= 1,
+		options			= Options,
+		adapter			= Adapter,
+		cache_enable		= CacheEnable,
+		cache_ttl		= CacheTTL,
+		cache_prefix		= CachePrefix }}.
 
 handle_call(_Anything, _Anyone, State) when State#state.connection_state /= connected ->
     {reply, db_connection_down, State};
@@ -108,34 +109,7 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
     Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
     case boss_cache:get(Prefix, Key) of
         undefined ->
-            {reply, Res, _} = handle_call(Cmd, From, State#state{ cache_enable = false }),
-            case is_list(Res) of
-                true ->
-                    DummyRecord = boss_record_lib:dummy_record(Type),
-                    BelongsToTypes = DummyRecord:belongs_to_types(),
-                    IncludedRecords = lists:foldl(fun
-                            ({RelationshipName, InnerInclude}, Acc) ->
-                                RecordList = case proplists:get_value(RelationshipName, BelongsToTypes) of
-                                    undefined -> [];
-                                    RelationshipType ->
-                                        IdList = lists:map(fun(Record) -> 
-                                                    Record:get(lists:concat([RelationshipType, "_id"]))
-                                            end, Res),
-                                        handle_call({find, RelationshipName, 
-                                                [{'id', 'in', IdList}], all, 0, id, ascending,
-                                                InnerInclude}, From, State)
-                                end,
-                                RecordList ++ Acc
-                        end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include)),
-                    lists:map(fun(Rec) ->
-                                boss_cache:set(Prefix, Rec:id(), Rec, State#state.cache_ttl)
-                        end, IncludedRecords),
-                    boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-                    WatchString = lists:concat([inflector:pluralize(atom_to_list(Type)), ", ", Type, "-*.*"]), 
-                    boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_collection_news/3, 
-                        {Prefix, Key}, State#state.cache_ttl);
-                _ -> error % log it here?
-            end,
+            Res = find_list(Type, Include, Cmd, From, Prefix, State, Key),
             {reply, Res, State};
         CachedValue ->
             boss_news:extend_watch(Key),
@@ -228,6 +202,50 @@ handle_call({transaction, TransactionFun}, _From, State) ->
 
 handle_call(state, _From, State) ->
     {reply, State, State}.
+
+find_list(Type, Include, Cmd, From, Prefix, State, Key) ->
+    {reply, Res, _} = handle_call(Cmd, From, State#state{cache_enable = false}),
+    case is_list(Res) of
+        true ->
+            DummyRecord		= boss_record_lib:dummy_record(Type),
+            BelongsToTypes	= DummyRecord:belongs_to_types(),
+            IncludedRecords     = find_list_records(Include, From, State,
+                                                       Res, BelongsToTypes),
+            lists:map(fun(Rec) ->
+                        boss_cache:set(Prefix, Rec:id(), Rec, State#state.cache_ttl)
+                      end, IncludedRecords),
+            boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
+            WatchString         = lists:concat([inflector:pluralize(atom_to_list(Type)), 
+						", ", Type, "-*.*"]),
+            boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_collection_news/3,
+				{Prefix, Key}, State#state.cache_ttl);
+        _ -> error % log it here?
+    end,
+    Res.
+
+find_list_records(Include, From, State, Res, BelongsToTypes) ->
+    lists:foldl(fun
+		    ({RelationshipName, InnerInclude}, Acc) ->
+			RelType    = proplists:get_value(RelationshipName, BelongsToTypes),
+                        RecordList = lookup_rel_records(From, State, Res,
+					                RelationshipName,
+					                InnerInclude, RelType),
+			RecordList ++ Acc
+                end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include)).
+
+lookup_rel_records(From, State, Res, RelationshipName, InnerInclude,
+		   undefined) -> [];
+lookup_rel_records(From, State, Res, RelationshipName, InnerInclude,
+		   RelationshipType) ->
+
+    IdList = lists:map(fun(Record) ->
+			       Record:get(lists:concat([RelationshipType, "_id"]))
+		       end, Res),
+    handle_call({find, RelationshipName,
+		 [{'id', 'in', IdList}],
+		 all, 0, id, ascending,
+		 InnerInclude}, From, State).
+
 
 handle_cast({try_connect, Options}, State) when State#state.connection_state /= connected ->
     Adapter = State#state.adapter,
