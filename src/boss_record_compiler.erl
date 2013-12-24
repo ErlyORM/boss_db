@@ -23,6 +23,7 @@ edoc_module(File) ->
 %% @spec edoc_module( File::string(), Options ) -> {Module::atom(), EDoc}
 %% @doc Return an `edoc_module()' for the given Erlang source file when
 %% compiled as a BossRecord.
+-spec(edoc_module(string(),_ ) -> {module(), _}).
 edoc_module(File, Options) ->
     {ok, Forms, TokenInfo} = boss_compiler:parse(File, fun ?MODULE:process_tokens/1, []),
     edoc_extract:source(trick_out_forms(Forms, TokenInfo), edoc:read_comments(File), 

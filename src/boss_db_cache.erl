@@ -11,7 +11,8 @@ handle_collection_news(deleted, _, {Prefix, Key}) ->
 handle_collection_news(created, _, {Prefix, Key}) ->
     boss_cache:delete(Prefix, Key),
     {ok, cancel_watch};
-handle_collection_news(updated, {_Record, Attr, _OldVal, _NewVal}, {Prefix, Key}) when Attr =:= element(5, Key) ->
+handle_collection_news(updated, {_Record, Attr, _OldVal, _NewVal}, {Prefix, Key}) 
+  when Attr =:= element(5, Key) ->
     boss_cache:delete(Prefix, Key),
     {ok, cancel_watch};
 handle_collection_news(updated, {_Record, Attr, _OldVal, _NewVal}, {Prefix, Key}) ->

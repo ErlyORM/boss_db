@@ -19,29 +19,24 @@ start_link(Args) ->
 
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, memcached_bin),
-    Adapter = list_to_atom(lists:concat(["boss_cache_adapter_", AdapterName])),
-    {ok, Conn} = Adapter:init(Options),
+    Adapter	= list_to_atom(lists:concat(["boss_cache_adapter_", AdapterName])),
+    {ok, Conn}	= Adapter:init(Options),
     {ok, #state{ adapter = Adapter, connection = Conn }}.
 
-handle_call({get, Prefix, Key}, _From, State) ->
-    Adapter = State#state.adapter,
-    Conn = State#state.connection,
+handle_call({get, Prefix, Key}, 
+	    _From, State = #state{adapter=Adapter, connection = Conn}) ->
     {reply, Adapter:get(Conn, Prefix, Key), State};
-handle_call({set, Prefix, Key, Value, TTL}, _From, State) ->
-    Adapter = State#state.adapter,
-    Conn = State#state.connection,
+handle_call({set, Prefix, Key, Value, TTL},
+	    _From, State = #state{adapter=Adapter, connection = Conn}) ->
     {reply, Adapter:set(Conn, Prefix, Key, Value, TTL), State};
-handle_call({delete, Prefix, Key}, _From, State) ->
-    Adapter = State#state.adapter,
-    Conn = State#state.connection,
+handle_call({delete, Prefix, Key}, 
+	    _From, State = #state{adapter=Adapter, connection = Conn}) ->
     {reply, Adapter:delete(Conn, Prefix, Key), State}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-terminate(_Reason, State) ->
-    Adapter = State#state.adapter,
-    Conn = State#state.connection,
+terminate(_Reason, _State = #state{adapter=Adapter, connection = Conn}) ->
     Adapter:terminate(Conn).
 
 code_change(_OldVsn, State, _Extra) ->

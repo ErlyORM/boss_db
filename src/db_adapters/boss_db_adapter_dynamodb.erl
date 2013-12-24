@@ -16,23 +16,23 @@ stop() ->
     ok.
 
 init(Options) ->
-	AccessKey 	= proplists:get_value(db_username, Options, os:getenv("AWS_ACCESS_KEY_ID")),
-	SecretKey	= proplists:get_value(db_password, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
+    AccessKey 	= proplists:get_value(db_username, Options, os:getenv("AWS_ACCESS_KEY_ID")),
+    SecretKey	= proplists:get_value(db_password, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
     Endpoint = proplists:get_value(db_host, Options, "dynamodb.us-east-1.amazonaws.com"),
-
-	%% startup dependencies.  some of these may have already been started, but that's ok.
-	inets:start(),
-	ssl:start(),
-	%%lager:start(),
-	application:start(ibrowse),
-
-
-	%% init initial credentials.  note that these will be refeshed automatically as needed
-	ddb_iam:credentials(AccessKey, SecretKey),
-	{'ok', Key, Secret, Token} = ddb_iam:token(129600),  %% 129600 is the lifetime duration for the token
-	ddb:credentials(Key, Secret, Token, Endpoint),
-
-	init_tables(Options),
+    
+    %% startup dependencies.  some of these may have already been started, but that's ok.
+    inets:start(),
+    ssl:start(),
+    %%lager:start(),
+    application:start(ibrowse),
+    
+    
+    %% init initial credentials.  note that these will be refeshed automatically as needed
+    ddb_iam:credentials(AccessKey, SecretKey),
+    {'ok', Key, Secret, Token} = ddb_iam:token(129600),  %% 129600 is the lifetime duration for the token
+    ddb:credentials(Key, Secret, Token, Endpoint),
+    
+    init_tables(Options),
     {ok, undefined}.
 
 terminate(_Conn) ->
@@ -44,15 +44,14 @@ find(_Conn, Id) when is_list(Id) ->
 		{ok, Rec} ->
 			create_from_ddbitem(Type, proplists:get_value(<<"Item">>, Rec));
 		{error, Error} ->
-			{error, Error};
-		X ->
-			{error, X}
+			{error, Error}
 	end.
 
-find(_Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
-                                                              is_integer(Max) orelse Max =:= all, is_integer(Skip),
-                                                              is_atom(Sort), is_atom(SortOrder) ->
-
+find(_Conn, Type, Conditions, Max, Skip, Sort, SortOrder) 
+  when is_atom(Type), is_list(Conditions),
+       is_integer(Max) orelse Max =:= all, is_integer(Skip),
+       is_atom(Sort), is_atom(SortOrder) ->
+    
 	case boss_record_lib:ensure_loaded(Type) of
 		true ->
 			DDB_cond	= convert_conditions(Conditions),
@@ -81,22 +80,10 @@ incr(Conn, Id) ->
     incr(Conn, Id, 1).
 
 incr(Conn, Id, _Count) ->
-    Res = {ok, ok},
-    case Res of
-        {ok, ok} -> counter(Conn, Id);
-        {failure, Reason} -> {error, Reason};
-        {connection_failure, Reason} -> {error, Reason}
-    end.
+    counter(Conn, Id).
 
 delete(_Conn, Id) when is_list(Id) ->
-
-    Res = {ok, ok},
-
-    case Res of
-        {ok, ok} -> ok;
-        {failure, Reason} -> {error, Reason};
-        {connection_failure, Reason} -> {error, Reason}
-    end.
+    ok.
 
 
 save_record(_Conn, Record) when is_tuple(Record) ->
@@ -126,50 +113,53 @@ pop(_Conn, _Depth) -> ok.
 %%
 
 init_tables(Options) ->
-	{ok, Tables} = ddb:tables(),
+    {ok, Tables} = ddb:tables(),
     Models = lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- application:which_applications() ] ),
-	BinModels = [ erlang:list_to_binary(X) || X <- Models],
-	Create = BinModels -- Tables,
-	init_models(Create, Options).
-
-init_models([], _Options) ->
-	ok;
-init_models([Model | Tail], Options) ->
-	init_table(Model, Options),
-	init_models(Tail, Options).
+    BinModels = [ erlang:list_to_binary(X) || X <- Models],
+    Create    = BinModels -- Tables,
+    lists:foreach(fun(Model) ->
+			  init_table(Model, Options)
+		  end, Create).
 
 init_table(Model, Options) when is_binary(Model) ->
 	%% it looks like we don't need to initialize the table with the field names for now
-    ModelAtom = erlang:binary_to_atom(Model, latin1),
-    Dummy = boss_record_lib:dummy_record(ModelAtom),
+    ModelAtom		= erlang:binary_to_atom(Model, latin1),
+    Dummy		= boss_record_lib:dummy_record(ModelAtom),
 
-    ModelAttributes = ModelAtom:module_info(attributes),
+    ModelAttributes	= ModelAtom:module_info(attributes),
 
-    GlobalReadCap = proplists:get_value(db_read_capacity, Options, 2),
-    GlobalWriteCap = proplists:get_value(db_write_capacity, Options, 1),
+    GlobalReadCap	= proplists:get_value(db_read_capacity,		 Options, 2),
+    GlobalWriteCap	= proplists:get_value(db_write_capacity,	 Options, 1),
 
-    LocalReadCaps = proplists:get_value(db_model_read_capacity, Options, []),
-    LocalWriteCaps = proplists:get_value(db_model_write_capacity, Options, []),
+    LocalReadCaps	= proplists:get_value(db_model_read_capacity,	 Options, []),
+    LocalWriteCaps	= proplists:get_value(db_model_write_capacity,	 Options, []),
 
-    ReadCap = proplists:get_value(ModelAtom, LocalReadCaps, GlobalReadCap),
-    WriteCap = proplists:get_value(ModelAtom, LocalWriteCaps, GlobalWriteCap),
+    ReadCap		= proplists:get_value(ModelAtom, LocalReadCaps,  GlobalReadCap),
+    WriteCap		= proplists:get_value(ModelAtom, LocalWriteCaps, GlobalWriteCap),
 
-    [PrimaryKey] = proplists:get_value(primary_key, ModelAttributes, [id]),
-    PrimaryKeyType = proplists:get_value(PrimaryKey, Dummy:attribute_types(), 'string'),
+    [PrimaryKey]	= proplists:get_value(primary_key, ModelAttributes, [id]),
+    PrimaryKeyType	= proplists:get_value(PrimaryKey, Dummy:attribute_types(), 'string'),
 
-    Keys =
-        case proplists:get_value(range_key, ModelAtom:module_info(attributes)) of
-            undefined ->
-                ddb:key_type(atom_to_binary(PrimaryKey, latin1), PrimaryKeyType);
-            [RangeKey] ->
-                RangeKeyType = convert_type_to_ddb(proplists:get_value(RangeKey, Dummy:attribute_types())),
-                ddb:key_type(atom_to_binary(PrimaryKey, latin1), PrimaryKeyType, atom_to_binary(RangeKey, latin1), RangeKeyType)
-        end,
+    KeyType		= proplists:get_value(range_key, ModelAtom:module_info(attributes)),
+    Keys		= lookup_key_type(Dummy, PrimaryKey, PrimaryKeyType, KeyType),
+    ddb:create_table(Model, Keys, ReadCap, WriteCap),
+    init_meta_entry(Model).
 
-	ddb:create_table(Model, Keys, ReadCap, WriteCap),
-	init_meta_entry(Model).
+
+lookup_key_type(_Dummy, PrimaryKey, PrimaryKeyType, undefined) ->
+    ddb:key_type(atom_to_binary(PrimaryKey, latin1), PrimaryKeyType);
+lookup_key_type(Dummy, PrimaryKey, PrimaryKeyType, [RangeKey]) ->
+    RangeKeyType = convert_type_to_ddb(
+		     proplists:get_value(RangeKey, Dummy:attribute_types())),
+    ddb:key_type(atom_to_binary(PrimaryKey, latin1),
+		 PrimaryKeyType,
+		 atom_to_binary(RangeKey, latin1),
+		 RangeKeyType).
+
 
 %% Help function
+-spec(convert_type_to_ddb('string'|'float'|'integer'|'datetime'|'timestamp'|'undefined') ->
+	     'string'|'number').
 convert_type_to_ddb(string) ->
     'string';
 convert_type_to_ddb(float) ->
@@ -184,8 +174,8 @@ convert_type_to_ddb(undefined) ->
     'string'.
 
 init_meta_entry(Model) when is_binary(Model)->
-    ModelAtom = binary_to_atom(Model, latin1),
-    Attributes = ModelAtom:module_info(attributes),
+    ModelAtom	= binary_to_atom(Model, latin1),
+    Attributes	= ModelAtom:module_info(attributes),
     case proplists:get_value(primary_key, Attributes) of
         undefined ->
             ddb:put(Model, [{<<"id">>, <<"__metadata">>, 'string'},
@@ -212,11 +202,12 @@ update_existing(Record) ->
 	Model  = element(1, Record),
 	Keys   = ddb:key_value(list_to_binary(Record:id()), 'string'),
 	Attrs  = Record:attributes(),
-	Fields = [ {atom_to_binary(K, latin1), val_to_binary(V), type_of(V), 'put'} || {K, V} <- Attrs, not_empty(V), K /= id],
+	Fields = [ {atom_to_binary(K, latin1), val_to_binary(V), type_of(V), 'put'} ||
+		     {K, V} <- Attrs, not_empty(V), K /= id],
 	_Res    = ddb:update(atom_to_binary(Model, latin1), Keys, Fields),
-
 	{ok, Record}.
 
+-spec(not_empty(_) ->boolean()).
 not_empty([]) ->
 	false;
 not_empty({}) ->
@@ -227,6 +218,7 @@ not_empty(_Val) ->
 %val_to_binary({{Y,M, D}, {H, M, S}} = Datetime) when is_integer(Y), is_integer(M), is_integer(D), is_integer(H), is_integer(M), is_integer(S) ->
 %	StringDate = httpd_util:rfc1123_date(Datetime),
 %	list_to_binary(StringDate);
+-spec(val_to_binary(_) -> binary()).
 val_to_binary(Val) when is_boolean(Val) ->
     case Val of
         true ->

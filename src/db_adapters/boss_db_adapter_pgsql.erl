@@ -377,8 +377,7 @@ escape_sql1([$'|Rest], Acc) ->
 escape_sql1([C|Rest], Acc) ->
     escape_sql1(Rest, [C|Acc]).
 
-pack_datetime(undefined) ->
-    "null";
+
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
 pack_datetime(DateTime) ->

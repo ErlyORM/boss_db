@@ -24,8 +24,6 @@ terminate(_Conn) ->
 
 get(Conn, Prefix, Key) ->
     case redo:cmd(Conn,["GET", term_to_key(Prefix, Key)]) of
-        undefined -> 
-            undefined;
         Bin -> 
             binary_to_term(Bin)
     end.

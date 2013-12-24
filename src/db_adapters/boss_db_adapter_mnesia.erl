@@ -134,14 +134,12 @@ test_rec(Rec,{Key, 'matches', "*"++Value}) ->
     {ok, MP} = re:compile(Value, [caseless]),
     case re:run(apply(Rec,Key,[]), MP) of
         {match,_} -> true;
-        match -> true;
         _ -> false
     end;
 test_rec(Rec,{Key, 'matches', Value}) ->
     {ok, MP} = re:compile(Value),
     case re:run(apply(Rec,Key,[]), MP) of
         {match,_} -> true;
-        match -> true;
         _ -> false
     end;
 test_rec(Rec,{Key, 'not_matches', Value}) ->
@@ -254,8 +252,6 @@ gen_uid(Tab) ->
     mnesia:dirty_update_counter('_ids_', Tab, 1).
 
 %-----
-infer_type_from_id(Id) when is_binary(Id) ->
-    infer_type_from_id(binary_to_list(Id));
 infer_type_from_id(Id) when is_list(Id) ->
     list_to_atom(hd(string:tokens(Id, "-"))).
 

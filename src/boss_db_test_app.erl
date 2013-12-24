@@ -4,6 +4,7 @@
 
 -export([start/2, stop/1, run_init/0, run_setup/0, run_tests/0]).
 
+-spec(start(_,_) -> no_return()).
 start(_Type, _StartArgs) ->
     run_init(),
     run_setup(),

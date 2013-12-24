@@ -204,70 +204,70 @@ replace_test() ->
     SampleList = [ {"abc", "def"},
 		   {"a(b|c)d", "e\\1e"},
 		   {"howdy", "doody"} ],
-    "I know my defs" = replace( "I know my abcs", SampleList ),
-    "Nothing changed" = replace( "Nothing changed", SampleList ),
-    "Blah ebe" = replace("Blah abd", SampleList ),
-    "Howdy ece" = replace("Howdy acd", SampleList ),
-    "doody ho" = replace("howdy ho", SampleList ),
-    "doody" = replace("howdy", SampleList ).
+    "I know my defs"		= replace( "I know my abcs", SampleList ),
+    "Nothing changed"		= replace( "Nothing changed", SampleList ),
+    "Blah ebe"			= replace("Blah abd", SampleList ),
+    "Howdy ece"			= replace("Howdy acd", SampleList ),
+    "doody ho"			= replace("howdy ho", SampleList ),
+    "doody"			= replace("howdy", SampleList ).
 
 singularize_test() ->
-    "dog" = singularize("dogs"),
-    "mouse" = singularize("mice"),
-    "bus" = singularize("buses"),
-    "sex" = singularize("sexes"),
-    "Sex" = singularize("Sexes"),
-    "sheep" = singularize("sheep"),
-    "child" = singularize("children"),
-    "dog" = singularize("dog").
+    "dog"			= singularize("dogs"),
+    "mouse"			= singularize("mice"),
+    "bus"			= singularize("buses"),
+    "sex"			= singularize("sexes"),
+    "Sex"			= singularize("Sexes"),
+    "sheep"			= singularize("sheep"),
+    "child"			= singularize("children"),
+    "dog"			= singularize("dog").
     
 pluralize_test() ->
-    "dogs" = pluralize("dog"),
-    "dogs" = pluralize("dogs"),
-    "buses" = pluralize("bus"),
-    "sexes" = pluralize("sex"),
-    "sheep" = pluralize("sheep"),
-    "children" = pluralize("child").
+    "dogs"			= pluralize("dog"),
+    "dogs"			= pluralize("dogs"),
+    "buses"			= pluralize("bus"),
+    "sexes"			= pluralize("sex"),
+    "sheep"			= pluralize("sheep"),
+    "children"			= pluralize("child").
 
 camelize_test() ->
-    "CamelCase" = camelize("camel_case").
+    "CamelCase"			= camelize("camel_case").
 
 lower_camelize_test() ->
-    "camelCase" = lower_camelize("camel_case").
+    "camelCase"			= lower_camelize("camel_case").
 
 humanize_test() ->
-    "Employee salary" = humanize("employee_salary").
+    "Employee salary"		= humanize("employee_salary").
 
 titleize_test() ->
-    "Army Of Darkness" = titleize("army of darkness"),
-    "Army Of Darkness" = titleize("army_of_darkness").
+    "Army Of Darkness"		= titleize("army of darkness"),
+    "Army Of Darkness"		= titleize("army_of_darkness").
 
 capitalize_test() ->
-    "This" = capitalize("this"),
-    "This" = capitalize("tHiS"),
-    "This" = capitalize("THIS").
+    "This"			= capitalize("this"),
+    "This"			= capitalize("tHiS"),
+    "This"			= capitalize("THIS").
 
 underscore_test() ->
-    "this_is_a_test" = underscore("ThisIsATest").
+    "this_is_a_test"		= underscore("ThisIsATest").
 
 dasherize_test() ->
-    "this-has-dashes-now" = dasherize("this_has_dashes_now").
+    "this-has-dashes-now"	= dasherize("this_has_dashes_now").
 
 tableize_test() ->
-    "raw_scaled_scorers" = tableize("RawScaledScorer"),
-    "egg_and_hams" = tableize("egg_and_ham"),
-    "fancy_categories" = tableize("fancyCategory").
+    "raw_scaled_scorers"	= tableize("RawScaledScorer"),
+    "egg_and_hams"		= tableize("egg_and_ham"),
+    "fancy_categories"		= tableize("fancyCategory").
 
 moduleize_test() ->
-    "FancyCategory" = moduleize("fancy_categories"),
-    "FancyCategory" = moduleize("fancy_category").
+    "FancyCategory"		= moduleize("fancy_categories"),
+    "FancyCategory"		= moduleize("fancy_category").
 
 ordinalize_test() ->
-    "1st" = ordinalize(1),
-    "2nd" = ordinalize(2),
-    "1002nd" = ordinalize(1002),
-    "4th" = ordinalize(4),
-    "104th" = ordinalize(104).
+    "1st"			= ordinalize(1),
+    "2nd"			= ordinalize(2),
+    "1002nd"			= ordinalize(1002),
+    "4th"			= ordinalize(4),
+    "104th"			= ordinalize(104).
 
 foreign_key_test() ->
-    "message_id" = foreign_key("Message").
+    "message_id"		= foreign_key("Message").
