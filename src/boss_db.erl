@@ -38,12 +38,20 @@
         type/1,
         data_type/2]).
 
+%-ifdef(TEST).
+-compile(export_all).
+%w-endif.
+-type sort_order()	:: ascending|descending.
+-type eq_operatator()	:: 'eq'|'ne'.
+-type normal_operator() ::'equals'|'not_equals'.
+-export_type([sort_order/0, eq_operatator/0, normal_operator/0]).
+
 -define(DEFAULT_TIMEOUT, (30 * 1000)).
 -define(POOLNAME, boss_db_pool).
 
 start(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
-    Adapter = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
+    Adapter     = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
     Adapter:start(Options),
     lists:foldr(fun(ShardOptions, Acc) ->
                 case proplists:get_value(db_shard_models, ShardOptions, []) of
@@ -75,17 +83,10 @@ db_call(Msg) ->
 %% currently runs all migrations 'up'
 migrate(Migrations) when is_list(Migrations) ->
     %% 1. Do we have a migrations table?  If not, create it.
-    case table_exists(schema_migrations) of
-        false ->
-            ok = create_table(schema_migrations, [{id, auto_increment, []},
-                                                  {version, string, [not_null]},
-                                                  {migrated_at, datetime, []}]);
-        _ ->
-            noop
-    end,
+    create_migration_table_if_needed(),
     %% 2. Get all the current migrations from it.
-    DoneMigrations = db_call({get_migrations_table}),
-    DoneMigrationTags = [list_to_atom(binary_to_list(Tag)) ||
+    DoneMigrations    = db_call({get_migrations_table}),
+    DoneMigrationTags = [binary_to_atom(Tag, 'utf8') ||
                             {_Id, Tag, _MigratedAt} <- DoneMigrations],
     %% 3. Run the ones that are not in this list.
     transaction(fun() ->
@@ -93,6 +94,17 @@ migrate(Migrations) when is_list(Migrations) ->
 			    {Tag, Fun} <- Migrations,
 			    not lists:member(Tag, DoneMigrationTags)]
 		end).
+
+create_migration_table_if_needed() ->
+    %% 1. Do we have a migrations table?  If not, create it.
+    case table_exists(schema_migrations) of
+        false ->
+            ok = create_table(schema_migrations, [{id, auto_increment, []},
+                                                  {version, string, [not_null]},
+                                                  {migrated_at, datetime, []}]);
+        _ ->
+            noop
+    end.
 
 %% @doc Run database migration {Tag, Fun} in Direction
 migrate({Tag, Fun}, Direction) ->
@@ -107,12 +119,10 @@ find("") -> undefined;
 find(Key) when is_list(Key) ->
     [IdToken|Rest] = string:tokens(Key, "."),
     case db_call({find, IdToken}) of
-        undefined -> undefined;
+        undefined	-> undefined;
         {error, Reason} -> {error, Reason};
-        BossRecord -> BossRecord:get(string:join(Rest, "."))
-    end;
-find(_) ->
-    {error, invalid_id}.
+        BossRecord	-> BossRecord:get(string:join(Rest, "."))
+    end.
 
 %% @spec find(Type::atom(), Conditions) -> [ BossRecord ]
 %% @doc Query for BossRecords. Returns all BossRecords of type
@@ -128,15 +138,19 @@ find(Type, Conditions) ->
 %% sort the values from highest to lowest), and `include' (list of belongs_to
 %% associations to pre-cache)
 find(Type, Conditions, Options) ->
-    Max = proplists:get_value(limit, Options, all),
-    Skip = proplists:get_value(offset, Options, 0),
-    Sort = proplists:get_value(order_by, Options, id),
-    SortOrder = case proplists:get_value(descending, Options) of
-        true -> descending;
-        _ -> ascending
-    end,
-    Include = proplists:get_value(include, Options, []),
+    Max		= proplists:get_value(limit, Options, all),
+    Skip	= proplists:get_value(offset, Options, 0),
+    Sort	= proplists:get_value(order_by, Options, id),
+    SortOrder	= sort_order(Options),
+    Include	= proplists:get_value(include, Options, []),
     db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder, Include}).
+
+-spec(sort_order(jsx:json_term()) -> sort_order()).
+sort_order(Options) ->
+    case proplists:get_value(descending, Options) of
+	true -> descending;
+	_ -> ascending
+    end.
 
 %% @spec find_first( Type::atom() ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type'.
@@ -440,19 +454,22 @@ normalize_conditions([], Acc) ->
     lists:reverse(Acc);
 normalize_conditions([Key, Operator, Value|Rest], Acc) when is_atom(Key), is_atom(Operator) ->
     normalize_conditions(Rest, [{Key, Operator, Value}|Acc]);
+
 normalize_conditions([{Key, Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'equals', Value}|Acc]);
+
 normalize_conditions([{Key, 'eq', Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'equals', Value}|Acc]);
+
 normalize_conditions([{Key, 'ne', Value}|Rest], Acc) when is_atom(Key) ->
     normalize_conditions(Rest, [{Key, 'not_equals', Value}|Acc]);
+
 normalize_conditions([{Key, Operator, Value}|Rest], Acc) when is_atom(Key), is_atom(Operator) ->
     normalize_conditions(Rest, [{Key, Operator, Value}|Acc]);
+
 normalize_conditions([{Key, Operator, Value, Options}|Rest], Acc) when is_atom(Key), is_atom(Operator), is_list(Options) ->
     normalize_conditions(Rest, [{Key, Operator, Value, Options}|Acc]).
 
-return_one(Result) ->
-    case Result of
-        [] -> undefined;
-        [Record] -> Record
-    end.
+
+return_one([]) -> undefined;
+return_one([Result]) ->Result.

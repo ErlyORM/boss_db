@@ -264,9 +264,9 @@ handle_info(_Info, State) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-find_by_key(Key, From, Prefix, State, undefined) ->
+find_by_key(Key, From, Prefix, State, _CachedValue = undefined) ->
     {reply, Res, _} = handle_call({find, Key}, From, State#state{ cache_enable = false }),
-    IsSuccess       = (Res =:= undefined orelse (is_tuple(Res) andalso element(1, Res) =/= error)),
+    IsSuccess       = find_is_success(Res),
     case IsSuccess of
 	true ->
 	    boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
@@ -275,14 +275,21 @@ find_by_key(Key, From, Prefix, State, undefined) ->
 				fun boss_db_cache:handle_record_news/3, 
 				{Prefix, Key}, 
 				State#state.cache_ttl);
-	Error ->
-	    lager:error("Find in Cache by key error ~p ~p ", [Find, Res]),
-	    error % log it here?
+	false ->
+	    lager:error("Find in Cache by key error ~p ~p ", [Key, Res]),
+	    error 
     end,
     {reply, Res, State};
-find_by_key(Key, From, Prefix, State, CachedValue) ->
+find_by_key(Key, _From, _Prefix, State, CachedValue) ->
     boss_news:extend_watch(Key),
     {reply, CachedValue, State}.
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+-spec(find_is_success(undefined|tuple()) -> boolean()).
+find_is_success(Res) ->
+    Res =:= undefined orelse is_tuple(Res) andalso element(1, Res) =/= error.
 
 
 
@@ -321,7 +328,7 @@ find_list_records(Include, From, State, Res, BelongsToTypes) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-lookup_rel_records(From, State, Res, RelationshipName, InnerInclude,
+lookup_rel_records(_From, _State, _Res, _RelationshipName, _InnerInclude,
 		   undefined) -> [];
 lookup_rel_records(From, State, Res, RelationshipName, InnerInclude,
 		   RelationshipType) ->
