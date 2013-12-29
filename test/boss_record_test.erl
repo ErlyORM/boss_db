@@ -14,7 +14,7 @@ set_attribute_test_() ->
     {setup,
      fun() ->
 	     
-	     code:load_abs("../test/gh_repo"),
+	     code:load_abs("../priv/gh_repo"),
 	     gh_repo
      end,
      fun(Module) ->
