@@ -1,4 +1,5 @@
 -module(boss_news_controller_test).
+-include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 -compile(export_all).
 
@@ -21,3 +22,7 @@ execute_function_test() ->
     
 
     
+init_test() ->
+    ?assert(proper:check_spec({boss_news_controller,init, 1},
+			     [{to_file, user}])),
+    ok.

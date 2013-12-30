@@ -64,7 +64,8 @@ execute_fun(Fun, Event, EventInfo, UserInfo) ->
 	    Fun(Event, EventInfo, UserInfo)
     end.
 
-
+%% this one first
+-spec(process_dict( _, dict(), string()) -> #watch{}).
 process_dict(WatchId, Dict, TopicString) ->
     case dict:fetch(TopicString, Dict) of
 	[WatchId] ->
@@ -89,8 +90,8 @@ created_news_process(_Id, _Attrs, State, _PluralModel, _Watchers ) ->
 created_news_process_inner_1(State, PluralModel, SetWatchers, Record) ->
     lists:foldr(fun(WatchId, Acc0) ->
 			#watch{watch_list = WatchList,
-			       callback = CallBack,
-			       user_info = UserInfo} = dict:fetch(WatchId, State#state.watch_dict),
+			       callback   = CallBack,
+			       user_info  = UserInfo} = dict:fetch(WatchId, State#state.watch_dict),
 			created_news_process_inner_2(PluralModel, Record,
 					             WatchId, Acc0, WatchList,
 					             CallBack, UserInfo)
@@ -105,6 +106,7 @@ created_news_process_inner_2(PluralModel, Record, WatchId, Acc0,
 		   (_, Acc1) ->
                         Acc1
                 end, Acc0, WatchList).
+
 -spec delete_news_watchers(_,_,_,_,_) -> {'ok',_}.
 -spec delete_news_watchers_inner(_,_,_,[any()],_) -> any().
 -spec delete_news_watchers_inner_1(_,_,_,_,_,[any()],_,_) -> any().
@@ -225,13 +227,15 @@ process_news_state( WatchId, StateAcc, WatchList) ->
 -spec prune_expired_entries(#state{ttl_tree::gb_tree()}) -> #state{ttl_tree::gb_tree()}.
 
 
-
+%src/boss_news_controller_util.erl:237:
+% Record construction #state{watch_dict::dict(),ttl_tree::{number(),'nil' | {_,_,'nil' | {_,_,_,_},_}},set_watchers::dict(),id_watchers::dict(),set_attr_watchers::dict(),id_attr_watchers::dict(),watch_counter::integer()}%
+%violates the declared type of field ttl_tree::gb_tree()
 prune_expired_entries(#state{ ttl_tree = Tree } = State) ->
-    Now = boss_news_controller:future_time(0),
     Lambda = fun(WatchId, StateAcc) ->
 		     #watch{ watch_list = WatchList } = dict:fetch(WatchId, StateAcc#state.watch_dict),
 		     NewState = process_news_state(WatchId, StateAcc, WatchList),
 		     NewState#state{ watch_dict = dict:erase(WatchId, StateAcc#state.watch_dict) }
 	     end,
+    Now                 = boss_news_controller:future_time(0),
     {NewState, NewTree} = tiny_pq:prune_collect_old(Lambda, State, Tree, Now),
     NewState#state{ ttl_tree = NewTree }.
