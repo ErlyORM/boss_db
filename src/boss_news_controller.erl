@@ -26,7 +26,7 @@
         callback   ::news_callback() ,
         user_info  ::user_info(),
         exp_time,
-        ttl}).
+        ttl        ::non_neg_integer()}).
 
 
 -spec start_link()	    -> 'ignore' | {'error',_} | {'ok',pid()}.
@@ -150,8 +150,8 @@ handle_call({cancel_watch, WatchId}, _From, State) ->
     {reply, RetVal, boss_news_controller_util:prune_expired_entries(NewState)};
 handle_call({extend_watch, WatchId}, _From, State0) ->
     State = boss_news_controller_util:prune_expired_entries(State0),
-    Watch = dict:find(WatchId, State#state.watch_dict),
-    {RetVal, NewState} = case Watch of
+    WatchF = dict:find(WatchId, State#state.watch_dict),
+    {RetVal, NewState} = case WatchF of
         {ok, #watch{ exp_time = ExpTime, ttl = TTL } = Watch} ->
             NewExpTime = future_time(TTL),
             NewTree    = tiny_pq:move_value(ExpTime, NewExpTime, WatchId, State#state.ttl_tree),
