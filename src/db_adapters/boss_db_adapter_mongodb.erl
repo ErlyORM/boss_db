@@ -10,15 +10,27 @@
 
 % Number of seconds between beginning of gregorian calendar and 1970
 -define(GREGORIAN_SECONDS_1970, 62167219200). 
-
+-compile(export_all).
+-ifdef(TEST).
+-compile(export_all).
+-endif.
 % JavaScript expression formats to query MongoDB
 -define(CONTAINS_FORMAT, "this.~s.indexOf('~s') != -1").
 -define(NOT_CONTAINS_FORMAT, "this.~s.indexOf('~s') == -1").
 -type db_op()     :: 'not_equals'|'gt'|'ge'|'lt'|'le'|'in'|'not_in'.
 -type mongo_op()  :: '$ne'|'$gt'|'$gte'|'$lt'|'$lte'|'$in'|'$nin'.
 		      
-		     
-		      
+		     	
+-spec boss_to_mongo_op(db_op()) -> mongo_op().
+-spec pack_sort_order('ascending' | 'descending') -> -1 | 1.
+-spec tuple_to_proplist(tuple()) -> [{_,_}].% Tuple size must be even
+-spec proplist_to_tuple([{any(),any()}]) -> tuple().
+-spec dec2hex(binary()) -> bitstring().
+-spec dec2hex(bitstring(),binary()) -> bitstring().
+-spec hex2dec(binary() | [byte(),...]) -> bitstring().
+-spec hex2dec(bitstring(),binary()) -> bitstring().
+-spec dec0(byte()) -> integer().
+-spec hex0(byte()) -> 1..1114111.
 		      
 
 start(_Options) ->
@@ -507,7 +519,7 @@ id_type_from_foreign_key(ForeignKey) ->
 
 
 % Operators
--spec(boss_to_mongo_op(db_op()) -> mongo_op()).
+
 boss_to_mongo_op('not_equals')	-> '$ne';
 boss_to_mongo_op('gt')		-> '$gt';
 boss_to_mongo_op('ge')		-> '$gte';
@@ -518,7 +530,7 @@ boss_to_mongo_op('not_in')	-> '$nin'.
 
 
 % Sort clauses
--spec(pack_sort_order(ascending|descending) -> -1|1).
+
 pack_sort_order(ascending)	-> 1;
 pack_sort_order(descending)	-> -1.
 
