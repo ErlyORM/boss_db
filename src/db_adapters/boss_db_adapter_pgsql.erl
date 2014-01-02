@@ -1,6 +1,6 @@
 -module(boss_db_adapter_pgsql).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/8]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3, table_exists/2]).
 -export([get_migrations_table/1, migration_done/3]).
@@ -31,19 +31,20 @@ find(Conn, Id) when is_list(Id) ->
             undefined;
         {ok, Columns, [Record]} ->
             case boss_record_lib:ensure_loaded(Type) of
-                true -> activate_record(Record, Columns, Type);
+                true -> activate_record(Record, Columns, Type, model);
                 false -> {error, {module_not_loaded, Type}}
             end;
         {error, Reason} ->
             {error, Reason}
     end.
 
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
+
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Capture) when is_atom(Type), is_list(Conditions),
                                                               is_integer(Max) orelse Max =:= all, is_integer(Skip), 
                                                               is_atom(Sort), is_atom(SortOrder) ->
     case boss_record_lib:ensure_loaded(Type) of
         true ->
-            Query = build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder),
+            Query = build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder, Capture),
             Res = pgsql:equery(Conn, Query, []),
             case Res of
                 {ok, Columns, ResultRows} ->
@@ -53,9 +54,12 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_
                         _ ->
                             ResultRows
                     end,
-                    lists:map(fun(Row) ->
-                                activate_record(Row, Columns, Type)
-                        end, FilteredRows);
+                  lists:map(
+                    fun(Row) ->
+                      activate_record(Row, Columns, Type, Capture)
+                    end,
+                    FilteredRows
+                  );
                 {error, Reason} ->
                     {error, Reason}
             end;
@@ -182,7 +186,37 @@ maybe_populate_id_value(Record) ->
         _ -> Record
 end.
 
-activate_record(Record, Metadata, Type) ->
+activate_record(Record, Metadata, Type, proplist) ->
+  activate_record(Record, Metadata, Type, {proplist, []});
+
+activate_record(Record, Metadata, Type, {proplist, Fields}) ->
+  AttributeTypes = boss_record_lib:attribute_types(Type),
+  AttributeColumns = boss_record_lib:database_columns(Type),
+  lists:map(
+    fun
+      (id) ->
+        DBColumn = proplists:get_value('id', AttributeColumns),
+        Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
+        {id, atom_to_list(Type) ++ "-" ++ id_value_to_string(element(Index, Record))};
+      (Key) ->
+        DBColumn = proplists:get_value(Key, AttributeColumns),
+        Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
+        AttrType = proplists:get_value(Key, AttributeTypes),
+        {Key, case element(Index, Record) of
+                undefined -> undefined;
+                null -> undefined;
+                Val -> boss_record_lib:convert_value_to_type(Val, AttrType)
+              end}
+    end,
+    case Fields of [] ->
+      boss_record_lib:attribute_names(Type);
+      _ -> Fields
+    end
+
+
+  );
+
+activate_record(Record, Metadata, Type, model) ->
     AttributeTypes = boss_record_lib:attribute_types(Type),
     AttributeColumns = boss_record_lib:database_columns(Type),
 
@@ -273,14 +307,23 @@ build_update_query(Record) ->
     {["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
         " WHERE ", IdColumn, " = ", pack_value(Id)],Values}.
 
-build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
+build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder, Capture) ->
     TableName = boss_record_lib:database_table(Type),
-    ["SELECT * FROM ", TableName, 
+    ["SELECT ", build_select_columns_list(Capture), " FROM ", TableName,
         " WHERE ", build_conditions(Type, Conditions),
         " ORDER BY ", atom_to_list(Sort), " ", sort_order_sql(SortOrder),
         case Max of all -> ""; _ -> " LIMIT " ++ integer_to_list(Max) ++
                     " OFFSET " ++ integer_to_list(Skip) end
     ].
+
+
+
+build_select_columns_list(Capture) when is_atom(Capture) ->
+  "*";
+build_select_columns_list({proplist, []}) ->
+  "*";
+build_select_columns_list({proplist, Fields}) when is_list(Fields) ->
+  string:join([atom_to_list(F) || F <- Fields], ", ").
 
 build_conditions(Type, Conditions) ->
     AttributeColumns = boss_record_lib:database_columns(Type),

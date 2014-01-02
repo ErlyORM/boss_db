@@ -1,6 +1,6 @@
 -module(boss_db_adapter_tyrant).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/8]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 
 -define(TRILLION, (1000 * 1000 * 1000 * 1000)).
@@ -33,8 +33,9 @@ find(Conn, Id) when is_list(Id) ->
         {error, Reason} ->
             {error, Reason}
     end.
-
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
+find(_, _, _, _, _, _, _, Capture) when Capture =/= model ->
+  error(not_yet_implemented);
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, _Capture) when is_atom(Type), is_list(Conditions),
                                                         is_integer(Max) orelse Max =:= all,
                                                         is_integer(Skip), is_atom(Sort), is_atom(SortOrder) ->
     case boss_record_lib:ensure_loaded(Type) of

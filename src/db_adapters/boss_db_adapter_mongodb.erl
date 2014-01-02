@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
--export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
+-export([start/1, stop/0, init/1, terminate/1, find/2, find/8]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).
 -export([push/2, pop/2]).
@@ -100,7 +100,9 @@ find(Conn, Id) when is_list(Id) ->
         {connection_failure, Reason} -> {error, Reason}
     end.
 
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
+find(_, _, _, _, _, _, _, Capture) when Capture =/= model ->
+  error(not_yet_implemented);
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, _Capture) when is_atom(Type), is_list(Conditions),
                                                               is_integer(Max) orelse Max =:= all, is_integer(Skip), 
                                                               is_atom(Sort), is_atom(SortOrder) ->
 %    ?LOG("find Type", Type),

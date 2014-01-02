@@ -81,6 +81,7 @@ init(Options) ->
 handle_call(_Anything, _Anyone, State) when State#state.connection_state /= connected ->
     {reply, db_connection_down, State};
 
+
 handle_call({find, Key}, From, #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
     case boss_cache:get(Prefix, Key) of
         undefined ->
@@ -103,9 +104,10 @@ handle_call({find, Key}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn, _} = db_for_key(Key, State),
     {reply, Adapter:find(Conn, Key), State};
 
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd, From, 
+
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include, Capture} = Cmd, From,
     #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
-    Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
+    Key = {Type, Conditions, Max, Skip, Sort, SortOrder, Capture},
     case boss_cache:get(Prefix, Key) of
         undefined ->
             {reply, Res, _} = handle_call(Cmd, From, State#state{ cache_enable = false }),
@@ -113,20 +115,25 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
                 true ->
                     DummyRecord = boss_record_lib:dummy_record(Type),
                     BelongsToTypes = DummyRecord:belongs_to_types(),
-                    IncludedRecords = lists:foldl(fun
-                            ({RelationshipName, InnerInclude}, Acc) ->
-                                RecordList = case proplists:get_value(RelationshipName, BelongsToTypes) of
-                                    undefined -> [];
-                                    RelationshipType ->
-                                        IdList = lists:map(fun(Record) -> 
-                                                    Record:get(lists:concat([RelationshipType, "_id"]))
-                                            end, Res),
-                                        handle_call({find, RelationshipName, 
-                                                [{'id', 'in', IdList}], all, 0, id, ascending,
-                                                InnerInclude}, From, State)
-                                end,
-                                RecordList ++ Acc
-                        end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include)),
+                    IncludedRecords = case Capture of
+                                      model ->
+                                        lists:foldl(fun
+                                          ({RelationshipName, InnerInclude}, Acc) ->
+                                            RecordList = case proplists:get_value(RelationshipName, BelongsToTypes) of
+                                                           undefined -> [];
+                                                           RelationshipType ->
+                                                             IdList = lists:map(fun(Record) ->
+                                                               Record:get(lists:concat([RelationshipType, "_id"]))
+                                                             end, Res),
+                                                             handle_call({find, RelationshipName,
+                                                               [{'id', 'in', IdList}], all, 0, id, ascending,
+                                                               InnerInclude, model}, From, State)
+                                                         end,
+                                            RecordList ++ Acc
+                                        end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include));
+                                      _ -> []
+                                    end,
+
                     lists:map(fun(Rec) ->
                                 boss_cache:set(Prefix, Rec:id(), Rec, State#state.cache_ttl)
                         end, IncludedRecords),
@@ -141,9 +148,10 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
             boss_news:extend_watch(Key),
             {reply, CachedValue, State}
     end;
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #state{ cache_enable = false } = State) ->
+
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _, Capture}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn, _} = db_for_type(Type, State),
-    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
+    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Capture), State};
 
 handle_call({get_migrations_table}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = {State#state.adapter, State#state.read_connection},
