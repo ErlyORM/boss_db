@@ -1,5 +1,6 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
+-include_lib("mongodb/include/mongo_protocol.hrl").
 -export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).
@@ -7,6 +8,7 @@
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
 -define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
+-type maybe(X) :: X|undefined.
 
 % Number of seconds between beginning of gregorian calendar and 1970
 -define(GREGORIAN_SECONDS_1970, 62167219200). 
@@ -20,7 +22,7 @@
 -type db_op()			:: 'not_equals'|'gt'|'ge'|'lt'|'le'|'in'|'not_in'.
 -type mongo_op()		:: '$ne'|'$gt'|'$gte'|'$lt'|'$lte'|'$in'|'$nin'.
 -type proplist(Key,Value)	:: [{Key, Value}].
--type proplist()		:: proplist(any(), any()).
+%-type proplist()		:: proplist(any(), any()).
 		     	
 -spec boss_to_mongo_op(db_op()) -> mongo_op().
 -spec pack_sort_order('ascending' | 'descending') -> -1 | 1.
@@ -81,7 +83,7 @@ make_read_connection(Options, ReadMode) ->
 	ReplSet ->
 	    RSConn = mongo:rs_connect(ReplSet),
 	    {ok, RSConn1} = case ReadMode of
-				master -> mongo_replset:primary(RSConn);
+				master   -> mongo_replset:primary(RSConn);
 				slave_ok -> mongo_replset:secondary_ok(RSConn)
 			    end,
 	    RSConn1
@@ -122,8 +124,8 @@ find(Conn, Id) when is_list(Id) ->
     case Res of
         {ok, {}}			-> undefined;
         {ok, {Doc}}			-> mongo_tuple_to_record(Type, Doc);
-        {failure, Reason}		-> {error, Reason};
-        {connection_failure, Reason}	-> {error, Reason}
+        {failure, Reason}		-> {error, Reason}
+        
     end.
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), 
@@ -142,8 +144,8 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
                     lists:map(fun(Row) ->
 				      mongo_tuple_to_record(Type, Row)
 			      end, mongo:rest(Curs));
-                {failure, Reason} -> {error, Reason};
-                {connection_failure, Reason} -> {error, Reason}
+                {failure, Reason} -> {error, Reason}
+                
             end;
         false -> {error, {module_not_loaded, Type}}
     end.
@@ -176,8 +178,8 @@ counter(Conn, Id) when is_list(Id) ->
         {ok, {Doc}} -> 
             PropList = tuple_to_proplist(Doc),
             proplists:get_value(value, PropList);
-        {failure, Reason} -> {error, Reason};
-        {connection_failure, Reason} -> {error, Reason}
+        {failure, Reason} -> {error, Reason}
+        
     end.
 
 incr(Conn, Id) ->
@@ -192,8 +194,8 @@ incr(Conn, Id, Count) ->
         end),
     case Res of
         {ok, ok}			-> counter(Conn, Id);
-        {failure, Reason}		-> {error, Reason};
-        {connection_failure, Reason}	-> {error, Reason}
+        {failure, Reason}		-> {error, Reason}
+        
     end.
 
 delete(Conn, Id) when is_list(Id) ->
@@ -217,8 +219,8 @@ save_record(Conn, Record) when is_tuple(Record) ->
     case Res of
         {ok, ok}			-> {ok, Record};
         {ok, Id}			-> {ok, Record:set(id, unpack_id(Type, Id))};
-        {failure, Reason}		-> {error, Reason};
-        {connection_failure, Reason}	-> {error, Reason}
+        {failure, Reason}		-> {error, Reason}
+        
     end.
 
 execute_save_record(Conn, Record, Collection, DefinedId) ->
@@ -279,7 +281,7 @@ get_migrations_table(Conn) ->
 make_curser(Curs) ->
     lists:map(fun(Row) ->
 		      MongoDoc = tuple_to_proplist(Row),
-		      {attr_value('_id', MongoDoc),
+		      {attr_value('id', MongoDoc),
 		       attr_value(version, MongoDoc),
 		       attr_value(migrated_at, MongoDoc)}
               end, mongo:rest(Curs)).
@@ -331,9 +333,8 @@ build_conditions1([{Key, Operator, Value}|Rest], Acc) ->
     %    ?LOG("Condition", Condition),
     build_conditions1(Rest, lists:append(Condition, Acc)).
 
--type operator_modules() :: 'not_matches'|matches|contains|not_contains|contains_all|not_contains_all|
-			    contains_any| contains_none|in|not_in.
--spec(build_conditions2(string(),operator_modules(),string()) ->
+
+-spec(build_conditions2(string(),boss_db_adapter_types:model_operator(),string()) ->
 	     [
 	      {atom(), binary()}         |
 	      {string(), {regex, binary(),binary()}} |
@@ -490,7 +491,8 @@ mongo_regex_options_for_re_module_options([multiline|Rest], Acc) ->
     mongo_regex_options_for_re_module_options(Rest, [$m|Acc]).
 
 % Boss and MongoDB have a different conventions to id attributes (id vs. '_id').
--spec(attr_value(id|string(), proplist('_id'|string(),string())) -> string()|undefined).
+-spec attr_value(atom()|string(), proplist(atom()|string(),string())) -> maybe(string()).
+
 attr_value(id, MongoDoc) ->
     proplists:get_value('_id', MongoDoc);
 attr_value(AttrName, MongoDoc) ->
