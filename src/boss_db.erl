@@ -420,10 +420,17 @@ validate_record_types(Record) ->
 %% @spec type( Id::string() ) -> Type::atom()
 %% @doc Returns the type of the BossRecord with `Id', or `undefined' if the record does not exist.
 type(Key) ->
-    case find(Key) of
-        undefined -> undefined;
-        Record -> element(1, Record)
+    try 
+        case find(Key) of
+            undefined -> undefined;
+            Record    -> element(1, Record)
+        end
+    catch 
+        _:_ ->
+            lager:notice("Type of ~p unknown" , [Key]),
+            undefined
     end.
+
 
 data_type(_, _Val) when is_float(_Val) ->
     "float";
