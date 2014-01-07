@@ -418,7 +418,7 @@ pack_datetime(DateTime) ->
 pack_date(Date) ->
     "'" ++ erlydtl_filters:date(Date, "Y-m-d") ++ "'".
 
-pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
+%pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
 pack_value(null) ->
 	"null";

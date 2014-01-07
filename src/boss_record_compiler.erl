@@ -3,8 +3,50 @@
 -define(DATABASE_MODULE, boss_db).
 -define(PREFIX, "BOSSRECORDINTERNAL").
 
+-type limit() :: integer()|all.
+                              
 -export([compile/1, compile/2, edoc_module/1, edoc_module/2, process_tokens/1, trick_out_forms/2]).
-
+-spec compile(binary() | [atom() | [any()] | char()]) -> any().
+-spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
+-spec edoc_module(string()) -> {atom() | tuple(),_}.
+-spec edoc_module(string(),_) -> {module(),_}.
+-spec process_tokens(nonempty_maybe_improper_list()) -> {nonempty_maybe_improper_list(),[{_,_}]}.
+-spec process_tokens(nonempty_maybe_improper_list(),[any()],[{_,_}]) -> {nonempty_maybe_improper_list(),[{_,_}]}.
+-spec trick_out_forms([any(),...],[any()]) -> [any(),...].
+-spec trick_out_forms([any(),...],[any()],[any()]) -> [any(),...].
+-spec trick_out_forms([any(),...],[any()],atom(),[any()],[any()]) -> [any(),...].
+-spec list_functions([any()]) -> [{_,_}].
+-spec list_functions([any()],[{_,_}]) -> [{_,_}].
+-spec override_functions([any(),...],[{_,_}]) -> [any()].
+-spec override_functions([any()],[any()],[{_,_}]) -> [any()].
+-spec export_forms([{atom() | [any()],integer()}]) -> [{'tree',atom(),{_,_,_,_},_}].
+-spec export_forms([{atom() | [any()],integer()}],[{'tree',atom(),{_,_,_,_},_}]) -> [{'tree',atom(),{_,_,_,_},_}].
+-spec database_columns_forms(atom() | string() | number(),[any()],[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
+-spec database_table_forms(atom(),[any()]) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec attribute_types_forms(atom() | string() | number(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
+-spec validate_types_forms(atom()) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec validate_forms(atom()) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec save_forms(atom()) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec parameter_getter_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
+-spec deep_get_forms() -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec get_attributes_forms(atom(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
+-spec set_attributes_forms(atom(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
+-spec association_forms(atom(),[any()]) -> [any(),...].
+-spec belongs_to_list_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
+-spec attribute_names_forms(atom() | string() | number(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
+-spec has_one_forms(atom() | string(),atom(),[any()]) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec has_many_forms(atom(),atom(),limit()|many,[any()]) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec first_or_undefined_forms({'tree',atom(),{'attr',0,[],'none'},_}) -> {'tree',atom(),{'attr',0,[],'none'},_}.
+-spec has_many_query_forms(atom() | string()) -> {'tree',atom(),{'attr',0,[],'none'},_}.
+-spec has_many_query_forms_with_conditions(atom() | string()) -> {'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_}.
+%-spec has_many_application_forms(atom() | string(),
+%                                 {'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},,atom() | string(),atom() | string(),[any()]) -> {'tree',atom(),{'attr',0,[],'none'},_}.
+-spec belongs_to_forms(atom() | string() | number(),atom(),atom()) -> {'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_}.
+-spec counter_getter_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
+-spec counter_reset_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
+-spec counter_incr_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
+-spec counter_name_forms(atom() | string()) -> {'tree',atom(),{'attr',0,[],'none'},_}.
+-spec parameter_to_colname(atom()) -> [byte()].
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 %% @equiv compile(File, [])
 compile(File) ->
@@ -23,6 +65,7 @@ edoc_module(File) ->
 %% @spec edoc_module( File::string(), Options ) -> {Module::atom(), EDoc}
 %% @doc Return an `edoc_module()' for the given Erlang source file when
 %% compiled as a BossRecord.
+
 edoc_module(File, Options) ->
     {ok, Forms, TokenInfo} = boss_compiler:parse(File, fun ?MODULE:process_tokens/1, []),
     edoc_extract:source(trick_out_forms(Forms, TokenInfo), edoc:read_comments(File), 
@@ -410,13 +453,13 @@ has_one_forms(HasOne, ModuleName, Opts) ->
 has_many_forms(HasMany, ModuleName, many, Opts) ->
     has_many_forms(HasMany, ModuleName, all, Opts);
 has_many_forms(HasMany, ModuleName, Limit, Opts) -> 
-    Sort = proplists:get_value(order_by, Opts, 'id'),
+    Sort         = proplists:get_value(order_by, Opts, 'id'),
     IsDescending = proplists:get_value(descending, Opts, false),
-    Singular = inflector:singularize(atom_to_list(HasMany)),
-    Type = proplists:get_value(module, Opts, Singular),
-    Include = proplists:get_value(include, Opts, []),
-    ForeignKey = proplists:get_value(foreign_key, Opts, atom_to_list(ModuleName) ++ "_id"),
-    QueryForms = has_many_query_forms(ForeignKey),
+    Singular     = inflector:singularize(atom_to_list(HasMany)),
+    Type         = proplists:get_value(module, Opts, Singular),
+    Include      = proplists:get_value(include, Opts, []),
+    ForeignKey   = proplists:get_value(foreign_key, Opts, atom_to_list(ModuleName) ++ "_id"),
+    QueryForms   = has_many_query_forms(ForeignKey),
     QueryFormsWithConditions = has_many_query_forms_with_conditions(ForeignKey),
     [
         erl_syntax:add_precomments([erl_syntax:comment(

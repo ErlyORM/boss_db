@@ -24,21 +24,28 @@ terminate(Conn) ->
 
 find(Conn, Id) ->
     {Type, Bucket, Key} = infer_type_from_id(Id),
-    case riakc_pb_socket:get(Conn, Bucket, Key) of
-        {ok, Res} ->
-            Value = riakc_obj:get_value(Res),
-            Data = binary_to_term(Value),
-            ConvertedData = riak_search_decode_data(Data),
-            AttributeTypes = boss_record_lib:attribute_types(Type),
-            Record = apply(Type, new, lists:map(fun (AttrName) ->
-                            Val = proplists:get_value(AttrName, ConvertedData),
-                            AttrType = proplists:get_value(AttrName, AttributeTypes),
-                            boss_record_lib:convert_value_to_type(Val, AttrType)
-                    end, boss_record_lib:attribute_names(Type))),
-            Record:set(id, Id);
-        {error, Reason} ->
-            {error, Reason}
-    end.
+    Socket = riakc_pb_socket:get(Conn, Bucket, Key),
+    query_riak_socket(Id, Type, Socket).
+
+query_riak_socket(Id, Type, _Socket = {ok, Res} ) ->
+    Value		= riakc_obj:get_value(Res),
+    Data		= binary_to_term(Value),
+    ConvertedData	= riak_search_decode_data(Data),
+    AttributeTypes	= boss_record_lib:attribute_types(Type),
+    Record              = get_record_from_riak(Type, ConvertedData,
+					       AttributeTypes),
+    Record:set(id, Id);
+query_riak_socket(_Id, _Type, _Socket = {error, Reason} ) ->
+    {error, Reason}.
+
+
+get_record_from_riak(Type, ConvertedData, AttributeTypes) ->
+    Lambda = fun (AttrName) ->
+		     Val      = proplists:get_value(AttrName, ConvertedData),
+		     AttrType = proplists:get_value(AttrName, AttributeTypes),
+		     boss_record_lib:convert_value_to_type(Val, AttrType)
+             end,
+    apply(Type, new, lists:map(Lambda, boss_record_lib:attribute_names(Type))).
 
 find_acc(_, _, [], Acc) ->
     lists:reverse(Acc);
@@ -54,22 +61,13 @@ find_acc(Conn, Prefix, [Id | Rest], Acc) ->
 % this is a stub just to make the tests runable
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
     Bucket = type_to_bucket_name(Type),
-    {ok, Keys} = case Conditions of
-        [] ->
-            riakc_pb_socket:list_keys(Conn, Bucket);
-        _ ->
-            {ok, {search_results, KeysExt, _, _}} = riakc_pb_socket:search(
-                Conn, Bucket, build_search_query(Conditions)),
-            {ok, lists:map(fun ({_,X})->
-                proplists:get_value(<<"id">>, X)
-            end, KeysExt)}
-    end,
+    {ok, Keys} = get_keys(Conn, Conditions, Bucket),
     Records = find_acc(Conn, atom_to_list(Type) ++ "-", Keys, []),
     Sorted = if
         is_atom(Sort) ->
             lists:sort(fun (A, B) ->
                         case SortOrder of
-                            ascending -> A:Sort() =< B:Sort();
+                            ascending  -> A:Sort() =< B:Sort();
                             descending -> A:Sort() > B:Sort()
                         end
                 end,
@@ -83,6 +81,16 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) ->
         _ ->
             []
     end.
+
+get_keys(Conn, [], Bucket) ->
+    riakc_pb_socket:list_keys(Conn, Bucket);
+get_keys(Conn, Conditions, Bucket) ->
+    {ok, {search_results, KeysExt, _, _}} = riakc_pb_socket:search(
+					      Conn, Bucket, build_search_query(Conditions)),
+    {ok, lists:map(fun ({_,X}) ->
+			   proplists:get_value(<<"id">>, X)
+		   end, KeysExt)}.
+
 
 % this is a stub just to make the tests runable
 count(Conn, Type, Conditions) ->
@@ -101,22 +109,28 @@ delete(Conn, Id) ->
     {_Type, Bucket, Key} = infer_type_from_id(Id),
     ok = riakc_pb_socket:delete(Conn, Bucket, Key).
 
+%The call riakc_obj:new(Bucket::binary(),'undefined',PropList::[{binary(),_}]) 
+% will never return since the success typing is
+% ('undefined' | binary(),'undefined' | binary(),'undefined' | binary()) -> 
+% {'riakc_obj','undefined' | binary(),'undefined' | binary(),'undefined',[],'undefined','undefined' | binary()} and the contract is 
+% (bucket(),key(),value()) -> riakc_obj()
 save_record(Conn, Record) ->
     Type = element(1, Record),
     Bucket = list_to_binary(type_to_bucket_name(Type)),
     PropList = [{riak_search_encode_key(K), riak_search_encode_value(V)} || {K, V} <- Record:attributes(), K =/= id],
     RiakKey = case Record:id() of
         id -> % New entry
-            O = riakc_obj:new(Bucket, undefined, PropList),
-            {ok, RO} = riakc_pb_socket:put(Conn, O),
+	    GUID        = uuid:to_string(uuid:uuid4()),
+            O		= riakc_obj:new(Bucket, GUID, PropList),
+            {ok, RO}	= riakc_pb_socket:put(Conn, O),
             binary_to_list(element(3, RO));
         DefinedId when is_list(DefinedId) -> % Existing Entry
-            [_ | Tail] = string:tokens(DefinedId, "-"),
-            Key = string:join(Tail, "-"),
-            BinKey = list_to_binary(Key),
-            {ok, O} = riakc_pb_socket:get(Conn, Bucket, BinKey),
-            O2 = riakc_obj:update_value(O, PropList),
-            ok = riakc_pb_socket:put(Conn, O2),
+            [_ | Tail]	= string:tokens(DefinedId, "-"),
+            Key		= string:join(Tail, "-"),
+            BinKey	= list_to_binary(Key),
+            {ok, O}	= riakc_pb_socket:get(Conn, Bucket, BinKey),
+            O2		= riakc_obj:update_value(O, PropList),
+            ok		= riakc_pb_socket:put(Conn, O2),
             Key
     end,
     {ok, Record:set(id, lists:concat([Type, "-", RiakKey]))}.

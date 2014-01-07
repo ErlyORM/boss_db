@@ -12,7 +12,9 @@
         convert_value_to_type/2,
         ensure_loaded/1
     ]).
-
+-ifdef(TEST).
+-compile(export_all).
+-endif.
 -define(MILLION, 1000000).
 
 run_before_hooks(Record, true) ->
@@ -20,6 +22,8 @@ run_before_hooks(Record, true) ->
 run_before_hooks(Record, false) ->
     run_hooks(Record, element(1, Record), before_update).
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 run_after_hooks(_UnsavedRecord, SavedRecord, true) ->
     boss_news:created(SavedRecord:id(), SavedRecord:attributes()),
     run_hooks(SavedRecord, element(1, SavedRecord), after_create);
@@ -27,46 +31,64 @@ run_after_hooks(UnsavedRecord, SavedRecord, false) ->
     boss_news:updated(SavedRecord:id(), UnsavedRecord:attributes(), SavedRecord:attributes()),
     run_hooks(SavedRecord, element(1, SavedRecord), after_update).
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 run_before_delete_hooks(Record) ->
     run_hooks(Record, element(1, Record), before_delete).
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 run_hooks(Record, Type, Function) ->
     case erlang:function_exported(Type, Function, 1) of
-        true -> Record:Function();
+        true  -> Record:Function();
         false -> ok
     end.
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 is_boss_record(Record, ModelList) when is_tuple(Record) andalso is_atom(element(1, Record)) ->
     Type = element(1, Record),
-    lists:member(atom_to_list(Type), ModelList) andalso 
+    lists:member(atom_to_list(Type), ModelList)            andalso 
         erlang:function_exported(Type, attribute_names, 1) andalso 
         erlang:function_exported(Type, new, tuple_size(Record) - 1);
 is_boss_record(_, _) ->
     false.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 dummy_record(Module) ->
     NumArgs = proplists:get_value('new', Module:module_info(exports)),
     apply(Module, 'new', ['id'] ++ lists:duplicate(NumArgs-1, undefined)).
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 attribute_names(Module) ->
     DummyRecord = dummy_record(Module),
     DummyRecord:attribute_names().
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 attribute_types(Module) ->
     DummyRecord = dummy_record(Module),
     DummyRecord:attribute_types().
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 database_columns(Module) ->
     DummyRecord = dummy_record(Module),
     DummyRecord:database_columns().
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 database_table(Module) ->
     DummyRecord = dummy_record(Module),
     DummyRecord:database_table().
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 belongs_to_types(Module) when is_atom(Module) ->
     (dummy_record(Module)):belongs_to_types().
 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 ensure_loaded(Module) ->
     case code:ensure_loaded(Module) of
         {module, Module} ->
@@ -75,6 +97,7 @@ ensure_loaded(Module) ->
         _ -> false
     end.
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 convert_value_to_type(Val, undefined) ->
     Val;
 convert_value_to_type(Val, integer) when is_integer(Val) ->
