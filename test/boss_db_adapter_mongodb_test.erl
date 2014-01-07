@@ -82,3 +82,18 @@ pack_value_test() ->
 %%     ?assert(proper:check_spec({boss_db_adapter_mongodb,unpack_id, 2},
 %% 			      [{to_file, user}])),
 %%     ok.
+%% multiple_where_clauses_string_test() ->
+%%     ?assert(proper:quickcheck(prop_multiple_where_cluases_string(),
+%% 			      [{to_file,user}])),
+%%     ok.
+
+%% prop_multiple_where_cluases_string() ->
+%%     ?FORALL( ValueList,
+%% 	     ?SIZED(Size, words:word(Size)),
+%% 	     begin
+%% 		 Key = "Test",
+%% 		 Result = ?T_MODULE:multiple_where_clauses_string("~p=~p",
+%% 								  Key, ValueList,"and"),
+%% 		 ?debugVal(Result),
+%% 		 is_list(Result)		
+%% 	    end).

@@ -1,6 +1,6 @@
 -module(boss_compiler).
 -export([compile/1, compile/2, parse/3]).
-
+-compile(export_all).
 -ifdef(TEST).
 -compile(export_all).
 -endif.
@@ -194,6 +194,16 @@ scan_transform(FileContents, StartLocation) ->
                             {error, ErrorInfo}
                     end
  
+            end;
+         {more, Continuation1} ->
+            {done, Return, eof} = erl_scan:tokens(Continuation1, eof, eof),
+            case Return of
+                {ok, Tokens, _EndLocation} ->
+                    {ok, Tokens};
+                {eof, EndLocation} ->
+                    {ok, [{eof, EndLocation}]};
+                {error, ErrorInfo, _EndLocation} ->
+                    {error, ErrorInfo}
             end
     end.
 

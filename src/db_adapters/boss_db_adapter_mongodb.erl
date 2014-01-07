@@ -8,7 +8,8 @@
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
 -define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
--type maybe(X) :: X|undefined.
+-type maybe(X)   :: X|undefined.
+-type error_m(X) :: X|{error, any()}.
 
 % Number of seconds between beginning of gregorian calendar and 1970
 -define(GREGORIAN_SECONDS_1970, 62167219200). 
@@ -21,8 +22,9 @@
 -define(NOT_CONTAINS_FORMAT, "this.~s.indexOf('~s') == -1").
 -type db_op()			:: 'not_equals'|'gt'|'ge'|'lt'|'le'|'in'|'not_in'.
 -type mongo_op()		:: '$ne'|'$gt'|'$gte'|'$lt'|'$lte'|'$in'|'$nin'.
+-type read_mode()               :: 'master'|'slave_ok'.
 -type proplist(Key,Value)	:: [{Key, Value}].
-%-type proplist()		:: proplist(any(), any()).
+-type proplist()		:: proplist(any(), any()).
 		     	
 -spec boss_to_mongo_op(db_op()) -> mongo_op().
 -spec pack_sort_order('ascending' | 'descending') -> -1 | 1.
@@ -73,6 +75,7 @@ make_write_connection(Options, ReadConnection) ->
 	    WConn
     end.
 
+-spec(make_write_connection(proplist(),read_mode()) -> error_m(mongo:connection())).
 make_read_connection(Options, ReadMode) ->
     case proplists:get_value(db_replication_set, Options) of
 	undefined ->
@@ -81,13 +84,21 @@ make_read_connection(Options, ReadMode) ->
 	    {ok, Conn} = mongo:connect({Host, Port}),
 	    Conn;
 	ReplSet ->
-	    RSConn = mongo:rs_connect(ReplSet),
-	    {ok, RSConn1} = case ReadMode of
-				master   -> mongo_replset:primary(RSConn);
-				slave_ok -> mongo_replset:secondary_ok(RSConn)
-			    end,
-	    RSConn1
+	    RSConn        = mongo:rs_connect(ReplSet),
+	    case read_connect1(ReadMode, RSConn) of
+		{ok, RSConn1} ->
+		    RSConn1;
+		Error = {error,_} ->
+		    Error
+	    end
     end.
+-spec(read_connect1(read_mode(), mongo:rs_connection()) ->
+	     error_m( mongo:connection())).
+      
+read_connect1(master, RSConn) ->
+     mongo_replset:primary(RSConn);
+read_connect1(slave_ok, RSConn) ->
+     mongo_replset:secondary_ok(RSConn).
 
 terminate({_, _, Connection, _}) ->
     case element(1, Connection) of
@@ -103,12 +114,18 @@ terminate({_, _, Connection, _,_,_}) ->
 
 
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
-    mongo:do(WriteMode, ReadMode, Connection, Database, Fun);
+    mongo:do(WriteMode, ReadMode, Connection, Database, Fun) ;
 execute({WriteMode, ReadMode, Connection, Database, User, Password}, Fun) ->
-    mongo:do(WriteMode, ReadMode, Connection, Database, fun() ->
-								true = mongo:auth(User,Password),
-								Fun()
-							end).
+    mongo:do(WriteMode, ReadMode, Connection, Database, 
+	     fun() ->
+		     case mongo:auth(User,Password) of
+			 true ->
+			     Fun();
+			 _ ->
+			     lager:error("Mongo DB Login Error check username and password ~p:~p", [User,Password]),
+			     {error,bad_login}
+		     end
+	     end).
 
 % Transactions are not currently supported, but we'll treat them as if they are.
 % Use at your own risk!
