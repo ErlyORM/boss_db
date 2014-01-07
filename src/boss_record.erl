@@ -11,7 +11,7 @@ new(Model, Attributes) ->
 new_from_json(Model, JSON) ->
     DummyRecord = boss_record_lib:dummy_record(Model),
     Attributes  = DummyRecord:attribute_names(),
-    Set         = set_attribute(_,JSON, _),
+    Set         = set_attribute(_,[{id,id}] ++ JSON, _),
     lists:foldl(Set, DummyRecord, Attributes).
 
 set_attribute(FieldName, JSON, Model) ->

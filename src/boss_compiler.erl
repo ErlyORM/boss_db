@@ -1,5 +1,25 @@
 -module(boss_compiler).
 -export([compile/1, compile/2, parse/3]).
+-compile(export_all).
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+-type token() ::erl_scan:token().
+-type position() ::{non_neg_integer(), non_neg_integer()}.
+-spec compile(binary() | [atom() | [any()] | char()]) -> any().
+-spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
+-spec compile_forms(_,binary() | [atom() | [any()] | char()],atom() | [any()]) -> any().
+-spec parse(binary() | [atom() | [any()] | char()],_,_) -> {'error',atom() | {'undefined' | [any()],[any(),...]}} | {'error',[{_,_}],[]} | {'ok',[any()],_}.
+-spec parse_text('undefined' | [atom() | [any()] | char()],binary(),_,_) -> {'error',{'undefined' | [any()],[any(),...]}} | {'error',[{_,_}],[]} | {'ok',[any()],_}.
+-spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()]) -> {[any()],[{_,_}]}.
+-spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_) -> {[any()],[{_,_}]}.
+-spec scan_transform(binary()) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
+-spec scan_transform('eof' | binary() | string(),integer() | {integer(),pos_integer()}) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
+-spec transform_char(char()) -> 'error' | {'ok',[any()]}.
+-spec cut_at_location(position(), nonempty_string(),{integer(),pos_integer()}) -> {string(),char(),string()}.
+-spec cut_at_location1(position(),string(),{integer(),pos_integer()},string()) -> {string(),char(),string()}.
+-spec flatten_token_locations([token()]) -> [token()].
+-spec flatten_token_locations1([token()],[token()]) -> [token()].
 
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 compile(File) ->
@@ -173,8 +193,9 @@ scan_transform(FileContents, StartLocation) ->
                         ErrorInfo ->
                             {error, ErrorInfo}
                     end
+ 
             end;
-        {more, Continuation1} ->
+         {more, Continuation1} ->
             {done, Return, eof} = erl_scan:tokens(Continuation1, eof, eof),
             case Return of
                 {ok, Tokens, _EndLocation} ->

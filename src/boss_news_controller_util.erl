@@ -17,30 +17,10 @@
 -export([process_news_state/3]).
 
 -export([prune_expired_entries/1]).
--record(state, {
-        watch_dict		= dict:new() ::dict(),
-        ttl_tree		= gb_trees:empty() ::gb_tree(),
-
-        set_watchers		= dict:new()  ::dict(), 
-        id_watchers		= dict:new()  ::dict(),
-
-        set_attr_watchers	= dict:new()  ::dict(),
-        id_attr_watchers	= dict:new()  ::dict(),
-        watch_counter		= 0           ::integer()}).
-
--record(watch, {
-        watch_list		= [],
-        callback   ::news_callback() ,
-        user_info  ::user_info(),
-        exp_time,
-        ttl}).
--type news_callback()	:: fun((event(),event_info()) ->any()) | fun((event(),event_info(), user_info())-> any()).
--type event()		:: any().
--type event_info()	:: any().
--type user_info()	:: any().
-
+-include("boss_news.hrl").
 -spec execute_callback(news_callback(),event(),event_info(),user_info(),_) -> pid().
 -spec execute_fun(news_callback(),event(),event_info(),user_info()) -> any().
+
 
 execute_callback(Fun, Event, EventInfo, UserInfo, WatchId) when is_function(Fun) ->
     erlang:spawn(fun() ->
@@ -65,7 +45,7 @@ execute_fun(Fun, Event, EventInfo, UserInfo) ->
     end.
 
 %% this one first
--spec(process_dict( _, dict(), string()) -> #watch{}).
+-spec(process_dict( watch_id(), dict(), string()) -> dict()).
 process_dict(WatchId, Dict, TopicString) ->
     case dict:fetch(TopicString, Dict) of
 	[WatchId] ->
@@ -224,18 +204,21 @@ process_news_state( WatchId, StateAcc, WatchList) ->
 		    (_, Acc) ->
 			Acc
                 end, StateAcc, WatchList).
--spec prune_expired_entries(#state{ttl_tree::gb_tree()}) -> #state{ttl_tree::gb_tree()}.
+
 
 
 %src/boss_news_controller_util.erl:237:
 % Record construction #state{watch_dict::dict(),ttl_tree::{number(),'nil' | {_,_,'nil' | {_,_,_,_},_}},set_watchers::dict(),id_watchers::dict(),set_attr_watchers::dict(),id_attr_watchers::dict(),watch_counter::integer()}%
 %violates the declared type of field ttl_tree::gb_tree()
+-spec prune_expired_entries(#state{ttl_tree::gb_tree()}) -> #state{ttl_tree::gb_tree()}.
 prune_expired_entries(#state{ ttl_tree = Tree } = State) ->
-    Lambda = fun(WatchId, StateAcc) ->
-		     #watch{ watch_list = WatchList } = dict:fetch(WatchId, StateAcc#state.watch_dict),
-		     NewState = process_news_state(WatchId, StateAcc, WatchList),
-		     NewState#state{ watch_dict = dict:erase(WatchId, StateAcc#state.watch_dict) }
-	     end,
     Now                 = boss_news_controller:future_time(0),
-    {NewState, NewTree} = tiny_pq:prune_collect_old(Lambda, State, Tree, Now),
+    {NewState, NewTree} = tiny_pq:prune_collect_old(fun prune_itterator/2, State, Tree, Now),
     NewState#state{ ttl_tree = NewTree }.
+
+
+-spec(prune_itterator(watch_id(), #state{}) -> #state{}).
+prune_itterator(WatchId, StateAcc) ->
+    #watch{ watch_list = WatchList } = dict:fetch(WatchId, StateAcc#state.watch_dict),
+    NewState = process_news_state(WatchId, StateAcc, WatchList),
+    NewState#state{ watch_dict = dict:erase(WatchId, StateAcc#state.watch_dict) }.

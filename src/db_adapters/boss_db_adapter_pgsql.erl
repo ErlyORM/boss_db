@@ -430,7 +430,7 @@ pack_datetime(DateTime) ->
 pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec(pack_value(undefined|binary()|boolean()|number()|date_time()) -> string()|iolist()).
+-spec(pack_value([byte()]|undefined|binary()|boolean()|number()|date_time()) -> string()|iolist()).
 pack_value(undefined) ->
     "null";
 pack_value(V) when is_binary(V) ->
