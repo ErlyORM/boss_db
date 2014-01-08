@@ -122,7 +122,10 @@ find(Key) when is_list(Key) ->
         undefined	-> undefined;
         {error, Reason} -> {error, Reason};
         BossRecord	-> BossRecord:get(string:join(Rest, "."))
-    end.
+    end;
+find(_Key) ->
+    lager:notice("Invalid key in find ~p", [_Key]),
+    {error, invalid_id}.
 
 %% @spec find(Type::atom(), Conditions) -> [ BossRecord ]
 %% @doc Query for BossRecords. Returns all BossRecords of type
