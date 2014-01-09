@@ -108,7 +108,7 @@ create_migration_table_if_needed() ->
 
 %% @doc Run database migration {Tag, Fun} in Direction
 migrate({Tag, Fun}, Direction) ->
-    io:format("Running migration: ~p ~p~n", [Tag, Direction]),
+    lager:info("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
     db_call({migration_done, Tag, Direction}).
 

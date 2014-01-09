@@ -7,7 +7,7 @@
 -export([push/2, pop/2]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
--define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
+-define(LOG(Name, Value), lager:debug("DEBUG: ~s: ~p~n", [Name, Value])).
 -type maybe(X)   :: X|undefined.
 -type error_m(X) :: X|{error, any()}.
 

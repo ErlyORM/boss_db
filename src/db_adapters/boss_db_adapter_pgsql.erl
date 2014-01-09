@@ -111,15 +111,13 @@ delete(Conn, Id) when is_list(Id) ->
 
 save_record(Conn, Record) when is_tuple(Record) ->
     RecordId = Record:id(),
-    io:format("Saving Record ~p~n", [RecordId]),
+    lager:notice("Saving Record ~p~n", [RecordId]),
     case RecordId of
         id ->
             Record1		= maybe_populate_id_value(Record),
             Type		= element(1, Record1),
             {Query,Params}	= build_insert_query(Record1),
-	    io:format("Query ~n~p~n", [ Query]),
-	    io:format("Params ~n~p~n", [Params]),
-            Res			= pgsql:equery(Conn, Query, Params),
+	    Res			= pgsql:equery(Conn, Query, Params),
             case Res of
                 {ok, _, _, [{Id}]} ->
                     {ok, Record1:set(id, lists:concat([Type, "-", id_value_to_string(Id)]))};
