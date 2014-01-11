@@ -36,6 +36,7 @@ Usage
         {db_port, PortNumber::integer()},
         {db_username, UserName::string()},
         {db_password, Password::string()},
+        {db_database, Database::string()},
         {shards, [
             {db_shard_models, [ModelName::atom()]},
             {db_shard_id, ShardId::atom()},
