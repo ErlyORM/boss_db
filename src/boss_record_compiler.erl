@@ -2,8 +2,13 @@
 -author('emmiller@gmail.com').
 -define(DATABASE_MODULE, boss_db).
 -define(PREFIX, "BOSSRECORDINTERNAL").
+-ifdef(TEST).
+-compile(export_all).
+-endif.
 
--type limit() :: integer()|all.
+-type limit()      :: integer()|all.
+-type syntaxTree() :: erl_syntax:syntaxTree().
+-type name()       :: atom()|[byte()].
                               
 -export([compile/1, compile/2, edoc_module/1, edoc_module/2, process_tokens/1, trick_out_forms/2]).
 -spec compile(binary() | [atom() | [any()] | char()]) -> any().
@@ -42,11 +47,12 @@
 %-spec has_many_application_forms(atom() | string(),
 %                                 {'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},,atom() | string(),atom() | string(),[any()]) -> {'tree',atom(),{'attr',0,[],'none'},_}.
 -spec belongs_to_forms(atom() | string() | number(),atom(),atom()) -> {'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_}.
--spec counter_getter_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
--spec counter_reset_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
--spec counter_incr_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
--spec counter_name_forms(atom() | string()) -> {'tree',atom(),{'attr',0,[],'none'},_}.
--spec parameter_to_colname(atom()) -> [byte()].
+
+-spec counter_getter_forms([atom()]) -> syntaxTree().
+-spec counter_reset_forms([name()]) -> syntaxTree().
+-spec counter_incr_forms([name()]) -> syntaxTree().
+-spec counter_name_forms(name()) -> syntaxTree().
+-spec parameter_to_colname(atom()) -> string().
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 %% @equiv compile(File, [])
 compile(File) ->
@@ -101,28 +107,11 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
     Attributes = proplists:get_value(attributes, erl_syntax_lib:analyze_forms(LeadingForms ++ Forms), []),
     [{eof, _Line}|ReversedOtherForms] = lists:reverse(Forms),
     UserForms = lists:reverse(ReversedOtherForms),
-    Counters = lists:foldl(
-        fun
-            ({counter, Counter}, Acc) -> [Counter|Acc];
-            (_, Acc) -> Acc
-        end, [], Attributes),
+    Counters = make_counters(Attributes),
 
     GeneratedForms = 
-        attribute_names_forms(ModuleName, Parameters) ++
-        attribute_types_forms(ModuleName, TokenInfo) ++
-        database_columns_forms(ModuleName, Parameters, Attributes) ++
-        database_table_forms(ModuleName, Attributes) ++
-        validate_types_forms(ModuleName) ++
-        validate_forms(ModuleName) ++
-        save_forms(ModuleName) ++
-        set_attributes_forms(ModuleName, Parameters) ++
-        get_attributes_forms(ModuleName, Parameters) ++
-        counter_getter_forms(Counters) ++
-        counter_reset_forms(Counters) ++
-        counter_incr_forms(Counters) ++
-        association_forms(ModuleName, Attributes) ++
-        parameter_getter_forms(Parameters) ++
-        deep_get_forms(),
+        make_generated_forms(ModuleName, Parameters, TokenInfo, Attributes,
+                             Counters),
 
     UserFunctionList = list_functions(UserForms),
     GeneratedFunctionList = list_functions(GeneratedForms),
@@ -131,6 +120,31 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
 
     LeadingForms ++ GeneratedExportForms ++ UserForms ++ 
         override_functions(GeneratedForms, UserFunctionList).
+
+make_counters(Attributes) ->
+    lists:foldl(
+      fun
+          ({counter, Counter}, Acc) -> [Counter|Acc];
+          (_, Acc) -> Acc
+      end, [], Attributes).
+
+make_generated_forms(ModuleName, Parameters, TokenInfo, Attributes,
+                     Counters) ->
+    lists:concat([attribute_names_forms(ModuleName, Parameters) ,
+                   attribute_types_forms(ModuleName, TokenInfo) ,
+                   database_columns_forms(ModuleName, Parameters, Attributes) ,
+                   database_table_forms(ModuleName, Attributes) ,
+                   validate_types_forms(ModuleName) ,
+                   validate_forms(ModuleName) ,
+                   save_forms(ModuleName) ,
+                   set_attributes_forms(ModuleName, Parameters) ,
+                   get_attributes_forms(ModuleName, Parameters) ,
+                   counter_getter_forms(Counters) ,
+                   counter_reset_forms(Counters) ,
+                   counter_incr_forms(Counters) ,
+                   association_forms(ModuleName, Attributes) ,
+                   parameter_getter_forms(Parameters) 
+                   |deep_get_forms()]).
 
 list_functions(Forms) ->
     list_functions(Forms, []).
@@ -590,6 +604,7 @@ counter_getter_forms(Counters) ->
                             [
                                 lists:concat(["% @spec ", Counter, "() -> integer()"]),
                                 lists:concat(["% @doc Retrieve the value of the `", Counter, "' counter"])])],
+                                           
                     erl_syntax:function(erl_syntax:atom(Counter),
                         [erl_syntax:clause([], none, [
                                     erl_syntax:application(
@@ -599,7 +614,9 @@ counter_getter_forms(Counters) ->
                                                 erl_syntax:variable("Id"),
                                                 erl_syntax:operator("++"),
                                                 erl_syntax:string("-counter-" ++ atom_to_list(Counter))
-                                            )])])])) end, Counters).
+                                          )])])])) 
+        end,
+      Counters).
 
 counter_reset_forms([]) ->
     [];
@@ -621,8 +638,9 @@ counter_incr_forms([]) ->
     [];
 counter_incr_forms(Counters) ->
     [ erl_syntax:add_precomments([erl_syntax:comment(
-                    ["% @spec incr( Counter::atom() ) -> integer()",
-                        "@doc Atomically increment a counter by 1."])],
+                                    ["% @spec incr( Counter::atom() ) -> integer()",
+                                     "@doc Atomically increment a counter by 1."]) 
+                                 ],
             erl_syntax:function(erl_syntax:atom(incr),
                 lists:map(
                     fun(Counter) ->
@@ -631,11 +649,14 @@ counter_incr_forms(Counters) ->
                                         erl_syntax:atom(?DATABASE_MODULE),
                                         erl_syntax:atom(incr),
                                         [counter_name_forms(Counter)])]) 
-                    end, Counters))),
-        erl_syntax:add_precomments([erl_syntax:comment(
-                    ["% @spec incr( Counter::atom(), Increment::integer() ) ->"++
-                        " integer()",
-                        "% @doc Atomically increment a counter by the specified increment"])],
+                    end, Counters)))
+,
+        erl_syntax:add_precomments([
+                                    erl_syntax:comment(
+                                      ["% @spec incr( Counter::atom(), Increment::integer() ) ->"++
+                                           " integer()",
+                                       "% @doc Atomically increment a counter by the specified increment"])
+                                   ],
             erl_syntax:function(erl_syntax:atom(incr),
                 lists:map(
                     fun(Counter) ->
@@ -659,6 +680,7 @@ counter_name_forms(CounterVariable) ->
             erl_syntax:atom('erlang'),
             erl_syntax:atom('atom_to_list'),
             [erl_syntax:atom(CounterVariable)])).
+
 
 parameter_to_colname(Parameter) when is_atom(Parameter) ->
     string:to_lower(inflector:underscore(atom_to_list(Parameter))).
