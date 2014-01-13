@@ -19,8 +19,8 @@ stop(Conn) ->
 init(_Options) ->
     {ok, undefined}.
 
-terminate(_Conn) ->
-    ok.
+terminate(Conn) ->
+    stop(Conn).
 
 get(Conn, Prefix, Key) ->
     case redo:cmd(Conn,["GET", term_to_key(Prefix, Key)]) of
