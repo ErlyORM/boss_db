@@ -4,6 +4,9 @@
 -ifdef(TEST).
 -compile(export_all).
 -endif.
+-type opt(X) ::X|undefined.
+-type error(X):: X|{error, _}.
+-type special_char() :: 8800|8804|8805|8712|8713|8715|8716|8764|8769|8839|8841|9745|8869|10178|8745.
 -type token() ::erl_scan:token().
 -type position() ::{non_neg_integer(), non_neg_integer()}.
 -spec compile(binary() | [atom() | [any()] | char()]) -> any().
@@ -15,7 +18,7 @@
 -spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_) -> {[any()],[{_,_}]}.
 -spec scan_transform(binary()) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
 -spec scan_transform('eof' | binary() | string(),integer() | {integer(),pos_integer()}) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
--spec transform_char(char()) -> 'error' | {'ok',[any()]}.
+-spec transform_char(special_char() |char()) -> 'error' | {'ok',[any()]}.
 -spec cut_at_location(position(), nonempty_string(),{integer(),pos_integer()}) -> {string(),char(),string()}.
 -spec cut_at_location1(position(),string(),{integer(),pos_integer()},string()) -> {string(),char(),string()}.
 -spec flatten_token_locations([token()]) -> [token()].
@@ -26,7 +29,7 @@ compile(File) ->
     compile(File, []).
 
 compile(File, Options) ->
-    IncludeDirs = proplists:get_value(include_dirs, Options, []),
+    IncludeDirs    = proplists:get_value(include_dirs, Options, []),
     TokenTransform = proplists:get_value(token_transform, Options),
     case parse(File, TokenTransform, IncludeDirs) of
         {ok, Forms, TokenInfo} ->
@@ -96,40 +99,52 @@ parse(File, TokenTransform, IncludeDirs) when is_list(File) ->
         Error ->
             Error
     end;
+
 parse(File, TokenTransform, IncludeDirs) when is_binary(File) ->
     parse_text(undefined, File, TokenTransform, IncludeDirs).
 
 parse_text(FileName, FileContents, TokenTransform, IncludeDirs) ->
     case scan_transform(FileContents) of
         {ok, Tokens} ->
-            {NewTokens, TokenInfo} = case TokenTransform of
-                undefined ->
-                    {Tokens, undefined};
-                TransformFun when is_function(TransformFun) ->
-                    TransformFun(Tokens)
-            end,
+            {NewTokens, TokenInfo} = transform_tokens(TokenTransform, Tokens),
             case aleppo:process_tokens(NewTokens, [{file, FileName}, {include, IncludeDirs}]) of
                 {ok, ProcessedTokens} ->
                     % We have to flatten the token locations because the Erlang parser
                     % has a bug that chokes on {Line, Col} locations in typed record
                     % definitions
                     TokensWithOnlyLineNumbers = flatten_token_locations(ProcessedTokens), 
-                    {Forms, Errors} = parse_tokens(TokensWithOnlyLineNumbers, FileName),
-                    case length(Errors) of
-                        0 ->
-                            {ok, Forms, TokenInfo};
-                        _ ->
-                            Errors1 = lists:map(fun(File) ->
-                                        {File, proplists:get_all_values(File, Errors)}
-                                end, proplists:get_keys(Errors)),
-                            {error, Errors1, []}
-                    end;
+                    {Forms, Errors}           = parse_tokens(TokensWithOnlyLineNumbers, FileName),
+                    parse_has_errors(TokenInfo, Forms, Errors);
                 {error, ErrorInfo} ->
                     {error, {FileName, [ErrorInfo]}}
             end;
         {error, ErrorInfo} ->
             {error, {FileName, [ErrorInfo]}}
     end.
+
+
+-spec(parse_has_errors(token(), token(), []) ->
+             {ok, token(),token()};
+          (_,_,[{string(), string()}]) ->
+             {error, [{string(), [string()]}], []}).
+parse_has_errors(TokenInfo, Forms, []) ->
+    {ok, Forms, TokenInfo};
+parse_has_errors(_TokenInfo, _Forms, Errors) ->
+     {error, make_parse_errors(Errors), []}.
+
+
+-spec(make_parse_errors([{string(), string()}]) -> [{string() , [string()]}]).
+make_parse_errors(Errors) ->
+    lists:map(fun(File) ->
+                      {File, proplists:get_all_values(File, Errors)}
+              end, proplists:get_keys(Errors)).
+
+-spec(transform_tokens(opt(fun(([token()])-> _)), [token()]) -> _).
+transform_tokens(undefined, Tokens) ->
+    {Tokens, undefined};
+transform_tokens(TransformFun,Tokens) when is_function(TransformFun) ->
+    TransformFun(Tokens).
+
 
 parse_tokens(Tokens, FileName) ->
     parse_tokens(Tokens, [], [], [], FileName).
@@ -183,17 +198,12 @@ scan_transform(FileContents, StartLocation) ->
                     case ErrorInfo of
                         {ErrorLocation, erl_scan, {illegal,character}} ->
                             {Truncated, IllegalChar, Rest1} = cut_at_location(ErrorLocation, FileContents, StartLocation),
-                            case transform_char(IllegalChar) of
-                                {ok, String} ->
-                                    Transformed = Truncated ++ String ++ Rest1,
-                                    scan_transform(Transformed, StartLocation);
-                                error ->
-                                    {error, ErrorInfo}
-                            end;
+                            scan_transform_illegal_char(StartLocation,
+                                                        ErrorInfo, Truncated,
+                                                        IllegalChar, Rest1);
                         ErrorInfo ->
                             {error, ErrorInfo}
                     end
- 
             end;
          {more, Continuation1} ->
             {done, Return, eof} = erl_scan:tokens(Continuation1, eof, eof),
@@ -205,6 +215,16 @@ scan_transform(FileContents, StartLocation) ->
                 {error, ErrorInfo, _EndLocation} ->
                     {error, ErrorInfo}
             end
+    end.
+-spec(scan_transform_illegal_char(pos_integer(),any(), string(), special_char(), string()) -> error(_)).
+scan_transform_illegal_char(StartLocation, ErrorInfo, Truncated,
+                            IllegalChar, Rest1) ->
+    case transform_char(IllegalChar) of
+        {ok, String} ->
+            Transformed = Truncated ++ String ++ Rest1,
+            scan_transform(Transformed, StartLocation);
+        error ->
+            {error, ErrorInfo}
     end.
 
 transform_char(8800) -> % ≠

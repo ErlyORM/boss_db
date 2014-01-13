@@ -189,10 +189,17 @@ id_value_to_string(Id) -> Id.
 
 
 maybe_populate_id_value(Record) ->
-    case boss_sql_lib:keytype(Record) of 
-        uuid -> Record:set(id, uuid:to_string(uuid:uuid4()));
-        _ -> Record
-end.
+    KeyType = boss_sql_lib:keytype(Record),
+    maybe_populate_id_value(Record, KeyType).
+
+-type keytype() ::uuid|id.
+-spec(maybe_populate_id_value(tuple(), uuid|id) -> tuple()).
+maybe_populate_id_value(Record, uuid) ->
+            Type = element(1, Record),
+            Record:set(id, lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]));
+maybe_populate_id_value(Record, id) ->
+    Record.
+
 
 activate_record(Record, Metadata, Type) ->
     AttributeTypes	= boss_record_lib:attribute_types(Type),

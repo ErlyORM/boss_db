@@ -28,3 +28,35 @@ cut_at_location_test() ->
     ?assert(proper:check_spec({boss_compiler, cut_at_location,3},
                               [{to_file,user}])),
     ok.
+
+transform_tokens_test() ->
+    
+    ?assert(proper:quickcheck(prop_transform_tokens(),
+                              [{to_file,user}])),
+    ?assert(proper:quickcheck(prop_transform_tokens_null(),
+                              [{to_file,user}])),
+    ok.
+prop_transform_tokens() ->
+    ?FORALL(Tokens,
+            [atom()],
+            begin
+                Tokens =:=boss_compiler:transform_tokens(fun(X) when is_list(X)->
+                                                                 X
+                                                         end, Tokens)
+            end).
+prop_transform_tokens_null() ->
+    ?FORALL(Tokens,
+            [atom()],
+            begin
+                {Tokens,undefined} =:=boss_compiler:transform_tokens(undefined, Tokens)
+            end).
+
+make_parse_errors_test() ->
+    ?assert(proper:check_spec({boss_compiler, make_parse_errors,1},
+                              [{to_file,user}])),
+    ok.
+
+parse_has_errors_test() ->
+    ?assert(proper:check_spec({boss_compiler, parse_has_errors,3},
+                              [{to_file,user}])),
+    ok.
