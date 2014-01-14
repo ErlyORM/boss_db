@@ -9,6 +9,9 @@
 %-type limit()      :: pos_integer()|all.
 -type syntaxTree() :: erl_syntax:syntaxTree().
 -type name()       :: atom()|[byte(),...].
+-type fctn_n() :: {atom(), non_neg_integer()}.
+-type fctn()   :: {function, atom(), atom(), non_neg_integer(), _}.
+
                               
 -export([compile/1, compile/2, edoc_module/1, edoc_module/2, process_tokens/1, trick_out_forms/2]).
 -spec compile(binary() | [atom() | [any()] | char()]) -> any().
@@ -17,56 +20,59 @@
 -spec edoc_module(string(),_) -> {module(),_}.
 -spec process_tokens(nonempty_maybe_improper_list()) -> {nonempty_maybe_improper_list(),[{_,_}]}.
 -spec process_tokens(nonempty_maybe_improper_list(),[any()],[{_,_}]) -> {nonempty_maybe_improper_list(),[{_,_}]}.
--spec trick_out_forms([any(),...],[any()]) -> [any(),...].
--spec trick_out_forms([any(),...],[any()],[any()]) -> [any(),...].
--spec trick_out_forms([any(),...],[any()],atom(),[any()],[any()]) -> [any(),...].
--spec list_functions([any()]) -> [{_,_}].
--spec list_functions([any()],[{_,_}]) -> [{_,_}].
--spec override_functions([any(),...],[{_,_}]) -> [any()].
--spec override_functions([any()],[any()],[{_,_}]) -> [any()].
--spec export_forms([{atom() | [any()],integer()}]) -> [{'tree',atom(),{_,_,_,_},_}].
--spec export_forms([{atom() | [any()],integer()}],[{'tree',atom(),{_,_,_,_},_}]) -> [{'tree',atom(),{_,_,_,_},_}].
--spec database_columns_forms(atom() | string() | number(),[any()],[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
--spec database_table_forms(atom(),[any()]) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
--spec attribute_types_forms(atom() | string() | number(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
--spec validate_types_forms(atom()) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
--spec validate_forms(atom()) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
--spec save_forms(atom()) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
--spec parameter_getter_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
--spec deep_get_forms() -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
+-spec trick_out_forms([any(),...],[any()])                                -> [any(),...].
+-spec trick_out_forms([any(),...],[any()],[any()])                        -> [any(),...].
+-spec trick_out_forms([any(),...],[any()],atom(),[any()],[any()])         -> [any(),...].
+-spec list_functions([atom()])                                            -> [fctn_n()].
+-spec list_functions([atom()],[fctn_n()])                                 -> [fctn_n()].
+-spec override_functions([syntaxTree()|fctn(),...],[fctn_n()])            -> [syntaxTree()].
+-spec override_functions([syntaxTree()|fctn()],[syntaxTree()],[fctn_n()]) -> [any()].
+-spec export_forms([{atom(), pos_integer()}])                             -> syntaxTree().
+-spec export_forms([{atom(), pos_integer()}],[syntaxTree()])              -> syntaxTree().
+-spec database_columns_forms(atom() ,[atom()],[{atom(),atom()}])          -> syntaxTree().
+-spec database_table_forms(atom(),[{atom(),atom()}])                      -> syntaxTree().
+-spec attribute_types_forms(atom() ,[{atom(), atom()}])                   -> syntaxTree().
+-spec validate_types_forms(atom())                                        -> syntaxTree().
+-spec validate_forms(atom())                                              -> syntaxTree().
+-spec save_forms(atom())                                                  -> syntaxTree().
 
--spec get_attributes_forms(atom(),[any()])                           -> syntaxTree().
--spec set_attributes_forms(atom(),[any()])                           -> syntaxTree().
+-spec parameter_getter_forms([atom()])                                    -> syntaxTree().
+
+-spec deep_get_forms()                                                    -> syntaxTree().
+-spec get_attributes_forms(atom(),[atom()])                               -> syntaxTree().
+-spec set_attributes_forms(atom(),[atom()])                               -> syntaxTree().
 -type assoc() :: {has,        {atom(), integer()}}          |
                  {has,        {atom(), integer(), [any()]}} |
                  {belongs_to, atom()}.
--spec association_forms(atom(),[assoc()])                              -> [any(),...].
+-spec association_forms(atom(),[assoc()])                                 -> [any(),...].
 
--spec belongs_to_list_forms([{atom(),any()}])                        -> syntaxTree().
+-spec belongs_to_list_forms([{atom(),any()}])                             -> syntaxTree().
 
--spec belongs_to_list_make_list([{atom(),atom()}])                   -> syntaxTree().
--spec attribute_names_forms(name(),[atom()])                         -> syntaxTree().
--spec has_one_forms(name(),atom(),[any()])                           -> syntaxTree().
--spec has_many_forms(atom(),atom(), pos_integer()|all|many, [any()]) -> syntaxTree().
--spec first_or_undefined_forms( syntaxTree())                        -> syntaxTree().
+-spec belongs_to_list_make_list([{atom(),atom()}])                        -> syntaxTree().
+-spec attribute_names_forms(name(),[atom()])                              -> syntaxTree().
+-spec has_one_forms(name(),atom(),[any()])                                -> syntaxTree().
+-spec has_many_forms(atom(),atom(), pos_integer()|all|many, [any()])      -> syntaxTree().
+-spec first_or_undefined_forms( syntaxTree())                             -> syntaxTree().
 -spec has_many_application_forms(name(),{'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},
                                  pos_integer(),
                                  name(),
                                  name(),
                                  [atom()])
-                                                                     -> syntaxTree().
+                                                                          -> syntaxTree().
 
--spec has_many_query_forms_with_conditions(name())                   -> syntaxTree().
+-spec has_many_query_forms_with_conditions(name())                        -> syntaxTree().
 -spec belongs_to_forms(atom() | string() | number(),
                        atom(),
-                       atom())                                       -> syntaxTree().
--spec has_many_query_forms(name())                                   -> syntaxTree().
--spec counter_getter_forms([atom()])                                 -> syntaxTree().
--spec counter_reset_forms([name()])                                  -> syntaxTree().
--spec counter_incr_forms([name()])                                   -> syntaxTree().
--spec counter_name_forms(name())                                     -> syntaxTree().
--spec parameter_to_colname(atom())                                   -> string().
-%% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
+                       atom())                                            -> syntaxTree().
+-spec has_many_query_forms(name())                                        -> syntaxTree().
+-spec counter_getter_forms([atom()])                                      -> syntaxTree().
+-spec counter_reset_forms([name()])                                       -> syntaxTree().
+-spec counter_incr_forms([name()])                                        -> syntaxTree().
+-spec counter_name_forms(name())                                          -> syntaxTree().
+-spec parameter_to_colname(atom())                                        -> string().
+
+
+%% @Spec compile( File::string() )                                   -> {ok, Module} | {error, Reason}
 %% @equiv compile(File, [])
 compile(File) ->
     compile(File, []).
@@ -202,7 +208,11 @@ export_forms(FunctionList) ->
 export_forms([], Acc) ->
     lists:reverse(Acc);
 export_forms([{Name, Arity}|Rest], Acc) ->
-    export_forms(Rest, [erl_syntax:attribute(erl_syntax:atom(export), [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Name), erl_syntax:integer(Arity))])])|Acc]).
+    export_forms(Rest, 
+                 [erl_syntax:attribute(erl_syntax:atom(export), 
+                                       [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Name), 
+                                                                                    erl_syntax:integer(Arity))])])
+                  |Acc]).
 
 database_columns_forms(ModuleName, Parameters, Attributes) ->
     DefinedColumns = proplists:get_value(columns, Attributes, []),

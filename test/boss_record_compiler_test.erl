@@ -2,6 +2,103 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+
+list_functions_test() ->
+            ?assert(proper:check_spec({boss_record_compiler,list_functions, 1},
+                                      [{to_file, user}])),
+            ?assert(proper:check_spec({boss_record_compiler,list_functions, 2},
+                                      [{to_file, user}])),
+            ok.
+
+override_functions_test_() ->
+    {timeout,
+     300,
+     ?_test(
+        begin
+            ?assert(proper:check_spec({boss_record_compiler,override_functions, 2},
+                                      [{to_file, user}, 
+                                       40])),
+            ?assert(proper:check_spec({boss_record_compiler,override_functions, 3},
+                                      [{to_file, user}, 
+                                       40])),
+            ok
+        end)}.
+
+export_forms_test() ->
+    {timeout,
+     300,
+     ?_test(
+        begin
+
+            ?assert(proper:check_spec({boss_record_compiler,export_forms, 1},
+                                      [{to_file, user}])),
+            
+            ?assert(proper:check_spec({boss_record_compiler,export_forms, 2},
+                                      [{to_file, user}, 
+                                       40])),
+            ok
+        end)}.
+
+    
+
+
+database_column_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,database_columns_forms, 3},
+                              [{to_file, user}])),
+    ok.
+
+
+database_table_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,database_table_forms, 2},
+                              [{to_file, user}])),
+    ok.
+
+
+attribute_types_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,attribute_types_forms, 2},
+                              [{to_file, user}])),
+    ok.
+
+
+validate_types_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,validate_types_forms, 1},
+                              [{to_file, user}])),
+    ok.
+
+validate_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,validate_forms, 1},
+                              [{to_file, user}])),
+    ok.
+
+save_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,save_forms, 1},
+                              [{to_file, user}])),
+    ok.
+
+
+parameter_getter_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,parameter_getter_forms, 1},
+                              [{to_file, user}])),
+    ok.
+
+
+deep_get_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,deep_get_forms, 0},
+                              [{to_file, user}])),
+    ok.
+
+get_attributes_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,get_attributes_forms, 2},
+                              [{to_file, user}])),
+    ok.
+
+
+set_attributes_forms_test() ->
+    ?assert(proper:check_spec({boss_record_compiler,set_attributes_forms, 2},
+                              [{to_file, user}])),
+    ok.
+
+
 association_forms_test() ->
     ?assert(proper:check_spec({boss_record_compiler, association_forms, 2},
                               [{to_file, user}])),
