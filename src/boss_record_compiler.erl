@@ -6,9 +6,9 @@
 -compile(export_all).
 -endif.
 
--type limit()      :: integer()|all.
+%-type limit()      :: pos_integer()|all.
 -type syntaxTree() :: erl_syntax:syntaxTree().
--type name()       :: atom()|[byte()].
+-type name()       :: atom()|[byte(),...].
                               
 -export([compile/1, compile/2, edoc_module/1, edoc_module/2, process_tokens/1, trick_out_forms/2]).
 -spec compile(binary() | [atom() | [any()] | char()]) -> any().
@@ -34,25 +34,38 @@
 -spec save_forms(atom()) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
 -spec parameter_getter_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_}].
 -spec deep_get_forms() -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
--spec get_attributes_forms(atom(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
--spec set_attributes_forms(atom(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
--spec association_forms(atom(),[any()]) -> [any(),...].
--spec belongs_to_list_forms([any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
--spec attribute_names_forms(atom() | string() | number(),[any()]) -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
--spec has_one_forms(atom() | string(),atom(),[any()]) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
--spec has_many_forms(atom(),atom(),limit()|many,[any()]) -> [{'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_},...].
--spec first_or_undefined_forms({'tree',atom(),{'attr',0,[],'none'},_}) -> {'tree',atom(),{'attr',0,[],'none'},_}.
--spec has_many_query_forms(atom() | string()) -> {'tree',atom(),{'attr',0,[],'none'},_}.
--spec has_many_query_forms_with_conditions(atom() | string()) -> {'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_}.
-%-spec has_many_application_forms(atom() | string(),
-%                                 {'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},,atom() | string(),atom() | string(),[any()]) -> {'tree',atom(),{'attr',0,[],'none'},_}.
--spec belongs_to_forms(atom() | string() | number(),atom(),atom()) -> {'tree',atom(),{'attr',_,[any()],{_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],{_,_,_}},_}.
 
--spec counter_getter_forms([atom()]) -> syntaxTree().
--spec counter_reset_forms([name()]) -> syntaxTree().
--spec counter_incr_forms([name()]) -> syntaxTree().
--spec counter_name_forms(name()) -> syntaxTree().
--spec parameter_to_colname(atom()) -> string().
+-spec get_attributes_forms(atom(),[any()])                           -> syntaxTree().
+-spec set_attributes_forms(atom(),[any()])                           -> syntaxTree().
+-type assoc() :: {has,        {atom(), integer()}}          |
+                 {has,        {atom(), integer(), [any()]}} |
+                 {belongs_to, atom()}.
+-spec association_forms(atom(),[assoc()])                              -> [any(),...].
+
+-spec belongs_to_list_forms([{atom(),any()}])                        -> syntaxTree().
+
+-spec belongs_to_list_make_list([{atom(),atom()}])                   -> syntaxTree().
+-spec attribute_names_forms(name(),[atom()])                         -> syntaxTree().
+-spec has_one_forms(name(),atom(),[any()])                           -> syntaxTree().
+-spec has_many_forms(atom(),atom(), pos_integer()|all|many, [any()]) -> syntaxTree().
+-spec first_or_undefined_forms( syntaxTree())                        -> syntaxTree().
+-spec has_many_application_forms(name(),{'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},
+                                 pos_integer(),
+                                 name(),
+                                 name(),
+                                 [atom()])
+                                                                     -> syntaxTree().
+
+-spec has_many_query_forms_with_conditions(name())                   -> syntaxTree().
+-spec belongs_to_forms(atom() | string() | number(),
+                       atom(),
+                       atom())                                       -> syntaxTree().
+-spec has_many_query_forms(name())                                   -> syntaxTree().
+-spec counter_getter_forms([atom()])                                 -> syntaxTree().
+-spec counter_reset_forms([name()])                                  -> syntaxTree().
+-spec counter_incr_forms([name()])                                   -> syntaxTree().
+-spec counter_name_forms(name())                                     -> syntaxTree().
+-spec parameter_to_colname(atom())                                   -> string().
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 %% @equiv compile(File, [])
 compile(File) ->
@@ -425,27 +438,30 @@ belongs_to_list_forms(BelongsToList) ->
                                                     erl_syntax:atom(Type)])
                                     end, BelongsToList))])])),
     
-    erl_syntax:add_precomments([erl_syntax:comment(
-                ["% @spec belongs_to() -> [{atom(), BossRecord}]",
-                    lists:concat(["% @doc Retrieve all of the `belongs_to' associations at once."])])],
-        erl_syntax:function(
-            erl_syntax:atom(belongs_to),
-            [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
-                                fun({Name, _Type}) -> erl_syntax:tuple([
-                                                erl_syntax:atom(Name),
-                                                erl_syntax:application(none, erl_syntax:atom(Name), [])]) 
-                                end, BelongsToList))])]))
+      erl_syntax:add_precomments([erl_syntax:comment(
+                                    ["% @spec belongs_to() -> [{atom(), BossRecord}]",
+                                     lists:concat(["% @doc Retrieve all of the `belongs_to' associations at once."])])],
+                                 erl_syntax:function(
+                                   erl_syntax:atom(belongs_to),
+                                  [erl_syntax:clause([], none, [erl_syntax:list(belongs_to_list_make_list(BelongsToList))])]))
             ].
+
+belongs_to_list_make_list(BelongsToList) ->
+    lists:map(
+      fun({Name, _Type}) -> erl_syntax:tuple([
+                                              erl_syntax:atom(Name),
+                                              erl_syntax:application(none, erl_syntax:atom(Name), [])])
+      end, BelongsToList).
 
 attribute_names_forms(ModuleName, Parameters) ->
     [ erl_syntax:add_precomments([erl_syntax:comment(
-                    ["% @spec attribute_names() -> [atom()]",
-                        lists:concat(["% @doc A list of the lower-case `", ModuleName, "' parameters."])])],
-            erl_syntax:function(
-                erl_syntax:atom(attribute_names),
-                [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
-                                    fun(P) -> erl_syntax:atom(parameter_to_colname(P)) end,
-                                    Parameters))])]))].
+                                    ["% @spec attribute_names() -> [atom()]",
+                                     lists:concat(["% @doc A list of the lower-case `", ModuleName, "' parameters."])])],
+                                 erl_syntax:function(
+                                   erl_syntax:atom(attribute_names),
+                                   [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
+                                                                                   fun(P) -> erl_syntax:atom(parameter_to_colname(P)) end,
+                                                                                   Parameters))])]))].
 
 has_one_forms(HasOne, ModuleName, Opts) ->
     Type = proplists:get_value(module, Opts, HasOne),
@@ -542,9 +558,13 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
 
 first_or_undefined_forms(Forms) ->
     erl_syntax:case_expr(Forms,
-        [erl_syntax:clause([erl_syntax:list([erl_syntax:variable(?PREFIX++"Record")])], none,
-                [erl_syntax:variable(?PREFIX++"Record")]),
-            erl_syntax:clause([erl_syntax:underscore()], none, [erl_syntax:atom(undefined)])]).
+                         [erl_syntax:clause([erl_syntax:list([erl_syntax:variable(?PREFIX++"Record")])],
+                                            none,
+                                            [erl_syntax:variable(?PREFIX++"Record")]),
+                          
+                          erl_syntax:clause([erl_syntax:underscore()], 
+                                            none, 
+                                            [erl_syntax:atom(undefined)])]).
 
 has_many_query_forms(ForeignKey) ->
     erl_syntax:list([
