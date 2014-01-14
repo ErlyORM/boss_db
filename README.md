@@ -46,8 +46,29 @@ Usage
     ]
 
     CacheOptions = [
-        {adapter, memcached_bin}, % More in the future
-        {cache_servers, [{HostName::string(), Port::integer(), Weight::integer()}]}
+        {adapter, memcached_bin | redis | ets},
+        {cache_servers, MemcachedCacheServerOpts | RedisCacheServerOpts | EtsCacheServerOpts}
+    ]
+
+    MemcachedCacheServerOpts = [
+        { HostName::string() = "localhost"
+        , Port::integer()    = 11211
+        , Weight::integer()  = 1
+        }, ...
+    ]
+
+    RedisCacheServerOpts = [
+        {host,      HostName::string()   = "localhost"},
+        {port,      Port::integer()      = 6379},
+        {pass,      Password::string()   = undefined},
+        {db,        Db::integer()        = 0},
+        {reconnect, Reconnect::boolean() = true}
+    ]
+
+    EtsCacheServerOpts = [
+        {ets_maxsize,   MaxSize::integer() = 32 * 1024 * 1024},
+        {ets_threshold, Threshold::float() = 0.85},
+        {ets_weight,    Weight::integer()  = 30}
     ]
 
 Introduction
