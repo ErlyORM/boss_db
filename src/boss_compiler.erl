@@ -1,22 +1,36 @@
 -module(boss_compiler).
 -export([compile/1, compile/2, parse/3]).
+
 -compile(export_all).
+
 -ifdef(TEST).
 -compile(export_all).
 -endif.
--type opt(X) ::X|undefined.
--type error(X):: X|{error, _}.
+-type syntaxTree()   :: erl_syntax:syntaxTree().
+-type opt(X)         :: X|undefined.
+-type error(X)       :: {ok, X}|{error, string()}.
+-type error(X,Y)     :: {ok, X,Y}|{error, _}.
 -type special_char() :: 8800|8804|8805|8712|8713|8715|8716|8764|8769|8839|8841|9745|8869|10178|8745.
--type token() ::erl_scan:token().
--type position() ::{non_neg_integer(), non_neg_integer()}.
+-type token()        :: erl_scan:token().
+-type position()     :: {non_neg_integer(), non_neg_integer()}.
+
+-type otp_version() :: 14|15|16|17.
+-spec(make_forms_by_version([syntaxTree()], otp_version()) ->syntaxTree()).
 -spec compile(binary() | [atom() | [any()] | char()]) -> any().
 -spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
 -spec compile_forms(_,binary() | [atom() | [any()] | char()],atom() | [any()]) -> any().
--spec parse(binary() | [atom() | [any()] | char()],_,_) -> {'error',atom() | {'undefined' | [any()],[any(),...]}} | {'error',[{_,_}],[]} | {'ok',[any()],_}.
--spec parse_text('undefined' | [atom() | [any()] | char()],binary(),_,_) -> {'error',{'undefined' | [any()],[any(),...]}} | {'error',[{_,_}],[]} | {'ok',[any()],_}.
+
+-spec parse(binary() | [atom() | [any()] | char()],_,_) -> 
+                   {'error',atom() | {'undefined' | [any()],[any(),...]}} |
+                   {'error',[{_,_}]} | 
+                   {'ok',[any()],_}.
+
+-spec parse_text('undefined' | [atom() | [any()] | char()],binary(),_,_) -> {'error',{'undefined' | [any()],[any(),...]}} | 
+                                                                            {'error',[{_,_}]} |
+                                                                            {'ok',[any()],_}.
 -spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()]) -> {[any()],[{_,_}]}.
 -spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_) -> {[any()],[{_,_}]}.
--spec scan_transform(binary()) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
+-spec scan_transform(binary()) -> syntaxTree().
 -spec scan_transform('eof' | binary() | string(),integer() | {integer(),pos_integer()}) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
 -spec transform_char(special_char() |char()) -> 'error' | {'ok',[any()]}.
 -spec cut_at_location(position(), nonempty_string(),{integer(),pos_integer()}) -> {string(),char(),string()}.
@@ -29,55 +43,85 @@ compile(File) ->
     compile(File, []).
 
 compile(File, Options) ->
-    IncludeDirs    = proplists:get_value(include_dirs, Options, []),
+    IncludeDirs    = proplists:get_value(include_dirs,    Options, []),
     TokenTransform = proplists:get_value(token_transform, Options),
     case parse(File, TokenTransform, IncludeDirs) of
         {ok, Forms, TokenInfo} ->
-            CompilerOptions = proplists:get_value(compiler_options, Options, 
-                [verbose, return_errors]),
-            NewForms = case proplists:get_value(pre_revert_transform, Options) of
-                undefined ->
-                    Forms;
-                TransformFun when is_function(TransformFun) ->
-                    case erlang:fun_info(TransformFun, arity) of
-                        {arity, 1} ->
-                            TransformFun(Forms);
-                        {arity, 2} ->
-                            TransformFun(Forms, TokenInfo)
-                    end
-            end,
-            OTPVersion = erlang:system_info(otp_release),
-            {Version, _Rest} = string:to_integer(string:sub_string(OTPVersion, 2, 3)),
-            {NewNewForms, BossDBParseTransforms} = case Version of
-                Version when Version >= 16 ->
-                    % OTP Version starting with R16A needs boss_db_pmod_pt
-                    % boss_db_pmod_pt needs the form to end with {eof, 0} tagged tupple
-                    NewForms1 = NewForms ++ [{eof,0}],
-                    % boss_db_pmod_pt needs the form to be in "new" format
-                    {erl_syntax:revert_forms(erl_syntax:revert(NewForms1)), [boss_db_pmod_pt, boss_db_pt]};
-                _ ->
-                    {erl_syntax:revert(NewForms), [boss_db_pt]}
-            end,
-
-            ParseTransforms = BossDBParseTransforms ++ proplists:get_value(parse_transforms, Options, []),
-            RevertedForms = lists:foldl(fun(Mod, Acc) ->
-                    Mod:parse_transform(Acc, CompilerOptions)
-                end, NewNewForms, ParseTransforms),
-
-            case compile_forms(RevertedForms, File, CompilerOptions) of
-                {ok, Module, Bin} ->
-                    ok = case proplists:get_value(out_dir, Options) of
-                        undefined -> ok;
-                        OutDir ->
-                            BeamFile = filename:join([OutDir, lists:concat([Module, ".beam"])]),
-                            file:write_file(BeamFile, Bin)
-                    end,
-                    {ok, Module};
-                Error ->
-                    Error
-            end;
+            handle_parse_success(File, Options, Forms, TokenInfo);
         Error ->
             Error
+    end.
+
+handle_parse_success(File, Options, Forms, TokenInfo) ->
+    Version         = otp_version(),
+    CompilerOptions = compiler_options(Options),
+    
+    Forms1          = make_new_forms(Options, Forms, TokenInfo),
+    {Forms2, BossDBParseTransforms} = make_forms_by_version(Forms1,
+                                                            Version),
+
+    ParseTransforms = make_parse_transforms(Options, BossDBParseTransforms),
+    RevertedForms   = make_reverted_forms(CompilerOptions, Forms2,
+                                          ParseTransforms),
+
+    compile_forms1(File, Options, CompilerOptions, RevertedForms).
+
+compiler_options(Options) ->
+    proplists:get_value(compiler_options, Options,
+                        [verbose, return_errors]).
+
+compile_forms1(File, Options, CompilerOptions, RevertedForms) ->
+    case compile_forms(RevertedForms, File, CompilerOptions) of
+        {ok, Module, Bin} ->
+            ok = write_beam(Options, Module, Bin),
+            {ok, Module};
+        Error ->
+            Error
+    end.
+
+write_beam(Options, Module, Bin) ->
+    case proplists:get_value(out_dir, Options) of
+        undefined -> ok;
+        OutDir ->
+            BeamFile = filename:join([OutDir, lists:concat([Module, ".beam"])]),
+            file:write_file(BeamFile, Bin)
+    end.
+
+make_parse_transforms(Options, BossDBParseTransforms) ->
+    BossDBParseTransforms ++
+proplists:get_value(parse_transforms, Options, []).
+
+otp_version() ->
+    OTPVersion       = erlang:system_info(otp_release),
+    {Version, _Rest} = string:to_integer(string:sub_string(OTPVersion, 2, 3)),
+    Version.
+
+make_forms_by_version(NewForms, Version) when Version >= 16->
+                                                % OTP Version starting with R16A needs boss_db_pmod_pt
+                                                % boss_db_pmod_pt needs the form to end with {eof, 0} tagged tupple
+    NewForms1 = NewForms ++ [{eof,0}],
+                                                % boss_db_pmod_pt needs the form to be in "new" format
+    {erl_syntax:revert_forms(erl_syntax:revert(NewForms1)), [boss_db_pmod_pt, boss_db_pt]};
+make_forms_by_version(NewForms, _Version) ->
+    {erl_syntax:revert(NewForms), [boss_db_pt]}.
+
+
+make_reverted_forms(CompilerOptions, NewNewForms, ParseTransforms) ->
+    lists:foldl(fun(Mod, Acc) ->
+                        Mod:parse_transform(Acc, CompilerOptions)
+                end, NewNewForms, ParseTransforms).
+
+make_new_forms(Options, Forms, TokenInfo) ->
+    case proplists:get_value(pre_revert_transform, Options) of
+        undefined ->
+            Forms;
+        TransformFun when is_function(TransformFun) ->
+            case erlang:fun_info(TransformFun, arity) of
+                {arity, 1} ->
+                    TransformFun(Forms);
+                {arity, 2} ->
+                    TransformFun(Forms, TokenInfo)
+            end
     end.
 
 compile_forms(Forms, File, Options) ->
@@ -109,12 +153,7 @@ parse_text(FileName, FileContents, TokenTransform, IncludeDirs) ->
             {NewTokens, TokenInfo} = transform_tokens(TokenTransform, Tokens),
             case aleppo:process_tokens(NewTokens, [{file, FileName}, {include, IncludeDirs}]) of
                 {ok, ProcessedTokens} ->
-                    % We have to flatten the token locations because the Erlang parser
-                    % has a bug that chokes on {Line, Col} locations in typed record
-                    % definitions
-                    TokensWithOnlyLineNumbers = flatten_token_locations(ProcessedTokens), 
-                    {Forms, Errors}           = parse_tokens(TokensWithOnlyLineNumbers, FileName),
-                    parse_has_errors(TokenInfo, Forms, Errors);
+                    handle_tokens(FileName, TokenInfo, ProcessedTokens);
                 {error, ErrorInfo} ->
                     {error, {FileName, [ErrorInfo]}}
             end;
@@ -122,15 +161,21 @@ parse_text(FileName, FileContents, TokenTransform, IncludeDirs) ->
             {error, {FileName, [ErrorInfo]}}
     end.
 
+handle_tokens(FileName, TokenInfo, ProcessedTokens) ->
+    % We have to flatten the token locations because the Erlang parser
+    % has a bug that chokes on {Line, Col} locations in typed record
+    % definitions
+    TokensWithOnlyLineNumbers = flatten_token_locations(ProcessedTokens),
+    {Forms, Errors}           = parse_tokens(TokensWithOnlyLineNumbers, FileName),
+    parse_has_errors(TokenInfo, Forms, Errors).
 
--spec(parse_has_errors(token(), token(), []) ->
-             {ok, token(),token()};
-          (_,_,[{string(), string()}]) ->
-             {error, [{string(), [string()]}], []}).
+
+-spec(parse_has_errors(token(), token(), [{string(), string()}]) ->
+             error(token(),token())).
 parse_has_errors(TokenInfo, Forms, []) ->
     {ok, Forms, TokenInfo};
 parse_has_errors(_TokenInfo, _Forms, Errors) ->
-     {error, make_parse_errors(Errors), []}.
+     {error, make_parse_errors(Errors)}.
 
 
 -spec(make_parse_errors([{string(), string()}]) -> [{string() , [string()]}]).
@@ -183,7 +228,8 @@ scan_transform([], StartLocation) ->
 scan_transform(FileContents, StartLocation) when is_binary(FileContents) ->
     scan_transform(unicode:characters_to_list(FileContents), StartLocation);
 scan_transform(FileContents, StartLocation) ->
-    case erl_scan:tokens([], FileContents, StartLocation) of
+    ScanResults = erl_scan:tokens([], FileContents, StartLocation),
+    case ScanResults of
         {done, Return, Rest} ->
             case Return of
                 {ok, Tokens, EndLocation} ->
@@ -207,15 +253,24 @@ scan_transform(FileContents, StartLocation) ->
             end;
          {more, Continuation1} ->
             {done, Return, eof} = erl_scan:tokens(Continuation1, eof, eof),
-            case Return of
-                {ok, Tokens, _EndLocation} ->
-                    {ok, Tokens};
-                {eof, EndLocation} ->
-                    {ok, [{eof, EndLocation}]};
-                {error, ErrorInfo, _EndLocation} ->
-                    {error, ErrorInfo}
-            end
+           scan_transform_result(Return)
     end.
+
+
+-spec(scan_transform_result({ok, [token()], pos_integer()}|
+                            {eof, pos_integer()} |
+                            {error, string(), pos_integer()}) ->
+             error([token()])).
+scan_transform_result(Return) ->
+    case Return of
+        {ok, Tokens, _EndLocation} ->
+            {ok, Tokens};
+        {eof, EndLocation} ->
+            {ok, [{eof, EndLocation}]};
+        {error, ErrorInfo, _EndLocation} ->
+            {error, ErrorInfo}
+    end.
+
 -spec(scan_transform_illegal_char(pos_integer(),any(), string(), special_char(), string()) -> error(_)).
 scan_transform_illegal_char(StartLocation, ErrorInfo, Truncated,
                             IllegalChar, Rest1) ->

@@ -3,6 +3,11 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -type special_chars() :: 8800|8804|8805|8712|8713|8715|8716|8764|8769|8839|8841|9745|8869|10178|8745.
+-define(TEST(Name, Function, Arity),
+        Name() ->
+               ?assert(proper:check_spec({?TMODULE, Function, Arity}, 
+                                         [{to_file,user}])),
+               ok.).
 
 transform_char_test() ->
     ?assert(proper:quickcheck(prop_transform_char(),
@@ -17,6 +22,21 @@ prop_transform_char() ->
                 {ok, Cond} = boss_compiler:transform_char(Char),
                 is_list(Cond)
             end).
+
+%% make_forms_by_version_test() ->
+%%     ?assert(proper:check_spec({boss_compiler, make_forms_by_version,2},
+%%                              [{to_file, user}])),
+%%     ok.
+
+%% scan_transform_test() ->
+%%     ?assert(proper:check_spec({boss_compiler, scan_transform, 1},
+%%                               [{to_file, user}])),
+%%     ok.
+                              
+scan_transform_result_test() ->
+    ?assert(proper:check_spec({boss_compiler, scan_transform_result, 1},
+                               [{to_file, user}])),
+    ok.
 
 
 flatten_token_locations_test() ->
@@ -60,3 +80,4 @@ parse_has_errors_test() ->
     ?assert(proper:check_spec({boss_compiler, parse_has_errors,3},
                               [{to_file,user}])),
     ok.
+
