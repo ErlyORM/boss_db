@@ -18,8 +18,8 @@ init(Options) ->
     CacheServerOpts = proplists:get_value(cache_servers, Options, []),
     redo:start_link(undefined, CacheServerOpts).
 
-terminate(_Conn) ->
-    ok.
+terminate(Conn) ->
+    stop(Conn).
 
 get(Conn, Prefix, Key) ->
     case redo:cmd(Conn,["GET", term_to_key(Prefix, Key)]) of
