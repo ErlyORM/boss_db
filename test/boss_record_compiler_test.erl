@@ -2,6 +2,57 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
+-type error(T)     :: {ok, T} | {error, string()}.
+-type syntaxTree() :: erl_syntax:syntaxTree().
+-type name()       :: atom()|[byte(),...].
+-type fctn_n()     :: {atom(), non_neg_integer()}.
+-type fctn()       :: {function, atom(), atom(), non_neg_integer(), _}.
+-type pair()       :: {atom(),atom()}.
+-type assoc()      :: {has,        {atom(), integer()}}          |
+                      {has,        {atom(), integer(), [any()]}} |
+                      {belongs_to, atom()}.
+
+
+
+make_counters_test() ->
+            ?assert(proper:check_spec({boss_record_compiler,make_counters, 1},
+                                      [{to_file, user}])),
+            ok.
+
+
+prop_duplicated_forms() ->
+    ?FORALL({Parameters},
+            { 
+             list(atom())
+             },
+            begin
+                {TokenInfo, Attributes,Counters} = {[], [], [c]},
+                ModuleName = 'test',
+                case boss_record_compiler:make_generated_forms(ModuleName,Parameters, TokenInfo, Attributes,Counters) of
+                    {ok, GF} ->
+                        not(boss_record_compiler:has_duplicates(Parameters));
+                    {error, _} ->
+                        DupFields = Parameters -- sets:to_list(sets:from_list(Parameters)),
+                        boss_record_compiler:has_duplicates(Parameters)
+                end
+            end).
+
+
+make_generated_forms_test() ->
+            ?assert(proper:check_spec({boss_record_compiler,make_generated_forms, 5},
+                                      [{to_file, user}])),
+            ?assert(proper:quickcheck(prop_duplicated_forms(),
+                                      [{to_file, user}])),
+
+            ok.
+
+has_duplicates_test() ->
+    ?assert( boss_record_compiler:has_duplicates([1,1])),
+    ?assertNot(boss_record_compiler:has_duplicates([1,2])),
+    ?assert(proper:check_spec({boss_record_compiler,has_duplicates, 1},
+                                      [{to_file, user}])),
+    ok.
+    
 
 list_functions_test() ->
             ?assert(proper:check_spec({boss_record_compiler,list_functions, 1},
