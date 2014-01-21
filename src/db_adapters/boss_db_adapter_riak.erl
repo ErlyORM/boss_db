@@ -122,8 +122,8 @@ save_record(Conn, Record) ->
         id -> % New entry
 	    GUID        = uuid:to_string(uuid:uuid4()),
             O		= riakc_obj:new(Bucket, GUID, PropList),
-            {ok, RO}	= riakc_pb_socket:put(Conn, O),
-            binary_to_list(element(3, RO));
+            {ok, RO}	= riakc_pb_socket:put(Conn, O, [return_body]),
+            element(3, RO);
         DefinedId when is_list(DefinedId) -> % Existing Entry
             [_ | Tail]	= string:tokens(DefinedId, "-"),
             Key		= string:join(Tail, "-"),

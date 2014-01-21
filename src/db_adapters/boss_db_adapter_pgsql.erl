@@ -309,6 +309,8 @@ build_update_query(Record) ->
                     {true, true} ->
                         {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
+                    {_, false} ->
+                        null;
                     _ ->
                         V
                 end,

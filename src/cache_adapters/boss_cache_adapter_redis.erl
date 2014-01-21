@@ -6,24 +6,25 @@
 -export([get/3, set/5, delete/3]).
 
 start() ->
-    start([]).
+    ok.
 
-start(Options) ->
-    CacheServers = proplists:get_value(cache_servers, Options, []),
-    {ok, _Pid} = redo:start_link(undefined, CacheServers),
+start(_Options) ->
     ok.
 
 stop(Conn) ->
-    redo:shutdown(Conn). 
+    redo:shutdown(Conn).
 
-init(_Options) ->
-    {ok, undefined}.
+init(Options) ->
+    CacheServerOpts = proplists:get_value(cache_servers, Options, []),
+    redo:start_link(undefined, CacheServerOpts).
 
-terminate(_Conn) ->
-    ok.
+terminate(Conn) ->
+    stop(Conn).
 
 get(Conn, Prefix, Key) ->
     case redo:cmd(Conn,["GET", term_to_key(Prefix, Key)]) of
+        undefined ->
+            undefined;
         Bin -> 
             binary_to_term(Bin)
     end.

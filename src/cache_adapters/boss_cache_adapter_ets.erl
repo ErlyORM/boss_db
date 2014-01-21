@@ -33,8 +33,8 @@ stop(_Conn) ->
 init(_Options) ->
     {ok, undefined}.
 
-terminate(_Conn) ->
-    ok.
+terminate(Conn) ->
+    stop(Conn).
 
 get(_Conn, Prefix, Key) ->
     Term2Key = term_to_key(Prefix, Key),
