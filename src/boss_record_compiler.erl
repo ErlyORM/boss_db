@@ -24,7 +24,7 @@
 -spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
 -spec edoc_module(string()) -> {atom() | tuple(),_}.
 -spec edoc_module(string(),_) -> {module(),_}.
--spec process_tokens(nonempty_maybe_improper_list()) -> {nonempty_maybe_improper_list(),[{_,_}]}.
+-spec process_tokens(nonempty_maybe_improper_list())                 ->  {nonempty_maybe_improper_list(),[{_,_}]}.
 -spec process_tokens(nonempty_maybe_improper_list(),[any()],[{_,_}]) -> {nonempty_maybe_improper_list(),[{_,_}]}.
 -spec make_counters([{counter, atom()}| {atom(), any()}]) -> [atom()].
 -spec make_generated_forms(atom(),
@@ -95,8 +95,10 @@ compile(File) ->
 
 compile(File, Options) ->
     boss_compiler:compile(File, 
-        [{pre_revert_transform, fun ?MODULE:trick_out_forms/2},
-            {token_transform, fun ?MODULE:process_tokens/1}|Options]).
+                          [debug_info,
+                           {pre_revert_transform, fun ?MODULE:trick_out_forms/2},
+                           {token_transform,      fun ?MODULE:process_tokens/1}
+                           | Options]).
 
 %% @spec edoc_module( File::string() ) -> {Module::atom(), EDoc}
 %% @equiv edoc_module(File, [])
@@ -117,16 +119,44 @@ edoc_module(File, Options) ->
 process_tokens(Tokens) ->
     process_tokens(Tokens, [], []).
 
-process_tokens([{']',_},{')',_},{dot,_}|_]=Tokens, TokenAcc, Acc) ->
+process_tokens([{']',_},
+                {')',_}, 
+                {dot,_} |_ ] = Tokens, TokenAcc, Acc) ->
     {lists:reverse(TokenAcc, Tokens), Acc};
-process_tokens([{'-',N}=T1,{atom,N,module}=T2,{'(',_}=T3,{atom,_,_ModuleName}=T4,{',',_}=T5,
-        {'[',_}=T6,{var,_,'Id'}=T7|Rest], TokenAcc, []) ->
+%-module(Foo, [...]) with no specs
+process_tokens([{'-',N              } = T1, 
+                {atom,N,module      } = T2, 
+                {'(',_              } = T3,
+                {atom,_,_ModuleName } = T4,
+                {',',_              } = T5,
+                {'[',_              } = T6,
+                {var,_,'Id'         } = T7|
+                Rest], TokenAcc, []) ->
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), []);
-process_tokens([{'-',_N}=T1,{atom,_,module}=T2,{'(',_}=T3,{atom,_,_ModuleName}=T4,{',',_}=T5,
-                {'[',_}=T6,{var,_,'Id'}=T7,{'::',_},{atom,_,VarType},{'(',_},{')',_}|Rest], TokenAcc, []) ->    
+%-module(Foo, [...]) with type specs
+process_tokens([{'-',_N             } = T1,
+                {atom,_,module      } = T2,
+                {'(',_              } = T3,
+                {atom,_,_ModuleName } = T4,
+                {',',_              } = T5,
+                {'[',_              } = T6,
+                {var,_,'Id'         } = T7,
+                {'::',_},
+                {atom,_,VarType},
+                {'(',_},
+                {')',_}|Rest], 
+               TokenAcc, []) ->    
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), [{'Id', VarType}]);
-process_tokens([{',',_}=T1,{var,_,VarName}=T2,{'::',_},{atom,_,VarType},{'(',_},{')',_}|Rest], TokenAcc, Acc) ->
+
+process_tokens([{',',_}               = T1,
+                {var,_,VarName}       = T2,
+                {'::',_},
+                {atom,_,VarType}, 
+                {'(',_},
+                {')',_} |Rest], 
+               TokenAcc, Acc) ->
     process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, VarType}|Acc]);
+
 process_tokens([H|T], TokenAcc, Acc) ->
     process_tokens(T, [H|TokenAcc], Acc).
 

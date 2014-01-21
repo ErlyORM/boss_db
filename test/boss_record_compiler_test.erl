@@ -15,9 +15,9 @@
 
 
 make_counters_test() ->
-            ?assert(proper:check_spec({boss_record_compiler,make_counters, 1},
-                                      [{to_file, user}])),
-            ok.
+    ?assert(proper:check_spec({boss_record_compiler,make_counters, 1},
+                              [{to_file, user}])),
+    ok.
 
 
 prop_duplicated_forms() ->

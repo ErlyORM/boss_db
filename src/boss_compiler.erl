@@ -12,6 +12,7 @@
 -type error(X,Y)     :: {ok, X,Y}|{error, _}.
 -type special_char() :: 8800|8804|8805|8712|8713|8715|8716|8764|8769|8839|8841|9745|8869|10178|8745.
 -type token()        :: erl_scan:token().
+-type form()         :: atom().
 -type position()     :: {non_neg_integer(), non_neg_integer()}.
 
 -type otp_version() :: 14|15|16|17.
@@ -43,12 +44,13 @@ compile(File) ->
     compile(File, []).
 
 compile(File, Options) ->
+    lager:notice("Compile file ~p with options ~p ", [File, Options]),
     IncludeDirs    = proplists:get_value(include_dirs,    Options, []),
     TokenTransform = proplists:get_value(token_transform, Options),
     case parse(File, TokenTransform, IncludeDirs) of
         {ok, Forms, TokenInfo} ->
             handle_parse_success(File, Options, Forms, TokenInfo);
-        Error ->
+        Error = {error, _} ->
             Error
     end.
 
@@ -112,28 +114,35 @@ make_reverted_forms(CompilerOptions, NewNewForms, ParseTransforms) ->
                 end, NewNewForms, ParseTransforms).
 
 make_new_forms(Options, Forms, TokenInfo) ->
-    case proplists:get_value(pre_revert_transform, Options) of
-        undefined ->
-            Forms;
-        TransformFun when is_function(TransformFun) ->
-            case erlang:fun_info(TransformFun, arity) of
-                {arity, 1} ->
-                    TransformFun(Forms);
-                {arity, 2} ->
-                    TransformFun(Forms, TokenInfo)
-            end
-    end.
+    Transform = proplists:get_value(pre_revert_transform, Options),
+    transform_action(Forms, TokenInfo, Transform).
+
+-spec(transform_action([form()],
+                       [token()],
+                       undefined|
+                       fun(([form()]) -> _)|
+                          fun(([form()], [token()]) ->_)) -> _).
+transform_action(Forms, _, undefined) ->
+    Forms;
+transform_action(Forms, _TokenInfo, TransformFun) when is_function(TransformFun, 1) -> 
+    TransformFun(Forms);
+transform_action(Forms,  TokenInfo, TransformFun) when is_function(TransformFun, 2) ->
+    TransformFun(Forms, TokenInfo). 
+
 
 compile_forms(Forms, File, Options) ->
     case compile:forms(Forms, Options) of
         {ok, Module1, Bin} ->
             code:purge(Module1),
-            case code:load_binary(Module1, File, Bin) of
-                {module, _} -> {ok, Module1, Bin};
-                _ -> {error, lists:concat(["code reload failed: ", Module1])}
-            end;
+            load_binary(File, Module1, Bin);
         OtherError ->
             OtherError
+    end.
+
+load_binary(File, Module1, Bin) ->
+    case code:load_binary(Module1, File, Bin) of
+        {module, _} -> {ok, Module1, Bin};
+        _           -> {error, lists:concat(["code reload failed: ", Module1])}
     end.
 
 parse(File, TokenTransform, IncludeDirs) when is_list(File) ->
