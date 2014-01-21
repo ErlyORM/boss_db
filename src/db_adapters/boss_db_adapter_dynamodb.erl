@@ -4,7 +4,11 @@
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
--define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
+-define(LOG(Name, Value), lager:debug("DEBUG: ~s: ~p~n", [Name, Value])).
 
 % Number of seconds between beginning of gregorian calendar and 1970
 -define(GREGORIAN_SECONDS_1970, 62167219200).
@@ -18,7 +22,7 @@ stop() ->
 init(Options) ->
     AccessKey 	= proplists:get_value(db_username, Options, os:getenv("AWS_ACCESS_KEY_ID")),
     SecretKey	= proplists:get_value(db_password, Options, os:getenv("AWS_SECRET_ACCESS_KEY")),
-    Endpoint = proplists:get_value(db_host, Options, "dynamodb.us-east-1.amazonaws.com"),
+    Endpoint    = proplists:get_value(db_host, Options, "dynamodb.us-east-1.amazonaws.com"),
     
     %% startup dependencies.  some of these may have already been started, but that's ok.
     inets:start(),
@@ -29,7 +33,8 @@ init(Options) ->
     
     %% init initial credentials.  note that these will be refeshed automatically as needed
     ddb_iam:credentials(AccessKey, SecretKey),
-    {'ok', Key, Secret, Token} = ddb_iam:token(129600),  %% 129600 is the lifetime duration for the token
+    {'ok', Key, Secret, Token} = ddb_iam:token(129600), 
+    %% 129600 is the lifetime duration for the token
     ddb:credentials(Key, Secret, Token, Endpoint),
     
     init_tables(Options),
@@ -111,21 +116,21 @@ pop(_Conn, _Depth) -> ok.
 %%
 %% setup the DynamoDB tables as needed
 %%
-
+-spec(init_tables([{_,_}]) ->
+	     ok).
 init_tables(Options) ->
-    {ok, Tables} = ddb:tables(),
-    Models = lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- application:which_applications() ] ),
-    BinModels = [ erlang:list_to_binary(X) || X <- Models],
-    Create    = BinModels -- Tables,
-    lists:foreach(fun(Model) ->
-			  init_table(Model, Options)
-		  end, Create).
+    {ok, Tables}	= ddb:tables(),
+    Models		= lists:concat( [ boss_files:model_list(ModelName) || {ModelName, _, _} <- application:which_applications() ] ),
+    BinModels		= [ erlang:list_to_binary(X) || X <- Models],
+    Create		= BinModels -- Tables,
+    [init_table(Model, Options) || Model <- Create],
+    ok.
+
 
 init_table(Model, Options) when is_binary(Model) ->
 	%% it looks like we don't need to initialize the table with the field names for now
-    ModelAtom		= erlang:binary_to_atom(Model, latin1),
+    ModelAtom		= erlang:binary_to_atom(Model, 'utf8'),
     Dummy		= boss_record_lib:dummy_record(ModelAtom),
-
     ModelAttributes	= ModelAtom:module_info(attributes),
 
     GlobalReadCap	= proplists:get_value(db_read_capacity,		 Options, 2),
@@ -141,7 +146,11 @@ init_table(Model, Options) when is_binary(Model) ->
     PrimaryKeyType	= proplists:get_value(PrimaryKey, Dummy:attribute_types(), 'string'),
 
     KeyType		= proplists:get_value(range_key, ModelAtom:module_info(attributes)),
+
+
     Keys		= lookup_key_type(Dummy, PrimaryKey, PrimaryKeyType, KeyType),
+
+
     ddb:create_table(Model, Keys, ReadCap, WriteCap),
     init_meta_entry(Model).
 
@@ -160,8 +169,6 @@ lookup_key_type(Dummy, PrimaryKey, PrimaryKeyType, [RangeKey]) ->
 %% Help function
 -spec(convert_type_to_ddb('string'|'float'|'integer'|'datetime'|'timestamp'|'undefined') ->
 	     'string'|'number').
-convert_type_to_ddb(string) ->
-    'string';
 convert_type_to_ddb(float) ->
     'number';
 convert_type_to_ddb(integer) ->
@@ -170,7 +177,7 @@ convert_type_to_ddb(datetime) ->
     'number';
 convert_type_to_ddb(timestamp) ->
     'number';
-convert_type_to_ddb(undefined) ->
+convert_type_to_ddb(_) ->
     'string'.
 
 init_meta_entry(Model) when is_binary(Model)->
@@ -218,7 +225,8 @@ not_empty(_Val) ->
 %val_to_binary({{Y,M, D}, {H, M, S}} = Datetime) when is_integer(Y), is_integer(M), is_integer(D), is_integer(H), is_integer(M), is_integer(S) ->
 %	StringDate = httpd_util:rfc1123_date(Datetime),
 %	list_to_binary(StringDate);
--spec(val_to_binary(_) -> binary()).
+-type printable() :: boolean()|atom()|number()|binary().
+-spec(val_to_binary(printable()|[printable()]) -> binary()).
 val_to_binary(Val) when is_boolean(Val) ->
     case Val of
         true ->
@@ -255,9 +263,7 @@ type_of(Val) when is_list(Val) ->
 type_of(Val) when is_number(Val) ->
 	'number';
 type_of(Val) when is_binary(Val) ->
-	'binary';
-type_of(_Val) ->
-	'string'.
+	'binary'.
 
 create_from_ddbitem(_Model, undefined) ->
 	{error, not_found};
@@ -389,6 +395,8 @@ ddb_type_of(Value) when is_number(Value) ->
 ddb_type_of(_Value) ->
 	<<"S">>.
 
+-spec(operator_to_ddb(boss_db_adapter_types:model_operator()) ->
+	     binary()).
 operator_to_ddb('equals') ->
 	<<"EQ">>;
 operator_to_ddb('not_equals') ->

@@ -4,7 +4,7 @@
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
--define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
+-define(LOG(Name, Value), lager:debug("DEBUG: ~s: ~p~n", [Name, Value])).
 
 -define(HUGE_INT, 1000 * 1000 * 1000 * 1000).
 
@@ -120,7 +120,7 @@ save_record(Conn, Record) ->
     PropList = [{riak_search_encode_key(K), riak_search_encode_value(V)} || {K, V} <- Record:attributes(), K =/= id],
     RiakKey = case Record:id() of
         id -> % New entry
-	    GUID        = uuid:uuid_to_string(uuid:get_v4()),
+	    GUID        = uuid:to_string(uuid:uuid4()),
             O		= riakc_obj:new(Bucket, GUID, PropList),
             {ok, RO}	= riakc_pb_socket:put(Conn, O),
             binary_to_list(element(3, RO));

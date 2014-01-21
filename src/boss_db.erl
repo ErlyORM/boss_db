@@ -108,7 +108,7 @@ create_migration_table_if_needed() ->
 
 %% @doc Run database migration {Tag, Fun} in Direction
 migrate({Tag, Fun}, Direction) ->
-    io:format("Running migration: ~p ~p~n", [Tag, Direction]),
+    lager:info("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
     db_call({migration_done, Tag, Direction}).
 
@@ -122,7 +122,10 @@ find(Key) when is_list(Key) ->
         undefined	-> undefined;
         {error, Reason} -> {error, Reason};
         BossRecord	-> BossRecord:get(string:join(Rest, "."))
-    end.
+    end;
+find(_Key) ->
+    lager:notice("Invalid key in find ~p", [_Key]),
+    {error, invalid_id}.
 
 %% @spec find(Type::atom(), Conditions) -> [ BossRecord ]
 %% @doc Query for BossRecords. Returns all BossRecords of type
@@ -420,10 +423,17 @@ validate_record_types(Record) ->
 %% @spec type( Id::string() ) -> Type::atom()
 %% @doc Returns the type of the BossRecord with `Id', or `undefined' if the record does not exist.
 type(Key) ->
-    case find(Key) of
-        undefined -> undefined;
-        Record -> element(1, Record)
+    try 
+        case find(Key) of
+            undefined -> undefined;
+            Record    -> element(1, Record)
+        end
+    catch 
+        _:_ ->
+            lager:notice("Type of ~p unknown" , [Key]),
+            undefined
     end.
+
 
 data_type(_, _Val) when is_float(_Val) ->
     "float";

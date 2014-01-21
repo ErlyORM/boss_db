@@ -26,3 +26,4 @@ init_test() ->
     ?assert(proper:check_spec({boss_news_controller,init, 1},
 			     [{to_file, user}])),
     ok.
+

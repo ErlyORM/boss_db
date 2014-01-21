@@ -3,5 +3,6 @@ ebin/boss_db.app
 deps
 erl_crash.dump
 .project
+.eunit
 .settings
 /ebin

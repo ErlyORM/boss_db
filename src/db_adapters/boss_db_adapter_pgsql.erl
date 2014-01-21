@@ -111,15 +111,13 @@ delete(Conn, Id) when is_list(Id) ->
 
 save_record(Conn, Record) when is_tuple(Record) ->
     RecordId = Record:id(),
-    io:format("Saving Record ~p~n", [RecordId]),
+    lager:notice("Saving Record ~p~n", [RecordId]),
     case RecordId of
         id ->
             Record1		= maybe_populate_id_value(Record),
             Type		= element(1, Record1),
             {Query,Params}	= build_insert_query(Record1),
-	    io:format("Query ~n~p~n", [ Query]),
-	    io:format("Params ~n~p~n", [Params]),
-            Res			= pgsql:equery(Conn, Query, Params),
+	    Res			= pgsql:equery(Conn, Query, Params),
             case Res of
                 {ok, _, _, [{Id}]} ->
                     {ok, Record1:set(id, lists:concat([Type, "-", id_value_to_string(Id)]))};
@@ -191,10 +189,17 @@ id_value_to_string(Id) -> Id.
 
 
 maybe_populate_id_value(Record) ->
-    case boss_sql_lib:keytype(Record) of 
-        uuid -> Record:set(id, uuid:to_string(uuid:uuid4()));
-        _ -> Record
-end.
+    KeyType = boss_sql_lib:keytype(Record),
+    maybe_populate_id_value(Record, KeyType).
+
+-type keytype() ::uuid|id.
+-spec(maybe_populate_id_value(tuple(), uuid|id) -> tuple()).
+maybe_populate_id_value(Record, uuid) ->
+            Type = element(1, Record),
+            Record:set(id, lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]));
+maybe_populate_id_value(Record, id) ->
+    Record.
+
 
 activate_record(Record, Metadata, Type) ->
     AttributeTypes	= boss_record_lib:attribute_types(Type),
@@ -430,7 +435,7 @@ pack_datetime(DateTime) ->
 pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec(pack_value(undefined|binary()|boolean()|number()|date_time()) -> string()|iolist()).
+-spec(pack_value([byte()]|undefined|binary()|boolean()|number()|date_time()) -> string()|iolist()).
 pack_value(undefined) ->
     "null";
 pack_value(V) when is_binary(V) ->
