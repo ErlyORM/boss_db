@@ -293,6 +293,23 @@ delete(Key, Timeout) ->
                 {error, Reason} ->
                     {error, Reason}
             end
+    end;
+
+delete(AboutToDelete)
+    when is_tuple(AboutToDelete), is_list(element(2, AboutToDelete)) ->
+    Key = element(2, AboutToDelete),
+    case boss_record_lib:run_before_delete_hooks(AboutToDelete) of
+        ok ->
+            Result = db_call({delete, Key}),
+            case Result of
+                ok -> 
+                    boss_news:deleted(Key, AboutToDelete:attributes()),
+                    ok;
+                _ -> 
+                    Result
+            end;
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 push() ->
