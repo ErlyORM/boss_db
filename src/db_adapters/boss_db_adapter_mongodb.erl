@@ -490,6 +490,8 @@ pack_value(V) -> V.
 
 unpack_value(_AttrName, [H|T], _ValueType) when is_integer(H) ->
     {integers, [H|T]};
+unpack_value(_AttrName, {_, _, _} = Value, datetime) ->
+    calendar:now_to_datetime(Value);
 unpack_value(AttrName, Value, ValueType) ->
     case is_id_attr(AttrName) and (Value =/= "") of 
         true -> 
