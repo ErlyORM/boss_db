@@ -8,7 +8,7 @@ call(Pool, Msg) ->
     Reply.
 
 call(Pool, Msg, Timeout) ->
-    Worker = poolboy:checkout(Pool),
+    Worker = poolboy:checkout(Pool, true, Timeout),
     Reply = gen_server:call(Worker, Msg, Timeout),
     poolboy:checkin(Pool, Worker),
     Reply.
