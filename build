@@ -1,6 +1,6 @@
 #!/bin/bash
 
 rebar compile  skip_deps=true  && \
-rebar eunit skip_deps=true suite=boss_compiler_test -v  && \
+rebar eunit skip_deps=true     && \
 bash dialyzer.sh
 

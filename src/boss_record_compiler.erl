@@ -117,6 +117,7 @@ edoc_module(File, Options) ->
                         Options).
 
 process_tokens(Tokens) ->
+    lager:info("Tokens ~p",[Tokens]),
     process_tokens(Tokens, [], []).
 
 process_tokens([{']',_},
@@ -131,7 +132,8 @@ process_tokens([{'-',N              } = T1,
                 {',',_              } = T5,
                 {'[',_              } = T6,
                 {var,_,'Id'         } = T7|
-                Rest], TokenAcc, []) ->
+                Rest] = _T, TokenAcc, []) ->
+ %   lager:notice("Tokens ~p", [_T]),
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), []);
 %-module(Foo, [...]) with type specs
 process_tokens([{'-',_N             } = T1,
@@ -144,8 +146,10 @@ process_tokens([{'-',_N             } = T1,
                 {'::',_},
                 {atom,_,VarType},
                 {'(',_},
-                {')',_}|Rest], 
-               TokenAcc, []) ->    
+                {')',_}|Rest]  = _T, 
+               TokenAcc, []) ->  
+   % lager:notice("Tokens ~p", [_T]) , 
+    lager:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), [{'Id', VarType}]);
 
 process_tokens([{',',_}               = T1,
@@ -153,8 +157,10 @@ process_tokens([{',',_}               = T1,
                 {'::',_},
                 {atom,_,VarType}, 
                 {'(',_},
-                {')',_} |Rest], 
+                {')',_} |Rest] = _T, 
                TokenAcc, Acc) ->
+%    lager:notice("Tokens ~p", [_T]),
+    lager:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, VarType}|Acc]);
 
 process_tokens([H|T], TokenAcc, Acc) ->
