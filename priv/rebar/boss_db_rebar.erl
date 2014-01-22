@@ -20,12 +20,17 @@
 %%%             scanned recursively for matching template file names
 %%%             (default: false).
 %%%
+%%%  compiler_options: options to determine the behavior of the model
+%%%                    compiler, see the Erlang docs (compile:file/2)
+%%%                    for valid options
+%%%
 %%% The default settings are the equivalent of:
 %%% {boss_db_opts, [
 %%%    {model_root, "src/model"},
 %%%    {out_root, "ebin"},
 %%%    {source_ext, ".erl"},
-%%%    {recursive, false}
+%%%    {recursive, false},
+%%%    {compiler_options, [verbose, return_errors]}
 %%% ]}.
 %%% @end
 
@@ -46,7 +51,7 @@ pre_compile(Config, _AppFile) ->
         TargetDir,
         TargetExt,
         fun(S, T, _C) ->
-            compile_model(S, T, Opts)
+            compile_model(S, T, Opts, Config)
         end,
         [{check_last_mod, true},
         {recursive, option(recursive, Opts)}]).
@@ -61,9 +66,19 @@ option(Opt, Opts) ->
 option_default(model_dir) -> "src/model";
 option_default(out_dir)  -> "ebin";
 option_default(source_ext) -> ".erl";
-option_default(recursive) -> false.
+option_default(recursive) -> false;
+option_default(compiler_options) -> [verbose, return_errors].
 
-compile_model(Source, Target, Opts) ->
-    RecordCompilerOpts = [{out_dir, option(out_dir, Opts)}],
+compiler_options(ErlOpts, Opts) ->
+    set_debug_info_option(proplists:get_value(debug_info, ErlOpts), option(compiler_options, Opts)).
+
+set_debug_info_option(true, BossCompilerOptions) ->
+    [debug_info | BossCompilerOptions];
+set_debug_info_option(undefined, BossCompilerOptions) ->
+    BossCompilerOptions.
+
+compile_model(Source, _Target, Opts, RebarConfig) ->
+    ErlOpts = rebar_config:get(RebarConfig, erl_opts, []),
+    RecordCompilerOpts = [{out_dir, option(out_dir, Opts)}, {compiler_options, compiler_options(ErlOpts, Opts)}],
     boss_record_compiler:compile(Source, RecordCompilerOpts),
     ok.
