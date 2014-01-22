@@ -106,6 +106,8 @@ convert_value_to_type(Val, integer) when is_list(Val) ->
     list_to_integer(Val);
 convert_value_to_type(Val, integer) when is_binary(Val) ->
     list_to_integer(binary_to_list(Val));
+convert_value_to_type(Val, float) when is_binary(Val) ->
+    binary_to_float(Val);
 convert_value_to_type(Val, float) when is_float(Val) -> 
     Val;
 convert_value_to_type(Val, float) when is_integer(Val) -> 
