@@ -67,6 +67,7 @@ compile(File, Options) ->
                         undefined -> ok;
                         OutDir ->
                             BeamFile = filename:join([OutDir, lists:concat([Module, ".beam"])]),
+                            filelib:ensure_dir(BeamFile),
                             file:write_file(BeamFile, Bin)
                     end,
                     {ok, Module};
