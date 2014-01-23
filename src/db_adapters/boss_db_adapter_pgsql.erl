@@ -112,7 +112,7 @@ delete(Conn, Id) when is_list(Id) ->
 
 save_record(Conn, Record) when is_tuple(Record) ->
     RecordId = Record:id(),
-    lager:notice("Saving Record ~p~n", [RecordId]),
+    lager:notice("Saving Record ~p~n", [Record]),
     case RecordId of
         id ->
             Record1		= maybe_populate_id_value(Record),
@@ -190,16 +190,19 @@ id_value_to_string(Id) -> Id.
 
 
 maybe_populate_id_value(Record) ->
-    KeyType = boss_sql_lib:keytype(Record),
+    KeyType  = boss_sql_lib:keytype(Record),
     maybe_populate_id_value(Record, KeyType).
 
 -type keytype() ::uuid|id.
 -spec(maybe_populate_id_value(tuple(), uuid|id) -> tuple()).
-maybe_populate_id_value(Record, uuid) ->
-            Type = element(1, Record),
-            Record:set(id, lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]));
+maybe_populate_id_value(Record, uuid) ->    
+    Type = element(1, Record),
+    Record:set(id, lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]));
 maybe_populate_id_value(Record, id) ->
+    Record;
+maybe_populate_id_value(Record, serial) ->
     Record.
+
 
 
 activate_record(Record, Metadata, Type) ->
