@@ -16,43 +16,42 @@
 -spec term_to_key(atom() | string() | number(),_) -> string().
 
 start() ->
-    cache_server:start_link(),
-    check_server:start_link(),
-    ok.
+    {ok, CheckPid} = check_server:start_link(),
+    {ok, Conn} = cache_server:start_link([{checkpid, CheckPid}]),
+    Conn.
 
 start(Options) ->
-    cache_server:start_link(Options),
-    check_server:start_link(Options),
-    ok.
+    {ok, CheckPid} = check_server:start_link(Options),
+    {ok, Conn} = cache_server:start_link([{checkpid, CheckPid}|Options]),
+    Conn.
 
-stop(_Conn) ->
-    cache_server:stop(),
-    check_server:stop(),
-    ok.
+stop(Conn) ->
+    cache_server:stop(Conn).
 
-init(_Options) ->
-    {ok, undefined}.
+init(Options) ->
+    Conn = start(Options),
+    {ok, Conn}.
 
 terminate(Conn) ->
     stop(Conn).
 
-get(_Conn, Prefix, Key) ->
+get(Conn, Prefix, Key) ->
     Term2Key = term_to_key(Prefix, Key),
-    case cache_server:get(Term2Key) of
+    case cache_server:get(Conn, Term2Key) of
         <<>> ->
             undefined;
         Bin ->
             binary_to_term(Bin)
     end.
 
-set(_Conn, Prefix, Key, Val, TTL) ->
+set(Conn, Prefix, Key, Val, TTL) ->
     Term2Key = term_to_key(Prefix, Key),
     ValBin = term_to_binary(Val),
-    cache_server:set(Term2Key, ValBin, TTL).
+    cache_server:set(Conn, Term2Key, ValBin, TTL).
 
-delete(_Conn, Prefix, Key) ->
+delete(Conn, Prefix, Key) ->
     Term2Key = term_to_key(Prefix, Key),
-    cache_server:delete(Term2Key).
+    cache_server:delete(Conn, Term2Key).
 
 % internal
 term_to_key(Prefix, Term) ->
