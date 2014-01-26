@@ -9,7 +9,7 @@
 -type date_time() :: calendar:datetime1970().
 -type sql_param_value() :: string()|number()|binary()|boolean().
 -export_type([sql_param_value/0]).
-
+-compile(export_all).
 start(_) ->
     ok.
 
@@ -433,7 +433,8 @@ escape_sql1([C|Rest], Acc) ->
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
 pack_datetime(DateTime) ->
-    "TIMESTAMP '" ++ erlydtl_filters:date(DateTime, "c") ++ "'".
+    "TIMESTAMP " ++dh_date:format("'Y-m-dTH:i:s'",DateTime).
+    
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
