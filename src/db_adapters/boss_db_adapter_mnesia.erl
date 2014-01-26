@@ -30,7 +30,6 @@ find(_, Id) when is_list(Id) ->
         {atomic,[]} ->
             undefined;
         {atomic,[Record]} ->   % I dont like this - we should really be checking that we only got 1 record
-%            io:format("Record is ~p~n",[Record]),
             case boss_record_lib:ensure_loaded(Type) of
                 true ->
                     Record;
@@ -175,10 +174,9 @@ incr(_, Id, Count) ->
 
 % -----
 delete(Conn, Id) when is_binary(Id) ->
-%io:format("==> Delete/1 Called with binary ~p~n",[Id]),
+
     delete(Conn, binary_to_list(Id));
 delete(_, Id) when is_list(Id) ->
-%io:format("==> Delete/1 Called with list ~p~n",[Id]),
     Type = infer_type_from_id(Id),
     Fun = fun () -> mnesia:delete({Type,Id}) end,
     case mnesia:transaction(Fun)  of
