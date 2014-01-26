@@ -275,7 +275,7 @@ incr(Key, Count, Timeout) ->
 delete(Key) ->
     delete(Key, ?DEFAULT_TIMEOUT).
 
-delete(Key, Timeout) ->
+delete(Key, Timeout) when is_integer(Timeout) ->
     case boss_db:find(Key, Timeout) of
         undefined ->
             {error, not_found};
@@ -293,24 +293,8 @@ delete(Key, Timeout) ->
                 {error, Reason} ->
                     {error, Reason}
             end
-    end;
-
-delete(AboutToDelete,_)
-    when is_tuple(AboutToDelete), is_list(element(2, AboutToDelete)) ->
-    Key = element(2, AboutToDelete),
-    case boss_record_lib:run_before_delete_hooks(AboutToDelete) of
-        ok ->
-            Result = db_call({delete, Key}),
-            case Result of
-                ok -> 
-                    boss_news:deleted(Key, AboutToDelete:attributes()),
-                    ok;
-                _ -> 
-                    Result
-            end;
-        {error, Reason} ->
-            {error, Reason}
     end.
+
 
 push() ->
     db_call(push).
