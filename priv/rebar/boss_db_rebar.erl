@@ -20,50 +20,77 @@
 %%%             scanned recursively for matching template file names
 %%%             (default: false).
 %%%
+%%%  compiler_options: options to determine the behavior of the model
+%%%                    compiler, see the Erlang docs (compile:file/2)
+%%%                    for valid options
+%%%
 %%% The default settings are the equivalent of:
 %%% {boss_db_opts, [
 %%%    {model_root, "src/model"},
 %%%    {out_root, "ebin"},
 %%%    {source_ext, ".erl"},
-%%%    {recursive, false}
+%%%    {recursive, false},
+%%%    {compiler_options, [verbose, return_errors]}
 %%% ]}.
 %%% @end
 
 -module(boss_db_rebar).
 
 -export([pre_compile/2]).
+-export([pre_eunit/2]).
 
 %% @doc A pre-compile hook to compile boss_db models
-pre_compile(Config, _AppFile) ->
-    Opts = rebar_config:get(Config, boss_db_opts, []),
-    SourceDir = option(model_dir, Opts),
-    SourceExt = option(source_ext, Opts),
-    TargetDir = option(out_dir, Opts),
-    TargetExt = ".beam",
-    rebar_base_compiler:run(Config, [],
-        SourceDir,
-        SourceExt,
-        TargetDir,
-        TargetExt,
-        fun(S, T, _C) ->
-            compile_model(S, T, Opts)
-        end,
-        [{check_last_mod, true},
-        {recursive, option(recursive, Opts)}]).
+pre_compile(RebarConf, _AppFile) ->
+    BossDbOpts = boss_db_opts(RebarConf),
+    pre_compile_helper(RebarConf, BossDbOpts, option(out_dir, BossDbOpts)).
+
+%% @doc A pre-eunit hook to compile boss_db models before eunit
+pre_eunit(RebarConf, _AppFile) ->
+    pre_compile_helper(RebarConf, boss_db_opts(RebarConf), ".eunit").
 
 %% --------------------------------------------------------------------
 %% Internal functions
 %% --------------------------------------------------------------------
 
-option(Opt, Opts) ->
-    proplists:get_value(Opt, Opts, option_default(Opt)).
+%% @doc Gets the boss_db options
+boss_db_opts(RebarConf) ->
+    rebar_config:get(RebarConf, boss_db_opts, []).
+
+%% @doc A pre-compile hook to compile boss_db models
+pre_compile_helper(RebarConf, BossDbOpts, TargetDir) ->
+    SourceDir = option(model_dir, BossDbOpts),
+    SourceExt = option(source_ext, BossDbOpts),
+    TargetExt = ".beam",
+    rebar_base_compiler:run(RebarConf, [],
+        SourceDir,
+        SourceExt,
+        TargetDir,
+        TargetExt,
+        fun(S, T, _C) ->
+            compile_model(S, T, BossDbOpts, RebarConf)
+        end,
+        [{check_last_mod, true},
+        {recursive, option(recursive, BossDbOpts)}]).
+
+option(Opt, BossDbOpts) ->
+    proplists:get_value(Opt, BossDbOpts, option_default(Opt)).
 
 option_default(model_dir) -> "src/model";
 option_default(out_dir)  -> "ebin";
 option_default(source_ext) -> ".erl";
-option_default(recursive) -> false.
+option_default(recursive) -> false;
+option_default(compiler_options) -> [verbose, return_errors].
 
-compile_model(Source, Target, Opts) ->
-    RecordCompilerOpts = [{out_dir, option(out_dir, Opts)}],
+compiler_options(ErlOpts, BossDbOpts) ->
+    set_debug_info_option(proplists:get_value(debug_info, ErlOpts), option(compiler_options, BossDbOpts)).
+
+set_debug_info_option(true, BossCompilerOptions) ->
+    [debug_info | BossCompilerOptions];
+set_debug_info_option(undefined, BossCompilerOptions) ->
+    BossCompilerOptions.
+
+compile_model(Source, Target, BossDbOpts, RebarConfig) ->
+    ErlOpts = rebar_config:get(RebarConfig, erl_opts, []),
+    RecordCompilerOpts = [{out_dir, filename:dirname(Target)}, {compiler_options, compiler_options(ErlOpts, BossDbOpts)}],
     boss_record_compiler:compile(Source, RecordCompilerOpts),
     ok.
