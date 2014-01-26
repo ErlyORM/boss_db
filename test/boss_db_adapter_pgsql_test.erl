@@ -43,23 +43,49 @@ pack_value_test() ->
 			      [{to_file, user}])),
 	ok.
 
-
-insert_attributes_test() ->
-    {setup,
-     fun() ->
+%% maybe_populate_id_value_test_() ->
+%%     {setup,
+%%      fun() ->
 	     
-	     code:load_abs("../priv/gh_repo"),
-	     gh_repo
-     end,
-     fun(Module) ->
-	     code:purge(Module)
-     end,
-     ?_test(
-	begin
-	    %% ?assert(proper:quickcheck(prop_normalize_conditions_final(),
-	    %% 			      [{to_file, user}])),
-	    ok
-	end)}.
+%% 	     code:load_abs("../priv/gh_repo"),
+%% 	     gh_repo
+%%      end,
+%%      fun(Module) ->
+%% 	     code:purge(Module)
+%%      end,
+%%      ?_test(
+%% 	begin
+%% 	    ?assert(proper:quickcheck(prop_maybe_populate_id_value(),
+%% 	     			      [{to_file, user}])),
+%% 	    ok
+%% 	end)}.
+
+%% -type keytype() ::uuid|id.
+%% prop_maybe_populate_id_value() ->
+%%     ?FORALL(Keytype,
+%%             keytype(),
+%%             begin
+%%                 Record = gh_repo:new([]),
+                
+
+%%             end).
+
+%% insert_attributes_test() ->
+%%     {setup,
+%%      fun() ->
+	     
+%% 	     code:load_abs("../priv/gh_repo"),
+%% 	     gh_repo
+%%      end,
+%%      fun(Module) ->
+%% 	     code:purge(Module)
+%%      end,
+%%      ?_test(
+%% 	begin
+%% 	    %% ?assert(proper:quickcheck(prop_normalize_conditions_final(),
+%% 	    %% 			      [{to_file, user}])),
+%% 	    ok
+%% 	end)}.
 
 %% prop_make_insert_attributes() ->
 %%     ?FORALL(

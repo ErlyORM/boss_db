@@ -6,34 +6,34 @@
 -compile(export_all).
 -endif.
 -record(state, {
-        watch_dict		= dict:new() ::dict(),
-        ttl_tree		= gb_trees:empty() ::gb_tree(),
+        watch_dict              = dict:new()       ::dict(),
+        ttl_tree                = gb_trees:empty() ::gb_tree(),
 
-        set_watchers		= dict:new()  ::dict(), 
-        id_watchers		= dict:new()  ::dict(),
+        set_watchers            = dict:new()       ::dict(), 
+        id_watchers             = dict:new()       ::dict(),
 
-        set_attr_watchers	= dict:new()  ::dict(),
-        id_attr_watchers	= dict:new()  ::dict(),
-        watch_counter		= 0           ::integer()}).
+        set_attr_watchers       = dict:new()       ::dict(),
+        id_attr_watchers        = dict:new()       ::dict(),
+        watch_counter           = 0                ::integer()}).
 
--type news_callback()	:: fun((event(),event_info()) ->any()) | fun((event(),event_info(), user_info())-> any()).
--type event()		:: any().
--type event_info()	:: any().
--type user_info()	:: any().
+-type news_callback()   :: fun((event(),event_info()) ->any()) | fun((event(),event_info(), user_info())-> any()).
+-type event()           :: any().
+-type event_info()      :: any().
+-type user_info()       :: any().
 
 -record(watch, {
-        watch_list		= [],
+        watch_list              = [],
         callback   ::news_callback() ,
         user_info  ::user_info(),
         exp_time,
         ttl        ::non_neg_integer()}).
 
 
--spec start_link()	    -> 'ignore' | {'error',_} | {'ok',pid()}.
--spec start_link(_)	    -> 'ignore' | {'error',_} | {'ok',pid()}.
--spec init(_)               -> {'ok',  #state{}}.
+-spec start_link()          -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec start_link(_)         -> 'ignore' | {'error',_} | {'ok',pid()}.
+-spec init([])               -> {'ok',  #state{}}.
 -spec handle_call('dump' | 'reset' | {'cancel_watch',_} | {'extend_watch',_} | {'created',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_} | {'deleted',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_} | {'updated',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_} | {'watch',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_,number()} | {'set_watch',_,binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_,number()},_,_) ->
-			 {'reply',_,#state{ttl_tree::gb_tree()}}.
+                         {'reply',_,#state{ttl_tree::gb_tree()}}.
 -spec handle_cast(_,_)      -> {'noreply',_}.
 -spec terminate(_,_)        -> 'ok'.
 -spec code_change(_,_,_)    -> {'ok',_}.
@@ -48,7 +48,14 @@
 -export([activate_record/2]).
 
 -export([future_time/1]).
--spec make_wildcard_watchers(#state{watch_dict::dict(),ttl_tree::gb_tree(),set_watchers::dict(),id_watchers::dict(),set_attr_watchers::dict(),id_attr_watchers::dict(),watch_counter::integer()},_) -> any().
+-spec make_wildcard_watchers(#state{watch_dict::dict(),
+                                    ttl_tree::gb_tree(),
+                                    set_watchers::dict(),
+                                    id_watchers::dict(),
+                                    set_attr_watchers::dict(),
+                                    id_attr_watchers::dict(),
+                                    watch_counter::integer()},
+                             _) -> any().
 
 
 
@@ -156,26 +163,26 @@ handle_call({extend_watch, WatchId}, _From, State0) ->
             NewExpTime = future_time(TTL),
             NewTree    = tiny_pq:move_value(ExpTime, NewExpTime, WatchId, State#state.ttl_tree),
             {ok, State#state{
-		   ttl_tree   = NewTree, 
-		   watch_dict = dict:store(WatchId,
-					    Watch#watch{ exp_time = NewExpTime }, 
-					    State#state.watch_dict) }};
+                   ttl_tree   = NewTree, 
+                   watch_dict = dict:store(WatchId,
+                                            Watch#watch{ exp_time = NewExpTime }, 
+                                            State#state.watch_dict) }};
         _ ->
             {{error, not_found}, State}
     end,
     {reply, RetVal, NewState};
 handle_call({created, Id, Attrs}, _From, State0) ->
     State                = boss_news_controller_util:prune_expired_entries(State0),
-    [Module | _IdNum]	= re:split(Id, "-", [{return, list}, {parts, 2}]),
-    PluralModel		= inflector:pluralize(Module),
+    [Module | _IdNum]   = re:split(Id, "-", [{return, list}, {parts, 2}]),
+    PluralModel         = inflector:pluralize(Module),
     Watchers            = dict:find(PluralModel, State#state.set_watchers),
     {RetVal, State1}    = boss_news_controller_util:created_news_process(Id, Attrs, State,
                                                                          PluralModel, Watchers),
     {reply, RetVal, State1};
 handle_call({deleted, Id, OldAttrs}, _From, State0) ->
     State                = boss_news_controller_util:prune_expired_entries(State0),
-    [Module | _IdNum]	= re:split(Id, "-", [{return, list}, {parts, 2}]),
-    PluralModel		= inflector:pluralize(Module),
+    [Module | _IdNum]   = re:split(Id, "-", [{return, list}, {parts, 2}]),
+    PluralModel         = inflector:pluralize(Module),
     Watchers            = dict:find(PluralModel, State#state.set_watchers),
     {RetVal, State1}    = boss_news_controller_util:delete_news_watchers(Id, OldAttrs, State,
                                                                          PluralModel, Watchers),
@@ -183,37 +190,37 @@ handle_call({deleted, Id, OldAttrs}, _From, State0) ->
 
 handle_call({updated, Id, OldAttrs, NewAttrs}, _From, State0) ->
     State                = boss_news_controller_util:prune_expired_entries(State0),
-    [Module | _IdNum]	= re:split(Id, "-", [{return, list}, {parts, 2}]),
+    [Module | _IdNum]   = re:split(Id, "-", [{return, list}, {parts, 2}]),
 
-    IdWatchers		= make_id_watchers(Id, State),
-    WildcardWatchers	= make_wildcard_watchers(State, Module),
+    IdWatchers          = make_id_watchers(Id, State),
+    WildcardWatchers    = make_wildcard_watchers(State, Module),
 
-    AllWatchers		= IdWatchers ++ WildcardWatchers,
+    AllWatchers         = IdWatchers ++ WildcardWatchers,
 
-    OldRecord		= activate_record(Id, OldAttrs),
-    OldAttributes	= OldRecord:attributes(),
+    OldRecord           = activate_record(Id, OldAttrs),
+    OldAttributes       = OldRecord:attributes(),
     
-    NewRecord		= activate_record(Id, NewAttrs),
-    NewAttributes	= NewRecord:attributes(),
+    NewRecord           = activate_record(Id, NewAttrs),
+    NewAttributes       = NewRecord:attributes(),
 
     NewState            = boss_news_controller_util:news_update_controller_inner_1(Id, State,
-							                           Module,
-							                           AllWatchers,
-							                           NewRecord,
-							                           OldAttributes,
-							                           NewAttributes),
+                                                                                   Module,
+                                                                                   AllWatchers,
+                                                                                   NewRecord,
+                                                                                   OldAttributes,
+                                                                                   NewAttributes),
     {reply, ok, NewState}.
 
 make_wildcard_watchers(State, Module) ->
     case dict:find(Module, State#state.set_attr_watchers) of
-{ok, Val1} -> Val1;
-_ -> []
+        {ok, Val1} -> Val1;
+        _ -> []
     end.
 
 make_id_watchers(Id, State) ->
     case dict:find(Id, State#state.id_attr_watchers) of
-{ok, Val} -> Val;
-_ -> []
+        {ok, Val} -> Val;
+        _ -> []
     end.
 
 handle_cast(_Request, State) ->
@@ -234,9 +241,9 @@ future_time(TTL) ->
     MegaSecs * 1000 * 1000 + Secs + TTL.
 
 activate_record(Id, Attrs) ->
-    [Module | _IdNum]	= re:split(Id, "-", [{return, list}, {parts, 2}]),
-    Type		= list_to_existing_atom(Module),
-    DummyRecord		= boss_record_lib:dummy_record(Type),
+    [Module | _IdNum]   = re:split(Id, "-", [{return, list}, {parts, 2}]),
+    Type                = list_to_existing_atom(Module),
+    DummyRecord         = boss_record_lib:dummy_record(Type),
     apply(Type, new, lists:map(fun
                 (id) -> Id;
                 (Key) -> proplists:get_value(Key, Attrs)

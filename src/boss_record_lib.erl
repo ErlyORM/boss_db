@@ -15,7 +15,23 @@
 -ifdef(TEST).
 -compile(export_all).
 -endif.
--define(MILLION, 1000000).
+-define(THOUSAND, 1000).
+-define(MILLION, ?THOUSAND*?THOUSAND).
+
+-spec run_before_hooks(tuple(),boolean()) -> any().
+-spec run_after_hooks(_,tuple(),boolean()) -> any().
+-spec run_before_delete_hooks(tuple()) -> any().
+-spec run_hooks(tuple(),atom() | tuple(),'after_create' | 'after_update' | 'before_create' | 'before_delete' | 'before_update') -> any().
+-spec is_boss_record(_,_) -> boolean().
+-spec dummy_record(atom() | tuple()) -> any().
+-spec attribute_names(atom() | tuple()) -> any().
+-spec attribute_types(atom() | tuple()) -> any().
+-spec database_columns(atom() | tuple()) -> any().
+-spec database_table(atom() | tuple()) -> any().
+-spec belongs_to_types(atom()) -> any().
+-spec ensure_loaded(atom()) -> boolean().
+-type target_types() :: 'binary' | 'boolean' | 'date' | 'datetime' | 'float' | 'integer' | 'string' | 'timestamp' | 'undefined'.
+-spec convert_value_to_type(_,target_types()) -> any().
 
 run_before_hooks(Record, true) ->
     run_hooks(Record, element(1, Record), before_create);
@@ -106,6 +122,8 @@ convert_value_to_type(Val, integer) when is_list(Val) ->
     list_to_integer(Val);
 convert_value_to_type(Val, integer) when is_binary(Val) ->
     list_to_integer(binary_to_list(Val));
+convert_value_to_type(Val, float) when is_binary(Val) ->
+    binary_to_float(Val);
 convert_value_to_type(Val, float) when is_float(Val) -> 
     Val;
 convert_value_to_type(Val, float) when is_integer(Val) -> 
@@ -123,7 +141,7 @@ convert_value_to_type(Val, binary) when is_list(Val) ->
 convert_value_to_type(Val, binary) when is_binary(Val) ->
     Val;
 convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}}, Type) when is_integer(D1), is_integer(D2), is_integer(D3), 
-                                                                     is_integer(T1), is_integer(T2), is_float(T3) ->
+                                                               is_integer(T1), is_integer(T2), is_float(T3) ->
     convert_value_to_type({{D1, D2, D3}, {T1, T2, round(T3)}}, Type);
 convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}} = Val, integer) when is_integer(D1), is_integer(D2), is_integer(D3), 
                                                                         is_integer(T1), is_integer(T2), is_integer(T3) ->
@@ -139,15 +157,15 @@ convert_value_to_type({D1, D2, D3} = Val, date) when is_integer(D1), is_integer(
     Val;
 convert_value_to_type({date, {D1, D2, D3} = Val}, date) when is_integer(D1), is_integer(D2), is_integer(D3) ->
     Val;
-convert_value_to_type(<<"1">>, boolean) -> true;
-convert_value_to_type(<<"0">>, boolean) -> false;
-convert_value_to_type(<<"true">>, boolean) -> true;
+convert_value_to_type(<<"1">>,     boolean) -> true;
+convert_value_to_type(<<"0">>,     boolean) -> false;
+convert_value_to_type(<<"true">>,  boolean) -> true;
 convert_value_to_type(<<"false">>, boolean) -> false;
-convert_value_to_type("1", boolean) -> true;
-convert_value_to_type("0", boolean) -> false;
-convert_value_to_type("true", boolean) -> true;
-convert_value_to_type("false", boolean) -> false;
-convert_value_to_type(1, boolean) -> true;
-convert_value_to_type(0, boolean) -> false;
-convert_value_to_type(true, boolean) -> true;
-convert_value_to_type(false, boolean) -> false.
+convert_value_to_type("1",         boolean) -> true;
+convert_value_to_type("0",         boolean) -> false;
+convert_value_to_type("true",      boolean) -> true;
+convert_value_to_type("false",     boolean) -> false;
+convert_value_to_type(1,           boolean) -> true;
+convert_value_to_type(0,           boolean) -> false;
+convert_value_to_type(true,        boolean) -> true;
+convert_value_to_type(false,       boolean) -> false.
