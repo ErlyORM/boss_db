@@ -433,7 +433,7 @@ escape_sql1([C|Rest], Acc) ->
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
 pack_datetime(DateTime) ->
-    "TIMESTAMP " ++dh_date:format("'Y-m-dTH:M:S'",DateTime).
+    "TIMESTAMP " ++dh_date:format("'Y-m-dTH:i:s'",DateTime).
     
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
