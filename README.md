@@ -36,6 +36,7 @@ Usage
         {db_port, PortNumber::integer()},
         {db_username, UserName::string()},
         {db_password, Password::string()},
+        {db_database, Database::string()},
         {shards, [
             {db_shard_models, [ModelName::atom()]},
             {db_shard_id, ShardId::atom()},
@@ -102,7 +103,7 @@ compilation:
     {plugin_dir, ["deps/boss_db/priv/rebar"]}.
     {plugins, [boss_db_rebar]}.
     {boss_db_opts, [
-        {model_root, "src/model"},
+        {model_dir, "src/model"},
     ]}.
 
 Associations
