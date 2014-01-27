@@ -565,9 +565,9 @@ has_one_forms(HasOne, ModuleName, Opts) ->
                         ])]))
     ].
 
-%% has_many_forms(HasMany, ModuleName, many, Opts) ->
-%%     has_many_forms(HasMany, ModuleName, all, Opts);
-has_many_forms(HasMany, ModuleName, Limit, Opts) -> 
+has_many_forms(HasMany, ModuleName, many, Opts) ->
+    has_many_forms(HasMany, ModuleName, all, Opts);
+has_many_forms(HasMany, ModuleName, Limit, Opts) ->
     Sort         = proplists:get_value(order_by, Opts, 'id'),
     IsDescending = proplists:get_value(descending, Opts, false),
     Singular     = inflector:singularize(atom_to_list(HasMany)),
