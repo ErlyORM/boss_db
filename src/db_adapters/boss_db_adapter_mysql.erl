@@ -12,13 +12,13 @@ stop() ->
     ok.
 
 init(Options) ->
-    DBHost = proplists:get_value(db_host, Options, "localhost"),
-    DBPort = proplists:get_value(db_port, Options, 3306),
-    DBUsername = proplists:get_value(db_username, Options, "guest"),
-    DBPassword = proplists:get_value(db_password, Options, ""),
-    DBDatabase = proplists:get_value(db_database, Options, "test"),
+    DBHost       = proplists:get_value(db_host,     Options, "localhost"),
+    DBPort       = proplists:get_value(db_port,     Options, 3306),
+    DBUsername   = proplists:get_value(db_username, Options, "guest"),
+    DBPassword   = proplists:get_value(db_password, Options, ""),
+    DBDatabase   = proplists:get_value(db_database, Options, "test"),
     DBIdentifier = proplists:get_value(db_shard_id, Options, boss_pool),
-    Encoding = utf8,
+    Encoding     = utf8,
     mysql_conn:start_link(DBHost, DBPort, DBUsername, DBPassword, DBDatabase, 
         fun(_, _, _, _) -> ok end, Encoding, DBIdentifier).
 
@@ -35,7 +35,7 @@ find(Pid, Id) when is_list(Id) ->
                 [Row] ->
                     Columns = mysql:get_result_field_info(MysqlRes),
                     case boss_record_lib:ensure_loaded(Type) of
-                        true -> activate_record(Row, Columns, Type);
+                        true  -> activate_record(Row, Columns, Type);
                         false -> {error, {module_not_loaded, Type}}
                     end
             end;
@@ -274,7 +274,7 @@ build_insert_query(Record) ->
                 {[DBColumn|Attrs], [pack_value(TableId)|Vals]};
             ({A, V}, {Attrs, Vals}) ->
                 DBColumn = proplists:get_value(A, AttributeColumns),
-                Value = case boss_sql_lib:is_foreign_key(Type, A) of
+                Value    = case boss_sql_lib:is_foreign_key(Type, A) of
                     true ->
                         {_, _, _, ForeignId} = boss_sql_lib:infer_type_from_id(V),
                         ForeignId;
@@ -284,11 +284,13 @@ build_insert_query(Record) ->
                 {[DBColumn|Attrs], [pack_value(Value)|Vals]}
         end, {[], []}, Record:attributes()),
     ["INSERT INTO ", TableName, " (", 
-        string:join(Attributes, ", "),
+        string:join(escape_attr(Attributes), ", "),
         ") values (",
         string:join(Values, ", "),
         ")"
     ].
+escape_attr(Attrs) ->
+    [["`", Attr, "`"] || Attr <- Attrs].
 
 build_update_query(Record) ->
     {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Record:id()),
@@ -306,7 +308,7 @@ build_update_query(Record) ->
                     _ ->
                         V
                 end,
-                [DBColumn ++ " = " ++ pack_value(Value)|Acc]
+                ["`"++DBColumn ++ "` = " ++ pack_value(Value)|Acc]
         end, [], Record:attributes()),
     ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
         " WHERE ", IdColumn, " = ", pack_value(TableId)].
@@ -397,7 +399,6 @@ pack_match_not(Key) ->
 
 pack_boolean_query(Values, Op) ->
     "('" ++ string:join(lists:map(fun(Val) -> Op ++ escape_sql(Val) end, Values), " ") ++ "' IN BOOLEAN MODE)".
-
 pack_set(Values) ->
     "(" ++ string:join(lists:map(fun pack_value/1, Values), ", ") ++ ")".
 
@@ -430,7 +431,7 @@ pack_value(undefined) ->
 pack_value(V) when is_binary(V) ->
     pack_value(binary_to_list(V));
 pack_value(V) when is_list(V) ->
-    "'" ++ escape_sql(V) ++ "'";
+    mysql:encode(V);
 pack_value({_, _, _} = Val) ->
 	pack_date(Val);    
 pack_value({{_, _, _}, {_, _, _}} = Val) ->
@@ -445,5 +446,6 @@ pack_value(false) ->
     "FALSE".
 
 fetch(Pid, Query) ->
+    lager:info("Query ~s", [iolist_to_binary(Query)]),
     mysql_conn:fetch(Pid, [Query], self()).
 
