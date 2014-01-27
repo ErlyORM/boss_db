@@ -265,17 +265,20 @@ counter(Key, Timeout) ->
 %% PageNum} and {page_size, PageSize} to control which page to fetch,
 %% and how many results per page.  Page size defaults to 10.
 paginate(Model, Conditions, Opts) ->
-    CleanOpts = proplists:delete(offset, proplists:delete(limit, Opts)),
-    Page = proplists:get_value(page, Opts, 1),
-    PageSize = proplists:get_value(page_size, Opts, ?DEFAULT_PAGE_SIZE),
-    OptList = proplists:delete(page_size, proplists:delete(page, CleanOpts)) ++
+    CleanOpts  = proplists:delete(offset, proplists:delete(limit, Opts)),
+    Page       = proplists:get_value(page, Opts, 1),
+    PageSize   = proplists:get_value(page_size, Opts, ?DEFAULT_PAGE_SIZE),
+    OptList    = proplists:delete(page_size, proplists:delete(page, CleanOpts)) ++
         [{offset, PageSize * (Page - 1)}, {limit, PageSize}],
-    Total = boss_db:count(Model, Conditions),
-    TotalPages = (Total div PageSize) + (case Total rem PageSize of
-                                             0 -> 0;
-                                             _ -> 1
-                                         end),
+    Total      = boss_db:count(Model, Conditions),
+    TotalPages =  compute_total_pages(PageSize, Total),
     {Page, TotalPages, boss_db:find(Model, Conditions, OptList)}.
+
+compute_total_pages(PageSize, Total) ->
+    Total div PageSize + case Total rem PageSize of
+                             0 -> 0;
+                             _ -> 1
+                         end.
 
 %% @spec incr( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by 1.
