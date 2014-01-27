@@ -7,15 +7,15 @@
 -compile(export_all).
 -endif.
 -compile(export_all).
-%-type limit()      :: pos_integer()|all.
+-type limit()      :: pos_integer() | 'all' | 'many'.
 -type error(T)     :: {ok, T} | {error, string()}.
 -type syntaxTree() :: erl_syntax:syntaxTree().
 -type name()       :: atom()|[byte(),...].
 -type fctn_n()     :: {atom(), non_neg_integer()}.
 -type fctn()       :: {function, atom(), atom(), non_neg_integer(), _}.
 -type pair()       :: {atom(),atom()}.
--type assoc()      :: {has,        {atom(), integer()}}          |
-                      {has,        {atom(), integer(), [any()]}} |
+-type assoc()      :: {has,        {atom(), limit()}}          |
+                      {has,        {atom(), limit(), [any()]}} |
                       {belongs_to, atom()}.
 
                               
@@ -67,10 +67,10 @@
 -spec belongs_to_list_make_list([pair()])                        -> syntaxTree().
 -spec attribute_names_forms(name(),[atom()])                              -> syntaxTree().
 -spec has_one_forms(name(),atom(),[any()])                                -> syntaxTree().
--spec has_many_forms(atom(),atom(), pos_integer(), [any()])      -> syntaxTree().
+-spec has_many_forms(atom(),atom(), limit(), [any()])      -> syntaxTree().
 -spec first_or_undefined_forms( syntaxTree())                             -> syntaxTree().
 -spec has_many_application_forms(name(),{'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},
-                                 pos_integer(),
+                                 pos_integer() | all,
                                  name(),
                                  name(),
                                  [atom()])
