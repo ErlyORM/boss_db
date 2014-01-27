@@ -4,7 +4,7 @@
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, transaction/2]).
 -export([get_migrations_table/1, migration_done/3]).
-
+-compile(export_all).
 start(_) ->
     ok.
 
@@ -415,10 +415,11 @@ escape_sql1([C|Rest], Acc) ->
     escape_sql1(Rest, [C|Acc]).
 
 pack_datetime(DateTime) ->
-    "'" ++ erlydtl_filters:date(DateTime, "Y-m-d H:i:s") ++ "'".
+    dh_date:format("'Y-m-d H:i:s'",DateTime ).
 
 pack_date(Date) ->
-    "'" ++ erlydtl_filters:date(Date, "Y-m-d") ++ "'".
+    dh_date:format("'Y-m-d\TH:i:s'",{Date, {0,0,0}}).
+
 
 %pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 

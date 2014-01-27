@@ -8,7 +8,7 @@
 -compile(export_all).
 -endif.
 
--define(LOG(Name, Value), io:format("DEBUG: ~s: ~p~n", [Name, Value])).
+-define(LOG(Name, Value), lager:debug("DEBUG: ~s: ~p~n", [Name, Value])).
 
 % Number of seconds between beginning of gregorian calendar and 1970
 -define(GREGORIAN_SECONDS_1970, 62167219200).

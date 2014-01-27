@@ -7,15 +7,18 @@
 -export([
         migrate/1,
         migrate/2,
-        find/1,
-        find/2,
-        find/3,
-        find_first/1,
+        find_last/1,
+        find/1, 
+        find/2, 
+        find/3, 
+        find/4, 
         find_first/2,
         find_first/3,
-        find_last/1,
+        find_first/4,
+
         find_last/2,
         find_last/3,
+        find_last/4,
         count/1,
         count/2,
         counter/1,
@@ -24,19 +27,38 @@
         incr/2,
         delete/1,
         save_record/1,
+        count/3,
+        counter/1, 
+        counter/2, 
+        incr/1, 
+        incr/2, 
+        incr/3, 
+        delete/1, 
+        delete/2, 
         push/0,
+        push/1,
         pop/0,
+        pop/1,
         create_table/2,
+        create_table/3,
         table_exists/1,
+        table_exists/2,
         depth/0,
+        depth/1,
         dump/0,
+        dump/1,
         execute/1,
         execute/2,
+        execute/3,
         transaction/1,
+        transaction/2,
+        save_record/1, 
+        save_record/2, 
         validate_record/1,
         validate_record/2,
         validate_record_types/1,
         type/1,
+        type/2,
         data_type/2]).
 
 %-ifdef(TEST).
@@ -73,11 +95,15 @@ stop() ->
     ok.
 
 db_call(Msg) ->
+    db_call(Msg, ?DEFAULT_TIMEOUT).
+
+db_call(Msg, Timeout) when is_integer(Timeout), Timeout > 0 ->
     case erlang:get(boss_db_transaction_info) of
         undefined ->
             boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
         State ->
-            {reply, Reply, _} = boss_db_controller:handle_call(Msg, self(), State),
+            {reply, Reply, State} =
+                boss_db_controller:handle_call(Msg, undefined, State),
             Reply
     end.
 
@@ -110,27 +136,32 @@ create_migration_table_if_needed() ->
 
 %% @doc Run database migration {Tag, Fun} in Direction
 migrate({Tag, Fun}, Direction) ->
-    io:format("Running migration: ~p ~p~n", [Tag, Direction]),
+    lager:info("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
     db_call({migration_done, Tag, Direction}).
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described
 %% by a dot-separated path (e.g. "employee-42.manager.name").
-find("") -> undefined;
-find(Key) when is_list(Key) ->
+find(Key) ->
+    find(Key, ?DEFAULT_TIMEOUT).
+
+find("", Timeout) when is_integer(Timeout) -> undefined;
+find(Key, Timeout) when is_list(Key), is_integer(Timeout) ->
     [IdToken|Rest] = string:tokens(Key, "."),
-    case db_call({find, IdToken}) of
-        undefined	-> undefined;
+    case db_call({find, IdToken}, Timeout) of
+        undefined -> undefined;
         {error, Reason} -> {error, Reason};
         BossRecord	-> BossRecord:get(string:join(Rest, "."))
-    end.
+    end;
+find(_, Timeout) when is_integer(Timeout) ->
+    {error, invalid_id};
 
 %% @spec find(Type::atom(), Conditions) -> [ BossRecord ]
 %% @doc Query for BossRecords. Returns all BossRecords of type
 %% `Type' matching all of the given `Conditions'
-find(Type, Conditions) ->
-    find(Type, Conditions, []).
+find(Type, Conditions) when is_list(Conditions) ->
+    find(Type, Conditions, [], ?DEFAULT_TIMEOUT).
 
 %% @spec find(Type::atom(), Conditions, Options::proplist()) -> [ BossRecord ]
 %% @doc Query for BossRecords. Returns BossRecords of type
@@ -140,12 +171,20 @@ find(Type, Conditions) ->
 %% sort the values from highest to lowest), and `include' (list of belongs_to
 %% associations to pre-cache)
 find(Type, Conditions, Options) ->
-    Max		= proplists:get_value(limit, Options, all),
-    Skip	= proplists:get_value(offset, Options, 0),
-    Sort	= proplists:get_value(order_by, Options, id),
-    SortOrder	= sort_order(Options),
-    Include	= proplists:get_value(include, Options, []),
-    db_call({find, Type, normalize_conditions(Conditions), Max, Skip, Sort, SortOrder, Include}).
+    find(Type, Conditions, Options, ?DEFAULT_TIMEOUT).
+
+find(Type, Conditions, Options, Timeout) ->
+    Max = proplists:get_value(limit, Options, all),
+    Skip = proplists:get_value(offset, Options, 0),
+    Sort = proplists:get_value(order_by, Options, id),
+    SortOrder = case proplists:get_value(descending, Options) of
+        true -> descending;
+        _ -> ascending
+    end,
+    Include = proplists:get_value(include, Options, []),
+    db_call({find, Type, normalize_conditions(Conditions),
+             Max, Skip, Sort, SortOrder, Include}, Timeout).
+
 
 -spec(sort_order(jsx:json_term()) -> sort_order()).
 sort_order(Options) ->
@@ -162,13 +201,19 @@ find_first(Type) ->
 %% @spec find_first( Type::atom(), Conditions ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions'
 find_first(Type, Conditions) ->
-    return_one(find(Type, Conditions, [{limit, 1}])).
+    find_first(Type, Conditions, ?DEFAULT_TIMEOUT).
 
 %% @spec find_first( Type::atom(), Conditions, Sort::atom() ) -> Record | undefined
 %% @doc Query for the first BossRecord of type `Type' matching all of the given `Conditions',
 %% sorted on the attribute `Sort'.
-find_first(Type, Conditions, Sort) ->
-    return_one(find(Type, Conditions, [{limit, 1}, {order_by, Sort}])).
+find_first(Type, Conditions, Timeout) when is_integer(Timeout) ->
+    return_one(find(Type, Conditions, [{limit, 1}], Timeout));
+
+find_first(Type, Conditions, Sort) when is_atom(Sort) ->
+    find_first(Type, Conditions, Sort, ?DEFAULT_TIMEOUT).
+
+find_first(Type, Conditions, Sort, Timeout) ->
+    return_one(find(Type, Conditions, [{limit, 1}, {order_by, Sort}], Timeout)).
 
 %% @spec find_last( Type::atom() ) -> Record | undefined
 %% @doc Query for the last BossRecord of type `Type'.
@@ -178,30 +223,46 @@ find_last(Type) ->
 %% @spec find_last( Type::atom(), Conditions ) -> Record | undefined
 %% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
 find_last(Type, Conditions) ->
-    return_one(find(Type, Conditions, [{limit, 1}, descending])).
+    find_last(Type, Conditions, ?DEFAULT_TIMEOUT).
 
 %% @spec find_last( Type::atom(), Conditions, Sort ) -> Record | undefined
 %% @doc Query for the last BossRecord of type `Type' matching all of the given `Conditions'
-find_last(Type, Conditions, Sort) ->
-    return_one(find(Type, Conditions, [{limit, 1}, {order_by, Sort}, descending])).
+find_last(Type, Conditions, Timeout) when is_integer(Timeout) ->
+    return_one(find(Type, Conditions, [{limit, 1}, descending], Timeout));
+
+find_last(Type, Conditions, Sort) when is_atom(Sort) ->
+    find_last(Type, Conditions, Sort, ?DEFAULT_TIMEOUT).
+
+find_last(Type, Conditions, Sort, Timeout) ->
+    return_one(find(Type, Conditions,
+                    [{limit, 1}, {order_by, Sort}, descending], Timeout)).
 
 %% @spec count( Type::atom() ) -> integer()
 %% @doc Count the number of BossRecords of type `Type' in the database.
 count(Type) ->
-    count(Type, []).
+    count(Type, [], ?DEFAULT_TIMEOUT).
 
 %% @spec count( Type::atom(), Conditions ) -> integer()
 %% @doc Count the number of BossRecords of type `Type' in the database matching
 %% all of the given `Conditions'.
-count(Type, Conditions) ->
-    db_call({count, Type, normalize_conditions(Conditions)}).
+count(Type, Timeout) when is_integer(Timeout) ->
+    count(Type, [], Timeout);
+
+count(Type, Conditions) when is_list(Conditions) ->
+    count(Type, Conditions, ?DEFAULT_TIMEOUT).
+
+count(Type, Conditions, Timeout) ->
+    db_call({count, Type, normalize_conditions(Conditions)}, Timeout).
 
 %% @spec counter( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and return its value.
 %% Returns 0 if the record does not exist, so to reset a counter just use
 %% "delete".
 counter(Key) ->
-    db_call({counter, Key}).
+    counter(Key, ?DEFAULT_TIMEOUT).
+
+counter(Key, Timeout) ->
+    db_call({counter, Key}, Timeout).
 
 %% @spec paginate( Model::atom(), Conditions, Opts ) -> Value | {error, Reason}
 %% @doc Paginate through the results from boss_db:find.  Use `Opts' {page,
@@ -223,23 +284,29 @@ paginate(Model, Conditions, Opts) ->
 %% @spec incr( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by 1.
 incr(Key) ->
-    incr(Key, 1).
+    incr(Key, 1, ?DEFAULT_TIMEOUT).
 
 %% @spec incr( Id::string(), Increment::integer() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by `Increment'.
 incr(Key, Count) ->
-    db_call({incr, Key, Count}).
+    incr(Key, Count, ?DEFAULT_TIMEOUT).
+
+incr(Key, Count, Timeout) ->
+    db_call({incr, Key, Count}, Timeout).
 
 %% @spec delete( Id::string() ) -> ok | {error, Reason}
 %% @doc Delete the BossRecord with the given `Id'.
 delete(Key) ->
-    case boss_db:find(Key) of
+    delete(Key, ?DEFAULT_TIMEOUT).
+
+delete(Key, Timeout) when is_integer(Timeout) ->
+    case boss_db:find(Key, Timeout) of
         undefined ->
             {error, not_found};
         AboutToDelete ->
             case boss_record_lib:run_before_delete_hooks(AboutToDelete) of
                 ok ->
-                    Result = db_call({delete, Key}),
+                    Result = db_call({delete, Key}, Timeout),
                     case Result of
                         ok ->
                             boss_news:deleted(Key, AboutToDelete:attributes()),
@@ -252,43 +319,73 @@ delete(Key) ->
             end
     end.
 
+
 push() ->
     db_call(push).
+
+push(Timeout) ->
+    db_call(push, Timeout).
 
 pop() ->
     db_call(pop).
 
+pop(Timeout) ->
+    db_call(pop, Timeout).
+
 depth() ->
     db_call(depth).
+
+depth(Timeout) ->
+    db_call(depth, Timeout).
 
 dump() ->
     db_call(dump).
 
+dump(Timeout) ->
+    db_call(dump, Timeout).
+
 %% @spec create_table ( TableName::string(), TableDefinition ) -> ok | {error, Reason}
 %% @doc Create a table based on TableDefinition
 create_table(TableName, TableDefinition) ->
-    db_call({create_table, TableName, TableDefinition}).
+    create_table(TableName, TableDefinition, ?DEFAULT_TIMEOUT).
+
+create_table(TableName, TableDefinition, Timeout) ->
+    db_call({create_table, TableName, TableDefinition}, Timeout).
 
 table_exists(TableName) ->
-    db_call({table_exists, TableName}).
+    table_exists(TableName, ?DEFAULT_TIMEOUT).
+
+table_exists(TableName, Timeout) ->
+    db_call({table_exists, TableName}, Timeout).
 
 %% @spec execute( Commands::iolist() ) -> RetVal
 %% @doc Execute raw database commands on SQL databases
 execute(Commands) ->
-    db_call({execute, Commands}).
+    execute(Commands, ?DEFAULT_TIMEOUT).
 
 %% @spec execute( Commands::iolist(), Params::list() ) -> RetVal
 %% @doc Execute database commands with interpolated parameters on SQL databases
-execute(Commands, Params) ->
-    db_call({execute, Commands, Params}).
+execute(Commands, Timeout) when is_integer(Timeout) ->
+    db_call({execute, Commands}, Timeout);
+
+execute(Commands, Params) when is_list(Params) ->
+    execute(Commands, Params, ?DEFAULT_TIMEOUT).
+
+execute(Commands, Params, Timeout) ->
+    db_call({execute, Commands, Params}, Timeout).
 
 %% @spec transaction( TransactionFun::function() ) -> {atomic, Result} | {aborted, Reason}
 %% @doc Execute a fun inside a transaction.
 transaction(TransactionFun) ->
-    Worker = poolboy:checkout(?POOLNAME),
-    State = gen_server:call(Worker, state, ?DEFAULT_TIMEOUT),
+    transaction(TransactionFun, ?DEFAULT_TIMEOUT).
+
+transaction(TransactionFun, Timeout) ->
+    Worker = poolboy:checkout(?POOLNAME, true, Timeout),
+    State = gen_server:call(Worker, state, Timeout),
     put(boss_db_transaction_info, State),
-    {reply, Reply, _} = boss_db_controller:handle_call({transaction, TransactionFun}, self(), State),
+    {reply, Reply, State} =
+        boss_db_controller:handle_call({transaction, TransactionFun},
+                                       undefined, State),
     put(boss_db_transaction_info, undefined),
     poolboy:checkin(?POOLNAME, Worker),
     Reply.
@@ -297,6 +394,9 @@ transaction(TransactionFun) ->
 %% @doc Save (that is, create or update) the given BossRecord in the database.
 %% Performs validation first; see `validate_record/1'.
 save_record(Record) ->
+    save_record(Record, ?DEFAULT_TIMEOUT).
+
+save_record(Record, Timeout) ->
     case validate_record(Record) of
         ok ->
             RecordId = Record:id(),
@@ -304,7 +404,7 @@ save_record(Record) ->
                 RecordId =:= 'id' ->
                     {true, Record};
                 true ->
-                    case find(RecordId) of
+                    case find(RecordId, Timeout) of
                         {error, _Reason} -> {true, Record};
                         undefined -> {true, Record};
                         FoundOldRecord -> {false, FoundOldRecord}
@@ -320,7 +420,7 @@ save_record(Record) ->
                                  end,
                     case HookResult of
                         {ok, PossiblyModifiedRecord} ->
-                            case db_call({save_record, PossiblyModifiedRecord}) of
+                            case db_call({save_record, PossiblyModifiedRecord}, Timeout) of
                                 {ok, SavedRecord} ->
                                     boss_record_lib:run_after_hooks(OldRecord, SavedRecord, IsNew),
                                     {ok, SavedRecord};
@@ -441,15 +541,14 @@ validate_record_types(Record) ->
 %% @spec type( Id::string() ) -> Type::atom()
 %% @doc Returns the type of the BossRecord with `Id', or `undefined' if the record does not exist.
 type(Key) ->
-    try 
-        case find(Key) of
-            undefined -> undefined;
-            Record    -> element(1, Record)
-        end
-    catch 
-        _:_ ->
-            lager:notice("Type of ~p unknown" , [Key]),
-            undefined
+
+    type(Key, ?DEFAULT_TIMEOUT).
+
+type(Key, Timeout) ->
+    case find(Key, Timeout) of
+        undefined -> undefined;
+        Record -> element(1, Record)
+
     end.
 
 
@@ -497,7 +596,6 @@ normalize_conditions([{Key, Operator, Value}|Rest], Acc) when is_atom(Key), is_a
 
 normalize_conditions([{Key, Operator, Value, Options}|Rest], Acc) when is_atom(Key), is_atom(Operator), is_list(Options) ->
     normalize_conditions(Rest, [{Key, Operator, Value, Options}|Acc]).
-
 
 return_one([]) -> undefined;
 return_one([Result]) ->Result.

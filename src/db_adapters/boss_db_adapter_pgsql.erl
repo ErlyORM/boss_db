@@ -9,7 +9,7 @@
 -type date_time() :: calendar:datetime1970().
 -type sql_param_value() :: string()|number()|binary()|boolean().
 -export_type([sql_param_value/0]).
-
+-compile(export_all).
 start(_) ->
     ok.
 
@@ -17,13 +17,14 @@ stop() ->
     ok.
 
 init(Options) ->
-    DBHost	= proplists:get_value(db_host, Options, "localhost"),
-    DBPort	= proplists:get_value(db_port, Options, 5432),
-    DBUsername	= proplists:get_value(db_username, Options, "guest"),
-    DBPassword	= proplists:get_value(db_password, Options, ""),
-    DBDatabase	= proplists:get_value(db_database, Options, "test"),
+    DBHost      = proplists:get_value(db_host, Options, "localhost"),
+    DBPort      = proplists:get_value(db_port, Options, 5432),
+    DBUsername  = proplists:get_value(db_username, Options, "guest"),
+    DBPassword  = proplists:get_value(db_password, Options, ""),
+    DBDatabase  = proplists:get_value(db_database, Options, "test"),
+    DBConfigure = proplists:get_value(db_configure, Options, []),
     pgsql:connect(DBHost, DBUsername, DBPassword, 
-        [{port, DBPort}, {database, DBDatabase}]).
+        [{port, DBPort}, {database, DBDatabase} | DBConfigure]).
 
 terminate(Conn) ->
     pgsql:close(Conn).
@@ -111,15 +112,13 @@ delete(Conn, Id) when is_list(Id) ->
 
 save_record(Conn, Record) when is_tuple(Record) ->
     RecordId = Record:id(),
-    io:format("Saving Record ~p~n", [RecordId]),
+    lager:notice("Saving Record ~p~n", [Record]),
     case RecordId of
         id ->
             Record1		= maybe_populate_id_value(Record),
             Type		= element(1, Record1),
             {Query,Params}	= build_insert_query(Record1),
-	    io:format("Query ~n~p~n", [ Query]),
-	    io:format("Params ~n~p~n", [Params]),
-            Res			= pgsql:equery(Conn, Query, Params),
+	    Res			= pgsql:equery(Conn, Query, Params),
             case Res of
                 {ok, _, _, [{Id}]} ->
                     {ok, Record1:set(id, lists:concat([Type, "-", id_value_to_string(Id)]))};
@@ -191,13 +190,20 @@ id_value_to_string(Id) -> Id.
 
 
 maybe_populate_id_value(Record) ->
-    case boss_sql_lib:keytype(Record) of 
-        uuid ->
-            Type = element(1, Record),
-            Record:set(id, lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]));
-        _ ->
-            Record
-end.
+    KeyType  = boss_sql_lib:keytype(Record),
+    maybe_populate_id_value(Record, KeyType).
+
+-type keytype() ::uuid|id.
+-spec(maybe_populate_id_value(tuple(), uuid|id) -> tuple()).
+maybe_populate_id_value(Record, uuid) ->    
+    Type = element(1, Record),
+    Record:set(id, lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]));
+maybe_populate_id_value(Record, id) ->
+    Record;
+maybe_populate_id_value(Record, serial) ->
+    Record.
+
+
 
 activate_record(Record, Metadata, Type) ->
     AttributeTypes	= boss_record_lib:attribute_types(Type),
@@ -427,7 +433,8 @@ escape_sql1([C|Rest], Acc) ->
 pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
 pack_datetime(DateTime) ->
-    "TIMESTAMP '" ++ erlydtl_filters:date(DateTime, "c") ++ "'".
+    "TIMESTAMP " ++dh_date:format("'Y-m-dTH:i:s'",DateTime).
+    
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 

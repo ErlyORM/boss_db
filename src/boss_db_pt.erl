@@ -235,7 +235,7 @@ rpt_error(Reason, BeforeOrAfter, Fun, Info) ->
               fun({K,V}, Acc) ->
                       [K, V | Acc]
               end, [], Info)],
-    io:format(Fmt, Args).
+    lager:error(Fmt, Args).
 
 should_i_bind(Tree) ->
     erl_syntax_lib:fold(
