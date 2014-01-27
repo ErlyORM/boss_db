@@ -665,6 +665,13 @@ has_many_query_forms_with_conditions(ForeignKey) ->
             erl_syntax:variable(?PREFIX++"Conditions")).
 
 has_many_application_forms(Type, ConditionForms, Limit, Sort, IsDescending, Include) ->
+    LimitTree = case Limit of
+                    all ->
+                        erl_syntax:atom(all);
+                    Other ->
+                        erl_syntax:integer(Other)
+                end,
+
     erl_syntax:application(
         erl_syntax:atom(?DATABASE_MODULE), 
         erl_syntax:atom(find),
@@ -673,7 +680,7 @@ has_many_application_forms(Type, ConditionForms, Limit, Sort, IsDescending, Incl
             erl_syntax:list([
                     erl_syntax:tuple([
                             erl_syntax:atom(limit),
-                            erl_syntax:integer(Limit)]),
+                            LimitTree]),
                     erl_syntax:tuple([
                             erl_syntax:atom(order_by),
                             erl_syntax:atom(Sort)]),
