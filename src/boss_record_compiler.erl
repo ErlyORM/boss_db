@@ -7,15 +7,15 @@
 -compile(export_all).
 -endif.
 -compile(export_all).
-%-type limit()      :: pos_integer()|all.
+-type limit()      :: pos_integer() | 'all' | 'many'.
 -type error(T)     :: {ok, T} | {error, string()}.
 -type syntaxTree() :: erl_syntax:syntaxTree().
 -type name()       :: atom()|[byte(),...].
 -type fctn_n()     :: {atom(), non_neg_integer()}.
 -type fctn()       :: {function, atom(), atom(), non_neg_integer(), _}.
 -type pair()       :: {atom(),atom()}.
--type assoc()      :: {has,        {atom(), integer()}}          |
-                      {has,        {atom(), integer(), [any()]}} |
+-type assoc()      :: {has,        {atom(), limit()}}          |
+                      {has,        {atom(), limit(), [any()]}} |
                       {belongs_to, atom()}.
 
                               
@@ -67,10 +67,10 @@
 -spec belongs_to_list_make_list([pair()])                        -> syntaxTree().
 -spec attribute_names_forms(name(),[atom()])                              -> syntaxTree().
 -spec has_one_forms(name(),atom(),[any()])                                -> syntaxTree().
--spec has_many_forms(atom(),atom(), pos_integer(), [any()])      -> syntaxTree().
+-spec has_many_forms(atom(),atom(), limit(), [any()])      -> syntaxTree().
 -spec first_or_undefined_forms( syntaxTree())                             -> syntaxTree().
 -spec has_many_application_forms(name(),{'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},
-                                 pos_integer(),
+                                 pos_integer() | all,
                                  name(),
                                  name(),
                                  [atom()])
@@ -565,9 +565,9 @@ has_one_forms(HasOne, ModuleName, Opts) ->
                         ])]))
     ].
 
-%% has_many_forms(HasMany, ModuleName, many, Opts) ->
-%%     has_many_forms(HasMany, ModuleName, all, Opts);
-has_many_forms(HasMany, ModuleName, Limit, Opts) -> 
+has_many_forms(HasMany, ModuleName, many, Opts) ->
+    has_many_forms(HasMany, ModuleName, all, Opts);
+has_many_forms(HasMany, ModuleName, Limit, Opts) ->
     Sort         = proplists:get_value(order_by, Opts, 'id'),
     IsDescending = proplists:get_value(descending, Opts, false),
     Singular     = inflector:singularize(atom_to_list(HasMany)),
@@ -665,6 +665,13 @@ has_many_query_forms_with_conditions(ForeignKey) ->
             erl_syntax:variable(?PREFIX++"Conditions")).
 
 has_many_application_forms(Type, ConditionForms, Limit, Sort, IsDescending, Include) ->
+    LimitTree = case Limit of
+                    all ->
+                        erl_syntax:atom(all);
+                    Other ->
+                        erl_syntax:integer(Other)
+                end,
+
     erl_syntax:application(
         erl_syntax:atom(?DATABASE_MODULE), 
         erl_syntax:atom(find),
@@ -673,7 +680,7 @@ has_many_application_forms(Type, ConditionForms, Limit, Sort, IsDescending, Incl
             erl_syntax:list([
                     erl_syntax:tuple([
                             erl_syntax:atom(limit),
-                            erl_syntax:integer(Limit)]),
+                            LimitTree]),
                     erl_syntax:tuple([
                             erl_syntax:atom(order_by),
                             erl_syntax:atom(Sort)]),
