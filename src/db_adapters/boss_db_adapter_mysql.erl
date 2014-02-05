@@ -81,6 +81,15 @@ count(Pid, Type, Conditions) ->
         {error, MysqlRes} ->
             {error, mysql:get_result_reason(MysqlRes)}
     end.
+    
+table_exists(Pid, Type) ->
+    TableName = boss_record_lib:database_table(Type),
+    Res = fetch(Pid, ["SELECT 1 FROM ", TableName," LIMIT 1"]),
+    case Res of
+        {updated, _} ->
+            ok;
+        {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
+    end.
 
 counter(Pid, Id) when is_list(Id) ->
     Res = fetch(Pid, ["SELECT value FROM counters WHERE name = ", pack_value(Id)]),
