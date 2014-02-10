@@ -11,9 +11,15 @@ start() ->
 
 start(Options) ->
     AdapterName = proplists:get_value(adapter, Options, memcached_bin),
-    Adapter	= list_to_atom(lists:concat(["boss_cache_adapter_", AdapterName])),
-    Adapter:start(Options),
-    boss_cache_sup:start_link(Options).
+    case AdapterName of
+        ets ->
+	    {ok, CachePid} = boss_cache_adapter_ets:start(Options),
+	    boss_cache_sup:start_link([{ets_cachepid, CachePid} | Options]);
+	_ ->
+            Adapter = list_to_atom(lists:concat(["boss_cache_adapter_", AdapterName])),
+            Adapter:start(Options),
+	    boss_cache_sup:start_link(Options)
+    end.
 
 stop() ->
     ok.
