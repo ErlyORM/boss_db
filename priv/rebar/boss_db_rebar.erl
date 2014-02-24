@@ -92,5 +92,12 @@ set_debug_info_option(undefined, BossCompilerOptions) ->
 compile_model(Source, Target, BossDbOpts, RebarConfig) ->
     ErlOpts = rebar_config:get(RebarConfig, erl_opts, []),
     RecordCompilerOpts = [{out_dir, filename:dirname(Target)}, {compiler_options, compiler_options(ErlOpts, BossDbOpts)}],
-    boss_record_compiler:compile(Source, RecordCompilerOpts),
-    ok.
+    case boss_record_compiler:compile(Source, RecordCompilerOpts) of
+        {ok, _Mod} ->
+            ok;
+        {ok, _Mod, Ws} ->
+            rebar_base_compiler:ok_tuple(RebarConfig, Source, Ws);
+        {error, Es, Ws} ->
+            rebar_base_compiler:error_tuple(RebarConfig, Source,
+                                            Es, Ws, RecordCompilerOpts)
+    end.

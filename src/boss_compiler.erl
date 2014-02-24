@@ -45,7 +45,8 @@ compile(File) ->
 
 compile(File, Options) ->
     lager:notice("Compile file ~p with options ~p ", [File, Options]),
-    IncludeDirs    = proplists:get_value(include_dirs,    Options, []),
+    IncludeDirs    = ["include"] ++ proplists:get_value(include_dirs,    Options, []) ++
+                     proplists:get_all_values(i, compiler_options(Options)),
     TokenTransform = proplists:get_value(token_transform, Options),
     case parse(File, TokenTransform, IncludeDirs) of
         {ok, Forms, TokenInfo} ->
