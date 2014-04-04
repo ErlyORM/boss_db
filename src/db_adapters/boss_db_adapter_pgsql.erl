@@ -32,7 +32,7 @@ terminate(Conn) ->
 find_by_sql(Conn, Type, Sql, Parameters) when is_atom(Type), is_list(Sql), is_list(Parameters) ->
     case boss_record_lib:ensure_loaded(Type) of
         true ->
-            Res = pgsql:equery(Conn, Sql, []),
+            Res = pgsql:equery(Conn, Sql, Parameters),
             case Res of
                 {ok, Columns, ResultRows} ->
                     lists:map(fun(Row) ->
