@@ -121,6 +121,10 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #sta
     {Adapter, Conn, _} = db_for_type(Type, State),
     {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
 
+handle_call({find_by_sql, Type, Sql, Parameters}, _From, State) ->
+    {Adapter, Conn, _} = db_for_type(Type, State),
+    {reply, Adapter:find_by_sql(Conn, Type, Sql, Parameters), State};
+
 handle_call({get_migrations_table}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn} = {State#state.adapter, State#state.read_connection},
     {reply, Adapter:get_migrations_table(Conn), State};
