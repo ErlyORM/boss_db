@@ -96,9 +96,14 @@ make_parse_transforms(Options, BossDBParseTransforms) ->
 proplists:get_value(parse_transforms, Options, []).
 
 otp_version() ->
-    OTPVersion       = erlang:system_info(otp_release),
-    {Version, _Rest} = string:to_integer(string:sub_string(OTPVersion, 2, 3)),
-    Version.
+    OTPVersion = erlang:system_info(otp_release),
+    case OTPVersion of
+        [$R, V1, V2 | _] -> %% Erlang versions prior to 17 were numbered like R15B01. This extracts the "15"
+            Version = list_to_integer([V1, V2]),
+            Version;
+        [V1, V2 | _] -> %% Erlang versions after 17 will be numbered as "17" or "17.0" This just strips any potential number after the first two.
+            list_to_integer([V1,V2])
+    end.
 
 make_forms_by_version(NewForms, Version) when Version >= 16->
                                                 % OTP Version starting with R16A needs boss_db_pmod_pt
