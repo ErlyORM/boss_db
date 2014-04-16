@@ -26,6 +26,10 @@ infer_type_from_id(Id) when is_list(Id) ->
             end,
     {TypeAtom, boss_record_lib:database_table(TypeAtom), IdColumn, IdValue}.
 
+convert_id_condition_to_use_table_ids({Key, Op, Value}) when Value =:= undefined andalso
+                                                             (Op == equals orelse Op == not_equals)->
+    {Key, Op, Value};
+
 convert_id_condition_to_use_table_ids({Key, Op, Value}) when Op =:= 'equals'; Op =:= 'not_equals'; Op =:= 'gt';
                                                              Op =:= 'lt'; Op =:= 'ge'; Op =:= 'le' ->
     {_Type, _TableName, _IdColumn, TableId} = infer_type_from_id(Value),
