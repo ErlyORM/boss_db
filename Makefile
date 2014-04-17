@@ -3,7 +3,7 @@ ERL=erl
 REBAR=./rebar
 DB_CONFIG_DIR=priv/test_db_config
 
-.PHONY: deps get-deps
+.PHONY: deps get-deps test
 
 all:
 	@$(REBAR) get-deps
