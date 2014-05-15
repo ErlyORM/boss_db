@@ -12,6 +12,7 @@
         find/2, 
         find/3, 
         find/4, 
+        find_by_sql/3,
         find_first/2,
         find_first/3,
         find_first/4,
@@ -179,6 +180,13 @@ find(Type, Conditions, Options, Timeout) ->
     db_call({find, Type, normalize_conditions(Conditions),
              Max, Skip, Sort, SortOrder, Include}, Timeout).
 
+-spec(find_by_sql(Type::atom(), Sql::string()) -> [BossRecord::tuple()]).
+find_by_sql(Type, Sql) when is_list(Sql) ->
+    find_by_sql(Type, Sql, []).
+
+-spec(find_by_sql(Type::atom(), Sql::string(), Parmeters::list()) -> [BossRecord::tuple()]).
+find_by_sql(Type, Sql, Parameters) when is_list(Sql), is_list(Parameters) ->
+    db_call({find_by_sql, Type, Sql, Parameters}, ?DEFAULT_TIMEOUT).
 
 -spec(sort_order(jsx:json_term()) -> sort_order()).
 sort_order(Options) ->
