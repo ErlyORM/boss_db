@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mysql).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, transaction/2]).
 -export([get_migrations_table/1, migration_done/3]).
@@ -24,6 +24,25 @@ init(Options) ->
 
 terminate(Pid) -> 
     exit(Pid, normal).
+
+find_by_sql(Pid, Type, Sql, Parameters) when is_atom(Type), is_list(Sql), is_list(Parameters) ->
+	case boss_record_lib:ensure_loaded(Type) of
+		true ->
+			Res = fetch(Pid, Sql, Parameters),
+			case Res of
+				{data, MysqlRes} ->
+					Rows = mysql:get_result_rows(MysqlRes),
+					Columns = mysql:get_result_field_info(MysqlRes),
+					lists:map(fun(Row) ->
+						activate_record(Row, Columns, Type)
+					end, Rows);
+				{error, MysqlRes} ->
+					{error, mysql:get_result_reason(MysqlRes)}
+			end;
+		false -> 
+			{error, {module_not_loaded, Type}}
+	end.
+
 
 find(Pid, Id) when is_list(Id) ->
     {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
@@ -458,3 +477,24 @@ fetch(Pid, Query) ->
     lager:info("Query ~s", [iolist_to_binary(Query)]),
     mysql_conn:fetch(Pid, [Query], self()).
 
+fetch(Pid, Query, Parameters) ->
+	Sql = replace_parameters(lists:flatten(Query), Parameters),
+	fetch(Pid, Sql).
+
+replace_parameters([$$, X, Y | Rest], Parameters) when X >= $1, X =< $9, Y >= $0, Y =< $9 ->
+	Position = (X-$0)*10 + (Y-$0),
+	[lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
+replace_parameters([$$, X | Rest], Parameters) when X >= $1, X =< $9 ->
+	Position = X-$0,
+	[lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
+replace_parameters([X | Rest], Parameters) ->
+	[X | replace_parameters(Rest, Parameters)];
+replace_parameters([], _) ->
+	[].
+
+lookup_single_parameter(Position, Parameters) ->
+	try lists:nth(Position, Parameters) of
+		V -> pack_value(V)
+	catch
+		Error -> throw(io_lib:format("Error (~p) getting parameter $~w. Provided Params: ~p", [Error, Position, Parameters]))
+	end.

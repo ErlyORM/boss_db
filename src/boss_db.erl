@@ -13,6 +13,7 @@
         find/3, 
         find/4, 
         find_by_sql/3,
+        find_by_sql/2,
         find_first/2,
         find_first/3,
         find_first/4,
@@ -56,9 +57,10 @@
         type/2,
         data_type/2]).
 
-%-ifdef(TEST).
+-ifdef(TEST).
 -compile(export_all).
-%w-endif.
+-endif.
+
 -type sort_order()	:: ascending|descending.
 -type eq_operatator()	:: 'eq'|'ne'.
 -type normal_operator() ::'equals'|'not_equals'.

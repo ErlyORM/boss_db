@@ -4,6 +4,7 @@
 -compile(export_all).
 
 pack_datetime_test() ->
+	%replace_parameters_test(),
     ?assert(proper:quickcheck(prop_pack_date_tuple(),
                               [{to_file, user}])),
     ?assert(proper:quickcheck(prop_pack_datetime_tuple(),
@@ -58,6 +59,17 @@ datetime_format(DateTime = {{Y,M,D},{H,Min, S}}) ->
               equal(Min, substr_to_i(Result, 16,18)),
               equal(S, substr_to_i(Result,19,21)),
               true]).
+
+replace_parameters_test() ->
+	{inparallel, [
+	 ?assertEqual("1 10 99", replace_parameters("$1 $10 $99", lists:seq(1,99))),
+	 ?assertEqual("where 'abc'='xyz'", replace_parameters("where $1=$3",["abc","ignore","xyz"])),
+	 ?assertEqual("123", replace_parameters("123", [])),
+	 ?assertEqual("select * from whatever where x = 'something'",replace_parameters("select * from whatever where x = $1", ["something"]))
+	]}.
+	 
+replace_parameters(Str, Params) ->
+	lists:flatten(boss_db_adapter_mysql:replace_parameters(Str, Params)).
 
 substr_to_i(Result, S, E) ->
     {I,_} = string:to_integer(string:sub_string(Result, S, E)),
