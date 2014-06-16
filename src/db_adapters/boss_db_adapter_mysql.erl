@@ -182,13 +182,19 @@ save_record(Pid, Record) when is_tuple(Record) ->
             end
     end.
 
+-ifdef(boss_test).
+%% This is to dodge problems with MySQL's fulltext indexes inside transactions
+push(_,_) -> ok.
+pop(_,_) -> ok.
+-else.
 push(Pid, Depth) ->
     case Depth of 0 -> fetch(Pid, "BEGIN"); _ -> ok end,
-    fetch(Pid, ["SAVEPOINT savepoint", integer_to_list(Depth)]).
+    fetch(Pid, ["SAVEPOINT `savepoint", integer_to_list(Depth),"`"]).
 
 pop(Pid, Depth) ->
-    fetch(Pid, ["ROLLBACK TO SAVEPOINT savepoint", integer_to_list(Depth - 1)]),
-    fetch(Pid, ["RELEASE SAVEPOINT savepoint", integer_to_list(Depth - 1)]).
+    fetch(Pid, ["ROLLBACK TO SAVEPOINT `savepoint", integer_to_list(Depth-1),"`"]),
+    fetch(Pid, ["RELEASE SAVEPOINT `savepoint", integer_to_list(Depth-1), "`"]).
+-endif.
 
 dump(_Conn) -> "".
 
@@ -474,8 +480,14 @@ pack_value(false) ->
     "FALSE".
 
 fetch(Pid, Query) ->
-    lager:info("Query ~s", [iolist_to_binary(Query)]),
-    mysql_conn:fetch(Pid, [Query], self()).
+    lager:info("Query ~s", [Query]),
+    Res = mysql_conn:fetch(Pid, [Query], self()),
+	case Res of
+		{error, MysqlRes} ->
+			lager:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
+		_ -> ok
+	end,
+	Res.
 
 fetch(Pid, Query, Parameters) ->
 	Sql = replace_parameters(lists:flatten(Query), Parameters),
