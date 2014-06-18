@@ -34,12 +34,12 @@ test_db_mock: compile_db_test
 test_db_mysql: compile_db_test
 	$(ERL) -pa ebin -pa deps/*/ebin -run boss_db_test start -config $(DB_CONFIG_DIR)/mysql -noshell
 
-test_db_pgsql:
+test_db_pgsql: compile_db_test
 	$(ERL) -pa ebin -pa deps/*/ebin -run boss_db_test start -config $(DB_CONFIG_DIR)/pgsql -noshell
 
-test_db_mongodb:
+test_db_mongodb: compile_db_test
 	echo "db.boss_db_test_models.remove();"|mongo boss_test
 	$(ERL) -pa ebin -pa deps/*/ebin -run boss_db_test start -config $(DB_CONFIG_DIR)/mongodb -noshell
 
-test_db_riak:
+test_db_riak: compile_db_test
 	$(ERL) -pa ebin -pa deps/*/ebin -run boss_db_test start -config $(DB_CONFIG_DIR)/riak -noshell

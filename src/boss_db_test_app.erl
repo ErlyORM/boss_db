@@ -176,7 +176,7 @@ run_tests_inner() ->
                   {boss_db:count(boss_db_test_model) =:= 3, "Count failed"}
               end,
               fun(_) ->
-                  {boss_db:count(boss_db_test_model, []), "Count with empty conditions failed"}
+                  {boss_db:count(boss_db_test_model, []) =:= 3, "Count with empty conditions failed"}
               end,
               fun(_) ->
                   {boss_db:count(boss_db_test_model, [{some_integer, 'gt', 50}]) =:= 2, 
