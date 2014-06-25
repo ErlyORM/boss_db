@@ -4,7 +4,7 @@
 -export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).
--export([push/2, pop/2]).
+-export([push/2, pop/2, dump/1]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
 -define(LOG(Name, Value), lager:debug("DEBUG: ~s: ~p~n", [Name, Value])).
@@ -271,10 +271,11 @@ execute_save_record(Conn, Record, Collection) ->
 			  mongo:insert(Collection, Doc)
                   end).
 
-% These 2 functions are not part of the behaviour but are required for
+% These 3 functions are not part of the behaviour but are required for
 % tests to pass
 push(_Conn, _Depth) -> ok.
 pop(_Conn,  _Depth) -> ok.
+dump(_Conn) -> ok.
 
 % This is needed to support boss_db:migrate
 table_exists(_Conn, _TableName) -> ok.
