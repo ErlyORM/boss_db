@@ -255,7 +255,8 @@ code_change(_OldVsn, State, _Extra) ->
 handle_info(stop, State) ->
     {stop, shutdown, State};
 
-handle_info({'EXIT', _From, 'normal'}, State) ->
+handle_info({'EXIT', _From, 'normal'}, State) when State#state.adapter=:=boss_db_adapter_mongodb ->
+	%% Mongo Driver links and kills connection with each request, so capture it here and ignore it
     {noreply, State};
 handle_info({'EXIT', _From, _Reason}, State) when State#state.connection_state == connected ->
     {ok, Tref} = setup_reconnect(State),
