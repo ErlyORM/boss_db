@@ -521,7 +521,7 @@ validate_record_types(Record) ->
                         {Data, atom} when is_atom(Data) ->
                             true;
                         {_Data, Type} ->
-                            false
+                            true
                     end,
                     if
                         GreatSuccess ->
