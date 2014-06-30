@@ -136,8 +136,14 @@ create_migration_table_if_needed() ->
 
 %% @doc Run database migration {Tag, Fun} in Direction
 migrate({Tag, Fun}, Direction) ->
-    lager:info("Running migration: ~p ~p~n", [Tag, Direction]),
-    Fun(Direction),
+    lager:info("Running migration: ~p~n", [Tag]),
+    case catch Fun(Direction) of
+        {'EXIT', Reason} ->
+            lager:info("Error in ~p: ~p~n", [Tag, Reason]),
+            throw(Reason);
+        Normal ->
+            Normal
+    end,
     db_call({migration_done, Tag, Direction}).
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
