@@ -7,15 +7,17 @@
 -export([
         migrate/1,
         migrate/2,
-        find_last/1,
         find/1, 
         find/2, 
         find/3, 
         find/4, 
+        find_by_sql/3,
+        find_by_sql/2,
+        find_first/1,
         find_first/2,
         find_first/3,
         find_first/4,
-
+        find_last/1,
         find_last/2,
         find_last/3,
         find_last/4,
@@ -46,6 +48,7 @@
         execute/3,
         transaction/1,
         transaction/2,
+        mock_transaction/1,
         save_record/1, 
         save_record/2, 
         validate_record/1,
@@ -53,13 +56,15 @@
         validate_record_types/1,
         type/1,
         type/2,
-        data_type/2]).
+        data_type/2,
+        sort_order/1]).
 
-%-ifdef(TEST).
+-ifdef(TEST).
 -compile(export_all).
-%w-endif.
--type sort_order()	:: ascending|descending.
--type eq_operatator()	:: 'eq'|'ne'.
+-endif.
+
+-type sort_order()      :: ascending|descending.
+-type eq_operatator()   :: 'eq'|'ne'.
 -type normal_operator() ::'equals'|'not_equals'.
 -export_type([sort_order/0, eq_operatator/0, normal_operator/0]).
 
@@ -96,8 +101,9 @@ db_call(Msg, Timeout) when is_integer(Timeout), Timeout > 0 ->
         undefined ->
             boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
         State ->
-            {reply, Reply, State} =
+            {reply, Reply, NewState} =
                 boss_db_controller:handle_call(Msg, undefined, State),
+            erlang:put(boss_db_transaction_info, NewState),
             Reply
     end.
 
@@ -112,10 +118,10 @@ migrate(Migrations) when is_list(Migrations) ->
                             {_Id, Tag, _MigratedAt} <- DoneMigrations],
     %% 3. Run the ones that are not in this list.
     transaction(fun() ->
-			[migrate({Tag, Fun}, up) ||
-			    {Tag, Fun} <- Migrations,
-			    not lists:member(Tag, DoneMigrationTags)]
-		end).
+                    [migrate({Tag, Fun}, up) ||
+                        {Tag, Fun} <- Migrations,
+                        not lists:member(Tag, DoneMigrationTags)]
+                end).
 
 create_migration_table_if_needed() ->
     %% 1. Do we have a migrations table?  If not, create it.
@@ -146,7 +152,7 @@ find(Key, Timeout) when is_list(Key), is_integer(Timeout) ->
     case db_call({find, IdToken}, Timeout) of
         undefined -> undefined;
         {error, Reason} -> {error, Reason};
-        BossRecord	-> BossRecord:get(string:join(Rest, "."))
+        BossRecord -> BossRecord:get(string:join(Rest, "."))
     end;
 find(_, Timeout) when is_integer(Timeout) ->
     {error, invalid_id};
@@ -179,12 +185,19 @@ find(Type, Conditions, Options, Timeout) ->
     db_call({find, Type, normalize_conditions(Conditions),
              Max, Skip, Sort, SortOrder, Include}, Timeout).
 
+-spec(find_by_sql(Type::atom(), Sql::string()) -> [BossRecord::tuple()]).
+find_by_sql(Type, Sql) when is_list(Sql) ->
+    find_by_sql(Type, Sql, []).
+
+-spec(find_by_sql(Type::atom(), Sql::string(), Parmeters::list()) -> [BossRecord::tuple()]).
+find_by_sql(Type, Sql, Parameters) when is_list(Sql), is_list(Parameters) ->
+    db_call({find_by_sql, Type, Sql, Parameters}, ?DEFAULT_TIMEOUT).
 
 -spec(sort_order(jsx:json_term()) -> sort_order()).
 sort_order(Options) ->
     case proplists:get_value(descending, Options) of
-	true -> descending;
-	_ -> ascending
+        true -> descending;
+        _ -> ascending
     end.
 
 %% @spec find_first( Type::atom() ) -> Record | undefined
@@ -366,6 +379,14 @@ transaction(TransactionFun, Timeout) ->
     put(boss_db_transaction_info, undefined),
     poolboy:checkin(?POOLNAME, Worker),
     Reply.
+
+mock_transaction(TransactionFun) ->
+    Worker = poolboy:checkout(?POOLNAME, true, ?DEFAULT_TIMEOUT),
+    State = gen_server:call(Worker, state, ?DEFAULT_TIMEOUT),
+    put(boss_db_transaction_info, State),
+    TransactionFun(),
+    put(boss_db_transaction_info, undefined),
+    poolboy:checkin(?POOLNAME, Worker).
 
 %% @spec save_record( BossRecord ) -> {ok, SavedBossRecord} | {error, [ErrorMessages]}
 %% @doc Save (that is, create or update) the given BossRecord in the database.

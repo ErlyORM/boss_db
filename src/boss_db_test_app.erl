@@ -6,19 +6,21 @@
 
 -spec(start(_,_) -> no_return()).
 start(_Type, _StartArgs) ->
+    application:load(boss_db),
     run_init(),
     run_setup(),
     run_tests(),
     erlang:halt().
 
 stop(_State) ->
-  ok.
+    ok.
 
 get_env(Key, Default) ->
-    case application:get_env(Key) of
+    V = case application:get_env(boss_db, Key) of
         {ok, Val} -> Val;
         _ -> Default
-    end.
+    end,
+    V.
 
 run_init() ->
     DBOptions = lists:foldl(fun(OptName, Acc) ->
@@ -43,16 +45,20 @@ run_setup() ->
   DBAdapter = get_env(db_adapter, mock),
   case file:read_file(filename:join(["priv", "test_sql", lists:concat([DBAdapter, ".sql"])])) of
     {ok, FileContents} ->
-      io:format("Running setup SQL...~n", []),
-      lists:map(fun(Cmd) ->
-                  RetVal = boss_db:execute(Cmd),
-                  lager:info("Returned: ~p~n", [RetVal])
+      lists:map(fun("") -> ok;
+                   (Cmd) ->
+                        RetVal = boss_db:execute(Cmd),
+                        lager:info("Returned: ~p~n", [RetVal])
       end, re:split(FileContents, ";"));
     {error, _Reason} ->
       ok
   end.
 
 run_tests() ->
+    %% Mock transaction ensures requests come from the same worker
+    boss_db:mock_transaction(fun run_tests_inner/0).
+
+run_tests_inner() ->
   lager:info("~-60s", ["Root test"]),
   ModelText = <<"Economists do it with models">>,
   do(
@@ -137,6 +143,18 @@ run_tests() ->
                 [Model1:id(), Model2:id(), Model3:id()]
             end, 
             [
+              fun([Id, _, _]) ->
+                  Model = boss_db:find(Id),
+                  {Model=/=undefined, Id ++ " lost"}
+              end,
+              fun([_, Id, _]) ->
+                  Model = boss_db:find(Id),
+                  {Model=/=undefined, Id ++ " lost"}
+              end,
+              fun([_, _, Id]) ->
+                  Model = boss_db:find(Id),
+                  {Model=/=undefined, Id ++ " lost"}
+              end,
               fun(_) ->
                   Res = boss_db:find(boss_db_test_model, [], [{limit, 1}]),
                   {length(Res) =:= 1, "Max not obeyed"}
