@@ -27,6 +27,8 @@ init(Options) ->
     case DBSsl of
         true ->
             ssl:start()
+        _ ->
+            undefined
     end,
     pgsql:connect(DBHost, DBUsername, DBPassword, 
         [{port, DBPort}, {database, DBDatabase}, {ssl, DBSsl} | DBConfigure]).
