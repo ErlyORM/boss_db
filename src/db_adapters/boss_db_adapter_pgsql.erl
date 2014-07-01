@@ -26,7 +26,7 @@ init(Options) ->
     DBConfigure = proplists:get_value(db_configure, Options, []),
     case DBSsl of
         true ->
-            ssl:start()
+            ssl:start();
         _ ->
             undefined
     end,
