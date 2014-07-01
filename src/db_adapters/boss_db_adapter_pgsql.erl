@@ -24,8 +24,8 @@ init(Options) ->
     DBDatabase  = proplists:get_value(db_database, Options, "test"),
     DBSsl       = proplists:get_value(db_ssl, Options, false),
     DBConfigure = proplists:get_value(db_configure, Options, []),
-    if
-        DBSsl == true ->
+    case DBSsl of
+        true ->
             ssl:start()
     end,
     pgsql:connect(DBHost, DBUsername, DBPassword, 
