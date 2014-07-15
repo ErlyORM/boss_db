@@ -106,9 +106,9 @@ handle_call({find, Key}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn, _} = db_for_key(Key, State),
     {reply, Adapter:find(Conn, Key), State};
 
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd, From, 
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Project, Include} = Cmd, From,
     #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
-    Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
+    Key = {Type, Conditions, Max, Skip, Sort, SortOrder, Project},
     case boss_cache:get(Prefix, Key) of
         undefined ->
             Res = find_list(Type, Include, Cmd, From, Prefix, State, Key),
@@ -117,9 +117,9 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
             boss_news:extend_watch(Key),
             {reply, CachedValue, State}
     end;
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #state{ cache_enable = false } = State) ->
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Project, _}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn, _} = db_for_type(Type, State),
-    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
+    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project), State};
 
 handle_call({find_by_sql, Type, Sql, Parameters}, _From, State) ->
     {Adapter, Conn, _} = db_for_type(Type, State),

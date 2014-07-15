@@ -1,7 +1,7 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
 -include_lib("mongodb/include/mongo_protocol.hrl").
--export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
+-export([start/1, stop/0, init/1, terminate/1, find/2, find/8]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).
 -export([push/2, pop/2, dump/1]).
@@ -145,17 +145,16 @@ find(Conn, Id) when is_list(Id) ->
         
     end.
 
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), 
-							      is_list(Conditions), 
-                                                              is_integer(Max) orelse Max =:= all, 
-							      is_integer(Skip), 
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(Type),
+							      is_list(Conditions),
+                                                              is_integer(Max) orelse Max =:= all,
+							      is_integer(Skip),
                                                               is_atom(Sort),
 							      is_atom(SortOrder) ->
     case boss_record_lib:ensure_loaded(Type) of
         true ->
             Collection = type_to_collection(Type),
-            Res = execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder,
-			       Collection),
+            Res = execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection),
             case Res of
                 {ok, Curs} ->
                     lists:map(fun(Row) ->
@@ -167,13 +166,12 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
         false -> {error, {module_not_loaded, Type}}
     end.
 
-execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder,
-	     Collection) ->
+execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection) ->
     execute(Conn, fun() ->
 			  Selector = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
 			  case Max of
-			      all -> mongo:find(Collection, Selector, [], Skip);
-			      _ -> mongo:find(Collection, Selector, [], Skip, Max)
+			      all -> mongo:find(Collection, Selector, Project, Skip);
+			      _ -> mongo:find(Collection, Selector, Project, Skip, Max)
                           end
                   end).
 
