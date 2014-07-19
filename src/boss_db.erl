@@ -152,7 +152,11 @@ find(Key, Timeout) when is_list(Key), is_integer(Timeout) ->
     case db_call({find, IdToken}, Timeout) of
         undefined -> undefined;
         {error, Reason} -> {error, Reason};
-        BossRecord -> BossRecord:get(string:join(Rest, "."))
+        BossRecord ->
+            case Rest of
+                []   ->    BossRecord;
+                _    ->    BossRecord:get(string:join(Rest, "."))
+            end
     end;
 find(_, Timeout) when is_integer(Timeout) ->
     {error, invalid_id};
