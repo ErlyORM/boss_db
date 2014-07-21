@@ -5,6 +5,7 @@
 -export([transaction/2]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
+-define(DEFAULT_PAGE_SIZE, 10).
 %-define(TRILLION, (1000 * 1000 * 1000 * 1000)).
 
 start(_) ->
@@ -21,6 +22,7 @@ init(_Options) ->
 % -----
 terminate(_) ->
     ok.
+
 
 % -----
 find(_, Id) when is_list(Id) ->
@@ -264,6 +266,8 @@ infer_type_from_id(Id) when is_list(Id) ->
     list_to_atom(hd(string:tokens(Id, "-"))).
 
 %----- 
+build_query(Type, Conditions) ->
+    build_query(Type, Conditions, none, none, none, none).
 build_query(Type, Conditions, _Max, _Skip, _Sort, _SortOrder) -> % a Query is a {Pattern, Filter} combo
     Fldnames = mnesia:table_info(Type, attributes),
     BlankPattern = [ {Fld, '_'} || Fld <- Fldnames],
@@ -283,3 +287,44 @@ build_conditions1([First|Rest], Pattern, Filter) ->
     build_conditions1(Rest, Pattern, [First|Filter]).
 
 
+limit (Tab, Offset, Number, MatchSpec) ->
+    Fun = fun() ->
+                  seek (Offset,
+                        Number,
+                        mnesia:select (Tab,
+                                       MatchSpec,
+                                       Number,
+                                       read)
+                       ) 
+          end,
+    mnesia:transaction(Fun). 
+
+
+seek (_Offset, _Number, '$end_of_table') ->
+  [];
+seek (Offset, Number, X) when Offset =< 0 ->
+    read (Number, X, []);
+seek (Offset, Number, { Results, Cont }) ->
+    NumResults = length (Results),
+    case Offset > NumResults of
+        true ->
+            seek (Offset - NumResults, Number, mnesia:select (Cont));
+        false ->
+            { _, DontDrop } = lists:split (Offset, Results),
+            Keep = lists:sublist (DontDrop, Number),
+            read (Number - length (Keep), mnesia:select (Cont), [ Keep ])
+    end.
+
+read (Number, _, Acc) when Number =< 0 ->
+    lists:foldl (fun erlang:'++'/2, [], Acc);
+read (_Number, '$end_of_table', Acc) ->
+    lists:foldl (fun erlang:'++'/2, [], Acc);
+read (Number, { Results, Cont }, Acc) ->
+    NumResults = length (Results),
+    case Number > NumResults of
+        true ->
+            read (Number - NumResults, mnesia:select (Cont), [ Results | Acc ]);
+        false ->
+            { Keep, _ } = lists:split (Number, Results),
+            lists:foldl (fun erlang:'++'/2, Keep, Acc)
+    end.
