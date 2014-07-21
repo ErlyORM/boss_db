@@ -4,6 +4,7 @@
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([transaction/2]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
+-export([paginate/4]).
 
 -define(DEFAULT_PAGE_SIZE, 10).
 %-define(TRILLION, (1000 * 1000 * 1000 * 1000)).
@@ -23,6 +24,28 @@ init(_Options) ->
 terminate(_) ->
     ok.
 
+%% @spec paginate( Model::atom(), Conditions, Opts ) -> Value | {error, Reason}
+%% @doc Paginate through the results matching the conditions.  Use `Opts' {page,
+%% PageNum} and {page_size, PageSize} to control which page to fetch,
+%% and how many results per page.  Page size defaults to 10.
+paginate(_, Model, Conditions, Opts) ->
+    {Pattern, _Filter} = build_query(Model, Conditions), %% don't know if _Filter is usefull here ??
+    Return   = proplists:get_value(return, Opts, all),
+    Page     = proplists:get_value(page, Opts, 1),
+    PageSize = proplists:get_value(page_size, Opts, ?DEFAULT_PAGE_SIZE),
+    Offset   = PageSize * (Page - 1),
+    Total    = boss_db:count(Model, Conditions),
+    TotalPages = (Total div PageSize) + (case Total rem PageSize of
+                                             0 -> 0;
+                                             _ -> 1
+                                         end),
+    MatchSpec = case Return of        
+                    all -> [{list_to_tuple([Model|Pattern]), [], ['$_']}];
+                    id  -> [_|T] = Pattern,                           
+                           [{list_to_tuple([Model, '$1'|T]), [], ['$1']}]
+                end,                    
+    {atomic, Result} = limit(Model, Offset, PageSize, MatchSpec),
+    {Page, TotalPages, Result}.
 
 % -----
 find(_, Id) when is_list(Id) ->
