@@ -157,8 +157,18 @@ test_rec(Rec,{Key, 'contains_none', Values}) when is_list(Values) ->
     lists:any(fun (Ele) -> not lists:member(Ele, apply(Rec,Key,[])) end, Values).
 
 % -----
-count(Conn, Type, Conditions) ->
-    length(find(Conn, Type, Conditions, all, 0, id, ascending)).
+
+count(_, Type, Conditions) ->
+    {Pattern, _} = build_query(Type, Conditions),
+    MatchSpec = [{list_to_tuple([Type|Pattern]), [], [1]}],
+    FunCount = fun() -> mnesia:select(Type, MatchSpec) end,
+    case mnesia:transaction(FunCount) of
+        {atomic, Result} -> lists:sum(Result);
+        {aborted, Err}   -> Err
+    end.
+                             
+%% count(Conn, Type, Conditions) ->
+%%     length(find(Conn, Type, Conditions, all, 0, id, ascending)).
 
 % -----
 counter(Conn, Id) when is_list(Id) ->
