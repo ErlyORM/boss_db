@@ -5,6 +5,8 @@
 -export([start/1, stop/0]).
 
 -export([
+        paginate/3,
+        paginate/4,
         migrate/1,
         migrate/2,
         find/1, 
@@ -139,6 +141,15 @@ migrate({Tag, Fun}, Direction) ->
     lager:info("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
     db_call({migration_done, Tag, Direction}).
+
+
+%% {page_num, PageNum}, {default_page_size, DefaultPageSize} {page_size, PageSize} to control which page to fetch,
+%% and how many results per page.  Page size defaults to 10.
+paginate(Type, Conditions, Opts) ->
+    paginate(Type, Conditions, Opts, ?DEFAULT_TIMEOUT).
+
+paginate(Type, Conditions, Opts, Timeout) ->
+    db_call({paginate, Type, Conditions, Opts}, Timeout).
 
 %% @spec find(Id::string()) -> Value | {error, Reason}
 %% @doc Find a BossRecord with the specified `Id' (e.g. "employee-42") or a value described

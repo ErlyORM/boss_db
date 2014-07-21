@@ -99,6 +99,9 @@ init(Options) ->
 handle_call(_Anything, _Anyone, State) when State#state.connection_state /= connected ->
     {reply, db_connection_down, State};
 
+handle_call({paginate, Type, Conditions, Opts}, _From, #state{ cache_enable = false } = State) ->
+    {Adapter, Conn, _} = db_for_type(Type, State),
+    {reply, Adapter:paginate(Conn, Type, Conditions, Opts), State};
 handle_call({find, Key}, From, #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
     CacheResult = boss_cache:get(Prefix, Key),
     find_by_key(Key, From, Prefix, State, CacheResult);
