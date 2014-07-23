@@ -185,7 +185,7 @@ count(_, Type, Conditions) ->
     FunCount = fun() -> mnesia:select(Type, MatchSpec) end,
     case mnesia:transaction(FunCount) of
         {atomic, Result} -> lists:sum(Result);
-        {aborted, Err}   -> Err                               
+        {aborted, Reason}   -> {error, Reason}                               
     end.
                              
 %% count(Conn, Type, Conditions) ->
