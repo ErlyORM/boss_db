@@ -143,8 +143,10 @@ migrate({Tag, Fun}, Direction) ->
     db_call({migration_done, Tag, Direction}).
 
 
-%% {page_num, PageNum}, {default_page_size, DefaultPageSize} {page_size, PageSize} to control which page to fetch,
-%% and how many results per page.  Page size defaults to 10.
+%% @spec paginate(Model::atom(), Conditions, Opts::proplists()) -> {Page::integer(), TotalPage::integer(), Total::integer(), Result::list()] |  {error, Reason}
+%% @doc Paginate through the results matching the conditions. Use `Opts' [{page,
+%% PageNum}, {page_size, PageSize}] to control which page to fetch,
+%% and how many results per page. Page size defaults to 10.
 paginate(Type, Conditions, Opts) ->
     paginate(Type, Conditions, Opts, ?DEFAULT_TIMEOUT).
 
