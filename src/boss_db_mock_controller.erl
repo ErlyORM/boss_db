@@ -52,7 +52,7 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
                   uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]), IdCounter};
                   _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
               end;
-        ExistingId -> 
+        ExistingId ->
             case boss_sql_lib:keytype(Record) of
                 uuid -> {ExistingId, IdCounter};
                 _    ->
@@ -97,7 +97,7 @@ handle_info(_Info, State) ->
 
 
 do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
-    Tail = lists:nthtail(Skip, 
+    Tail = lists:nthtail(Skip,
         lists:sort(fun(RecordA, RecordB) ->
                     AttributeA = sortable_attribute(RecordA, SortBy),
                     AttributeB = sortable_attribute(RecordB, SortBy),
@@ -115,7 +115,7 @@ do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
                                 match_cond(Record, Conditions);
                             (_Id, _) ->
                                 false
-                        end, Dict))))), 
+                        end, Dict))))),
     case Max of all -> Tail; _ -> lists:sublist(Tail, Max) end.
 
 match_cond(_Record, []) ->
@@ -149,24 +149,34 @@ match_cond(Record, [{Key, 'not_matches', "*"++Value}|Rest]) ->
 match_cond(Record, [{Key, 'not_matches', Value}|Rest]) ->
     re:run(Record:Key(), Value, []) =:= nomatch andalso match_cond(Record, Rest);
 match_cond(Record, [{Key, 'contains', Value}|Rest]) ->
-    lists:member(Value, string:tokens(to_string(Record:Key()), " ")) andalso match_cond(Record, Rest);
+    lists:member(Value, tokenize(to_string(Record:Key()), " ")) andalso match_cond(Record, Rest);
 match_cond(Record, [{Key, 'not_contains', Value}|Rest]) ->
-    (not lists:member(Value, string:tokens(to_string(Record:Key()), " "))) andalso match_cond(Record, Rest);
+    (not lists:member(Value, tokenize(to_string(Record:Key()), " "))) andalso match_cond(Record, Rest);
 match_cond(Record, [{Key, 'contains_all', Value}|Rest]) ->
-    Tokens = string:tokens(to_string(Record:Key()), " "),
+    Tokens = tokenize(to_string(Record:Key()), " "),
     lists:all(fun(Token) -> lists:member(Token, Tokens) end, Value) andalso match_cond(Record, Rest);
 match_cond(Record, [{Key, 'not_contains_all', Value}|Rest]) ->
-    Tokens = string:tokens(to_string(Record:Key()), " "),
+    Tokens = tokenize(to_string(Record:Key()), " "),
     (not lists:all(fun(Token) -> lists:member(Token, Tokens) end, Value)) andalso match_cond(Record, Rest);
 match_cond(Record, [{Key, 'contains_any', Value}|Rest]) ->
-    Tokens = string:tokens(to_string(Record:Key()), " "),
+    Tokens = tokenize(to_string(Record:Key()), " "),
     lists:any(fun(Token) -> lists:member(Token, Tokens) end, Value) andalso match_cond(Record, Rest);
 match_cond(Record, [{Key, 'contains_none', Value}|Rest]) ->
-    Tokens = string:tokens(to_string(Record:Key()), " "),
+    Tokens = tokenize(to_string(Record:Key()), " "),
     (not lists:any(fun(Token) -> lists:member(Token, Tokens) end, Value)) andalso match_cond(Record, Rest).
 
 to_string(Val) when is_binary(Val) -> binary_to_list(Val);
 to_string(Val) -> Val.
+
+tokenize(List) when is_list(List) ->
+    tokenize(List, " ").
+tokenize(List, Sep) when is_list(List) ->
+    case io_lib:printable_unicode_list(List) of
+        true ->
+            string:tokens(List, Sep);
+        false ->
+            List
+    end.
 
 sortable_attribute(Record, Attr) ->
     case Record:Attr() of
