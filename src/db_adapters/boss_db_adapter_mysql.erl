@@ -2,7 +2,7 @@
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
--export([push/2, pop/2, dump/1, execute/2, transaction/2]).
+-export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2]).
 -export([get_migrations_table/1, migration_done/3]).
 -compile(export_all).
 start(_) ->
@@ -200,6 +200,9 @@ dump(_Conn) -> "".
 
 execute(Pid, Commands) ->
     fetch(Pid, Commands).
+
+execute(Pid, Commands, Params) ->
+	fetch(Pid, Commands, Params).
 
 transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     do_transaction(Pid, TransactionFun).
