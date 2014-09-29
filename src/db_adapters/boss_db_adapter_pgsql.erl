@@ -1,7 +1,7 @@
 -module(boss_db_adapter_pgsql).
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
--export([count/3, counter/2, incr/3, delete/2, save_record/2]).
+-export([count/3, count_by_sql/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3, table_exists/2]).
 -export([get_migrations_table/1, migration_done/3]).
 -compile(export_all).
@@ -93,6 +93,10 @@ count(Conn, Type, Conditions) ->
     TableName = boss_record_lib:database_table(Type),
     {ok, _, [{Count}]} = pgsql:equery(Conn, 
         ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
+    Count.
+
+count_by_sql(Conn, Sql, Parameters) ->
+    {ok, _, [{Count}]} = pgsql:equery(Conn, Sql, Parameters),
     Count.
 
 counter(Conn, Id) when is_list(Id) ->

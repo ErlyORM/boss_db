@@ -24,6 +24,8 @@
         count/1,
         count/2,
         count/3,
+        count_by_sql/3,
+        count_by_sql/4,
         counter/1, 
         counter/2, 
         incr/1, 
@@ -260,6 +262,16 @@ count(Type, Conditions) when is_list(Conditions) ->
 
 count(Type, Conditions, Timeout) ->
     db_call({count, Type, normalize_conditions(Conditions)}, Timeout).
+
+%% @spec count( Type::atom(), Sql::string() ) -> integer()
+%% @doc Count the number of BossRecords of type `Type' in the
+%% database, using the SQL provided in `Sql'
+
+count_by_sql(Type, Sql, Parameters) when is_list(Sql) ->
+    count_by_sql(Type, Sql, Parameters, ?DEFAULT_TIMEOUT).
+
+count_by_sql(Type, Sql, Parameters, Timeout) when is_list(Sql) ->
+    db_call({count_by_sql, Type, Sql, Parameters}, Timeout).
 
 %% @spec counter( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and return its value.

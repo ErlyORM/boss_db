@@ -141,6 +141,10 @@ handle_call({count, Type, Conditions}, _From, State) ->
     {Adapter, Conn, _} = db_for_type(Type, State),
     {reply, Adapter:count(Conn, Type, Conditions), State};
 
+handle_call({count_by_sql, Type, Sql, Parameters}, _From, State) ->
+    {Adapter, Conn, _} = db_for_type(Type, State),
+    {reply, Adapter:count_by_sql(Conn, Sql, Parameters), State};
+
 handle_call({counter, Counter}, _From, State) ->
     {Adapter, Conn, _} = db_for_counter(Counter, State),
     {reply, Adapter:counter(Conn, Counter), State};
