@@ -155,6 +155,19 @@ process_tokens([{'-',_N             } = T1,
 process_tokens([{',',_}               = T1,
                 {var,_,VarName}       = T2,
                 {'::',_},
+                {atom,_,VarType},
+                {'(',_},
+                {')',_},
+                {'|',_},
+                {atom,_,null} |Rest] = _T,
+               TokenAcc, Acc) ->
+%    lager:notice("Tokens ~p", [_T]),
+    lager:info("Var Type ~p (null allowed)",[VarType]),
+    process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, [VarType, null]}|Acc]);
+
+process_tokens([{',',_}               = T1,
+                {var,_,VarName}       = T2,
+                {'::',_},
                 {atom,_,VarType}, 
                 {'(',_},
                 {')',_} |Rest] = _T, 
@@ -322,8 +335,25 @@ attribute_types_forms(ModuleName, TypeInfo) ->
             erl_syntax:function(
                 erl_syntax:atom(attribute_types),
                 [erl_syntax:clause([], none, [erl_syntax:list(lists:map(
-                                    fun({P, T}) -> erl_syntax:tuple([erl_syntax:atom(parameter_to_colname(P)), erl_syntax:atom(T)]) end,
+                                    %% fun({P, {T1, T2}}) -> erl_syntax:tuple([erl_syntax:atom(parameter_to_colname(P)), erl_syntax:tuple([erl_syntax:atom(T1), erl_syntax:atom(T2)])]);
+                                    %%    ({P, T}) -> erl_syntax:tuple([erl_syntax:atom(parameter_to_colname(P)), erl_syntax:atom(T)]) end,
+                                                                fun attribute_types/1,
                                     TypeInfo))])]))].
+
+attribute_types({P, T}) when is_list(T) ->
+    erl_syntax:tuple(
+      [
+       erl_syntax:atom(parameter_to_colname(P)),
+       erl_syntax:list(attribute_type_list(T))
+      ]
+     );
+attribute_types({P, T}) ->
+    erl_syntax:tuple([erl_syntax:atom(parameter_to_colname(P)), erl_syntax:atom(T)]).
+
+attribute_type_list([]) ->
+    [];
+attribute_type_list([H|T]) ->
+    [erl_syntax:atom(H)|attribute_type_list(T)].
 
 validate_types_forms(ModuleName) ->
     [erl_syntax:add_precomments([erl_syntax:comment(

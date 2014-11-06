@@ -30,7 +30,7 @@
 -spec database_table(atom() | tuple()) -> any().
 -spec belongs_to_types(atom()) -> any().
 -spec ensure_loaded(atom()) -> boolean().
--type target_types() :: 'binary' | 'boolean' | 'date' | 'datetime' | 'float' | 'integer' | 'string' | 'timestamp' | 'undefined'.
+-type target_types() :: 'binary' | 'boolean' | 'date' | 'datetime' | 'float' | 'integer' | 'string' | 'timestamp' | 'undefined' | list().
 -spec convert_value_to_type(_,target_types()) -> any().
 
 run_before_hooks(Record, true) ->
@@ -116,6 +116,15 @@ ensure_loaded(Module) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 convert_value_to_type(Val, undefined) ->
     Val;
+convert_value_to_type(undefined, [H|_] = L) when is_atom(H) ->
+    case lists:member(null, L) of
+        true ->
+            null;
+        _ ->
+            throw({error, io_lib:format("Invalid attribute list ~p (attribute lists without null is not implemented)", [L])})
+    end;
+convert_value_to_type(Val, [H|_] = L) when is_atom(H) ->
+    convert_value_to_type(Val, hd(lists:delete(null, L)));
 convert_value_to_type(Val, integer) when is_integer(Val) ->
     Val;
 convert_value_to_type(Val, integer) when is_list(Val) ->

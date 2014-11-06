@@ -495,38 +495,10 @@ validate_record_types(Record) ->
                 case Attr of
                   id -> Acc;
                   _  ->
-                    Data = Record:Attr(),
-                    GreatSuccess = case {Data, Type} of
-                        {undefined, _} ->
-                            true;
-                        {Data, string} when is_list(Data) ->
-                            true;
-                        {Data, binary} when is_binary(Data) ->
-                            true;
-                        {Data, uuid} when is_list(Data) ->
-                            true;
-                        {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3),
-                                                                      is_integer(T1), is_integer(T2), is_integer(T3) ->
-                            true;
-                        {{D1, D2, D3}, date} when is_integer(D1), is_integer(D2), is_integer(D3) ->
-                            true;
-                        {Data, integer} when is_integer(Data) ->
-                            true;
-                        {Data, float} when is_float(Data) ->
-                            true;
-                        {Data, boolean} when is_boolean(Data) ->
-                            true;
-                        {{N1, N2, N3}, timestamp} when is_integer(N1), is_integer(N2), is_integer(N3) ->
-                            true;
-                        {Data, atom} when is_atom(Data) ->
-                            true;
-                        {_Data, Type} ->
-                            false
-                    end,
-                    if
-                        GreatSuccess ->
-                            Acc;
+                    case validate_record_type({Record:Attr(), Type}) of
                         true ->
+                            Acc;
+                        false ->
                             [lists:concat(["Invalid data type for ", Attr])|Acc]
                     end
                   end
@@ -535,6 +507,36 @@ validate_record_types(Record) ->
         [] -> ok;
         _ -> {error, Errors}
     end.
+
+validate_record_type({undefined, _}) ->
+    true;
+validate_record_type({null, Types}) when is_list(Types) ->
+    lists:member(null, Types);
+validate_record_type({Data, Types}) when is_list(Types) ->
+    validate_record_type({Data, hd(lists:delete(null, Types))});
+validate_record_type({Data, string}) when is_list(Data) ->
+    true;
+validate_record_type({Data, binary}) when is_binary(Data) ->
+    true;
+validate_record_type({Data, uuid}) when is_list(Data) ->
+    true;
+validate_record_type({{{D1, D2, D3}, {T1, T2, T3}}, datetime}) when is_integer(D1), is_integer(D2), is_integer(D3),
+                                                                    is_integer(T1), is_integer(T2), is_integer(T3) ->
+    true;
+validate_record_type({{D1, D2, D3}, date}) when is_integer(D1), is_integer(D2), is_integer(D3) ->
+    true;
+validate_record_type({Data, integer}) when is_integer(Data) ->
+    true;
+validate_record_type({Data, float}) when is_float(Data) ->
+    true;
+validate_record_type({Data, boolean}) when is_boolean(Data) ->
+    true;
+validate_record_type({{N1, N2, N3}, timestamp}) when is_integer(N1), is_integer(N2), is_integer(N3) ->
+    true;
+validate_record_type({Data, atom}) when is_atom(Data) ->
+    true;
+validate_record_type({_Data, _Type}) ->
+    false.
 
 %% @spec type( Id::string() ) -> Type::atom()
 %% @doc Returns the type of the BossRecord with `Id', or `undefined' if the record does not exist.

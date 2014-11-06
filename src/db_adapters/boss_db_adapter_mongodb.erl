@@ -549,7 +549,19 @@ unpack_value(_AttrName, [H|T], _ValueType) when is_integer(H) ->
     {integers, [H|T]};
 unpack_value(_AttrName, {_, _, _} = Value, datetime) ->
     calendar:now_to_datetime(Value);
+unpack_value(AttrName, undefined, ValueType) when is_list(ValueType) ->
+    convert_value_or_unpack_id(AttrName, undefined, ValueType);
+unpack_value(AttrName, Value, ValueType) when is_list(ValueType) ->
+    case lists:member(datetime, ValueType) of
+        true ->
+            calendar:now_to_datetime(Value);
+        false ->
+            convert_value_or_unpack_id(AttrName, Value, ValueType)
+    end;
 unpack_value(AttrName, Value, ValueType) ->
+    convert_value_or_unpack_id(AttrName, Value, ValueType).
+
+convert_value_or_unpack_id(AttrName, Value, ValueType) ->
     case is_id_attr(AttrName) and (Value =/= "") of 
         true -> 
             IdType = id_type_from_foreign_key(AttrName),
