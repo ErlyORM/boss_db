@@ -100,10 +100,9 @@ count(Pid, Type, Conditions) ->
         {error, MysqlRes} ->
             {error, mysql:get_result_reason(MysqlRes)}
     end.
-    
-table_exists(Pid, Type) ->
-    TableName = boss_record_lib:database_table(Type),
-    Res = fetch(Pid, ["SELECT 1 FROM ", TableName," LIMIT 1"]),
+
+table_exists(Pid, TableName) when is_atom(TableName) ->
+    Res = fetch(Pid, ["SELECT 1 FROM ", atom_to_list(TableName)," LIMIT 1"]),
     case Res of
         {updated, _} ->
             ok;
