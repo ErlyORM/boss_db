@@ -104,8 +104,8 @@ count(Pid, Type, Conditions) ->
 table_exists(Pid, TableName) when is_atom(TableName) ->
     Res = fetch(Pid, ["SELECT 1 FROM ", atom_to_list(TableName)," LIMIT 1"]),
     case Res of
-        {updated, _} ->
-            ok;
+        {data, _} ->
+            true;
         {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
     end.
 
