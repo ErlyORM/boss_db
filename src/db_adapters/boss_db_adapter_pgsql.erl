@@ -1,7 +1,7 @@
 -module(boss_db_adapter_pgsql).
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
--export([count/3, counter/2, incr/3, delete/2, save_record/2]).
+-export([count/3, counter/2, incr/3, delete/2, delete_counter/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3, table_exists/2]).
 -export([get_migrations_table/1, migration_done/3]).
 -compile(export_all).
@@ -118,13 +118,10 @@ incr(Conn, Id, Count) ->
 
 delete(Conn, Id) when is_list(Id) ->
     {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
-    Res = pgsql:equery(Conn, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = $1"], [TableId]),
-    case Res of
-        {ok, _Count} -> 
-            pgsql:equery(Conn, "DELETE FROM counters WHERE name = $1", [Id]),
-            ok;
-        {error, Reason} -> {error, Reason}
-    end.
+    pgsql:equery(Conn, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = $1"], [TableId]).
+
+delete_counter(Conn, Key) ->
+    pgsql:equery(Conn, "DELETE FROM counters WHERE name = $1", [Key]).
 
 save_record(Conn, Record) when is_tuple(Record) ->
     RecordId = Record:id(),

@@ -31,6 +31,8 @@
         incr/3, 
         delete/1, 
         delete/2, 
+        delete_counter/1,
+        delete_counter/2,
         push/0,
         push/1,
         pop/0,
@@ -263,8 +265,8 @@ count(Type, Conditions, Timeout) ->
 
 %% @spec counter( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and return its value.
-%% Returns 0 if the record does not exist, so to reset a counter just use
-%% "delete".
+%% Returns 0 if the record does not exist.
+
 counter(Key) ->
     counter(Key, ?DEFAULT_TIMEOUT).
 
@@ -309,6 +311,11 @@ delete(Key, Timeout) when is_integer(Timeout) ->
             end
     end.
 
+delete_counter(Key) ->
+    delete_counter(Key, ?DEFAULT_TIMEOUT).
+
+delete_counter(Key, Timeout) ->
+    db_call({delete_counter, Key}, Timeout).
 
 push() ->
     db_call(push).
