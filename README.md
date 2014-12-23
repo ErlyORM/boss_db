@@ -1,6 +1,7 @@
 BossDB: A sharded, caching, pooling, evented ORM for Erlang
 ===========================================================
-[![Build Status](https://travis-ci.org/zkessin/boss_db.png?branch=proper)](https://travis-ci.org/zkessin/boss_db)
+[![Build Status](https://travis-ci.org/ChicagoBoss/boss_db.svg?branch=master)](https://travis-ci.org/ChicagoBoss/boss_db)
+
 Supported databases
 -------------------
 
