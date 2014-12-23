@@ -11,6 +11,6 @@ script:
   - rebar compile 
   - rebar eunit skip_deps=true
   - mkdir plt
-#  - ./travis-dialyzer.sh
+  - ./travis-dialyzer.sh
 notifications:
   email: false
