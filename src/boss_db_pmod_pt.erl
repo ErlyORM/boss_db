@@ -316,6 +316,15 @@ expr({bc,Line,E0,Qs0},St) ->
 expr({tuple,Line,Es0},St) ->
     Es1 = expr_list(Es0,St),
     {tuple,Line,Es1};
+expr({map, Line, Es0}, St) ->
+    Es1 = expr_list(Es0, St),
+    {map, Line, Es1};
+expr({map, Line, Name, Es0}, St) ->
+    Es1 = expr_list(Es0, St),
+    {map, Line, Name, Es1};
+expr({map_field_assoc, Line, Key, E0}, St) ->
+    E = expr(E0, St),
+    {map_field_assoc, Line, Key, E};
 expr({record,Line,Name,Is0},St) ->
     Is = record_fields(Is0,St),
     {record,Line,Name,Is};
@@ -326,6 +335,7 @@ expr({record,Line,E0,Name,Is0},St) ->
 expr({record_field,Line,E0,Name,Key},St) ->
     E = expr(E0,St),
     {record_field,Line,E,Name,Key};
+
 expr({block,Line,Es0},St) ->
     Es1 = exprs(Es0,St),
     {block,Line,Es1};
