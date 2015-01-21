@@ -5,7 +5,7 @@ otp_release:
    - R16B03-1
    - R16B02
    - R16B01
- 
+
 script:
   - rebar get-deps
   - rebar compile 
