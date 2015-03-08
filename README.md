@@ -16,13 +16,13 @@ Supported databases
 Complete API references
 -----------------------
 
-Querying: http://www.chicagoboss.org/api-db.html
+Querying: http://www.chicagoboss.org/doc/api-db.html
 
-Records: http://www.chicagoboss.org/api-record.html
+Records: http://www.chicagoboss.org/doc/api-record.html
 
-BossNews: http://chicagoboss.org/api-news.html
+BossNews: http://chicagoboss.org/doc/api-news.html
 
-Write an adapter: https://github.com/evanmiller/ChicagoBoss/wiki/DB-Adapter-Quickstart
+Write an adapter: https://github.com/ChicagoBoss/ChicagoBoss/wiki/DB-Adapter-Quickstart
 
 Usage
 -----
