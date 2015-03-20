@@ -157,6 +157,10 @@ handle_call({delete, Id}, _From, State) ->
     {Adapter, _, Conn} = db_for_key(Id, State),
     {reply, Adapter:delete(Conn, Id), State};
 
+handle_call({delete_counter, Key}, _From, State) ->
+    {Adapter, _, Conn} = db_for_key(Key, State),
+    {reply, Adapter:delete_counter(Conn, Key), State};
+
 handle_call({save_record, Record}, _From, State) ->
     {Adapter, _, Conn} = db_for_record(Record, State),
     {reply, Adapter:save_record(Conn, Record), State};

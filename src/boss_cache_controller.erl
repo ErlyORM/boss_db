@@ -31,7 +31,10 @@ handle_call({set, Prefix, Key, Value, TTL},
     {reply, Adapter:set(Conn, Prefix, Key, Value, TTL), State};
 handle_call({delete, Prefix, Key}, 
 	    _From, State = #state{adapter=Adapter, connection = Conn}) ->
-    {reply, Adapter:delete(Conn, Prefix, Key), State}.
+    {reply, Adapter:delete(Conn, Prefix, Key), State};
+handle_call({delete_counter, Prefix, Key},
+	    _From, State = #state{adapter=Adapter, connection = Conn}) ->
+    {reply, Adapter:delete_counter(Conn, Prefix, Key), State}.
 
 handle_cast(_Request, State) ->
     {noreply, State}.
