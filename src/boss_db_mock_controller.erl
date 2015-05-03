@@ -70,7 +70,7 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
             ({Attr, {_, _, _} = Val} = Other) ->
                 AttributeTypes = Record:attribute_types(),
                 case proplists:get_value(Attr, AttributeTypes) of
-                    now ->
+                    timestamp ->
                         {Attr, calendar:now_to_datetime(Val)};
                     _ ->
                         Other
