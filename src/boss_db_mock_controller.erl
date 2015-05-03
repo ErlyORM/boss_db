@@ -67,8 +67,14 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     NewAttributes = lists:map(fun
             ({id, _}) ->
                 {id, Id};
-            ({Attr, {_, _, _} = Val}) ->
-                {Attr, calendar:now_to_datetime(Val)};
+            ({Attr, {_, _, _} = Val} = Other) ->
+                AttributeTypes = Record:attribute_types(),
+                case proplists:get_value(Attr, AttributeTypes) of
+                    now ->
+                        {Attr, calendar:now_to_datetime(Val)};
+                    _ ->
+                        Other
+                end;
             (Other) ->
                 Other
         end, Record:attributes()),
