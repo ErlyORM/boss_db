@@ -21,7 +21,7 @@ init(Options) ->
 terminate(Conn) ->
     stop(Conn).
 
-get_safe(Conn, Prefix, Key) ->
+get_safe(_Conn, Prefix, Key) ->
   case erlmc:get(term_to_key(Prefix, Key)) of
     <<>> -> undefined;
     Bin -> binary_to_term(Bin)
