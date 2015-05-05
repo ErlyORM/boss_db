@@ -170,7 +170,7 @@ execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection) 
   ConditionsFormatted =
     case Sort of do_not_sort ->
       build_conditions(Conditions);
-      _ -> build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
+      _ -> build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)})
     end,
   case Max of
     all -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip);
