@@ -313,6 +313,9 @@ build_conditions1([{Key, 'not_matches', Value, Options} | Rest], Acc) ->
   MongoOptions = mongo_regex_options_for_re_module_options(Options),
   build_conditions1(Rest, [{Key, {'$not', {regex, list_to_binary(Value), list_to_binary(MongoOptions)}}} | Acc]);
 
+build_conditions1([{_, 'nor', Value} | Rest], Acc) ->
+  build_conditions1(Rest, [{'$nor', build_conditions1(Value, [])} | Acc]);
+
 build_conditions1([{id, Operator, Value} | Rest], Acc) ->
   build_conditions1([{'_id', Operator, Value} | Rest], Acc);
 
@@ -381,6 +384,8 @@ build_conditions2(Key, Operator, Value) ->
       [{Key, {'$in', lists:map(list_pack_function(Key), [H | T])}}];
     {'in', {Min, Max}} ->
       [{Key, {'$gte', Min}}, {Key, {'$lte', Max}}];
+    {'exists', Value} ->
+      [{Key, {'$exists', Value}}];
     {'not_in', [H | T]} ->
       [{Key, {'$nin', lists:map(list_pack_function(Key), [H | T])}}];
     {'not_in', {Min, Max}} ->
