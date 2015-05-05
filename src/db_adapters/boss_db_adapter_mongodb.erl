@@ -49,23 +49,23 @@ init(Options) ->
   WriteMode = proplists:get_value(db_write_mode, Options, safe),
   ReadMode = proplists:get_value(db_read_mode, Options, master),
 
-  ReadConnection = make_read_connection(Options, ReadMode,list_to_binary(Database)),
-  WriteConnection = make_write_connection(Options, ReadConnection,list_to_binary(Database)),
+  ReadConnection = make_read_connection(Options, ReadMode, list_to_binary(Database)),
+  WriteConnection = make_write_connection(Options, ReadConnection, list_to_binary(Database)),
   % We pass around arguments required by mongo:do/5
   case {proplists:get_value(db_username, Options), proplists:get_value(db_password, Options)} of
     {undefined, undefined} ->
       {ok, {readwrite,
-        {WriteMode, ReadMode, ReadConnection, list_to_binary(Database)},
-        {WriteMode, ReadMode, WriteConnection, list_to_binary(Database)}}
+        ReadConnection,
+        WriteConnection}
       };
     {User, Pass} ->
       {ok, {readwrite,
-        {WriteMode, ReadMode, ReadConnection, list_to_binary(Database), list_to_binary(User), list_to_binary(Pass)},
-        {WriteMode, ReadMode, WriteConnection, list_to_binary(Database), list_to_binary(User), list_to_binary(Pass)}}
+        ReadConnection, WriteConnection
+      }
       }
   end.
 
-make_write_connection(Options, ReadConnection,Database) ->
+make_write_connection(Options, ReadConnection, Database) ->
   case proplists:get_value(db_write_host, Options) of
     undefined ->
       ReadConnection;
@@ -75,13 +75,13 @@ make_write_connection(Options, ReadConnection,Database) ->
       WConn
   end.
 
--spec(make_write_connection(proplist(), read_mode(),binary()) -> error_m(mongo:connection())).
-make_read_connection(Options, ReadMode,Database) ->
+-spec(make_write_connection(proplist(), read_mode(), binary()) -> error_m(mongo:connection())).
+make_read_connection(Options, ReadMode, Database) ->
   case proplists:get_value(db_replication_set, Options) of
     undefined ->
       Host = proplists:get_value(db_host, Options, "localhost"),
       Port = proplists:get_value(db_port, Options, 27017),
-      {ok,Conn}= mongo:connect(Database, [{host, Host}, {port, Port}]),
+      {ok, Conn} = mongo:connect(Database, [{host, Host}, {port, Port}]),
       Conn;
     ReplSet ->
       RSConn = mongo:rs_connect(ReplSet),
@@ -100,13 +100,13 @@ read_connect1(master, RSConn) ->
 read_connect1(slave_ok, RSConn) ->
   mongo_replset:secondary_ok(RSConn).
 
-terminate({_, _, Connection, _}) ->
+terminate(Connection) ->
   case element(1, Connection) of
     connection -> mongo:disconnect(Connection);
     rs_connection -> mongo:rs_disconnect(Connection)
   end;
 
-terminate({_, _, Connection, _, _, _}) ->
+terminate(Connection) ->
   case element(1, Connection) of
     connection -> mongo:disconnect(Connection);
     rs_connection -> mongo:rs_disconnect(Connection)
@@ -154,13 +154,13 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
   case boss_record_lib:ensure_loaded(Type) of
     true ->
       Collection = type_to_collection(Type),
-      Res = execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder,
-        Collection),
+      Res = execute_find(Conn, Conditions, Collection),
       case Res of
         {ok, Curs} ->
           lists:map(fun(Row) ->
+            io:format("Row is ~p",[Row]),
             mongo_tuple_to_record(Type, Row)
-          end, mongo:rest(Curs));
+          end, mc_cursor:rest(Curs));
         {failure, Reason} -> {error, Reason}
 
       end;
@@ -177,15 +177,19 @@ update(_, Type, Conditions, Update, Options) when is_atom(Type),
     false -> {error, {module_not_loaded, Type}}
   end.
 
-execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder,
+execute_find(Conn, Conditions,
     Collection) ->
-  execute(Conn, fun() ->
-    Selector = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
-    case Max of
-      all -> mongo:find(Collection, Selector, [], Skip);
-      _ -> mongo:find(Collection, Selector, [], Skip, Max)
-    end
-  end).
+  io:format("Params are Conn ~p Collection ~p Conditions ~p ", [Conn,Collection, Conditions]),
+  A = mongo:find(Conn, Collection, {}),
+  io:format("Output is ~p", [A]),
+  {ok,A}.
+%%   execute(Conn, fun() ->
+%%     Selector = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
+%%     case Max of
+%%       all -> mongo:find(Collection, Selector, [], Skip);
+%%       _ -> mongo:find(Collection, Selector, [], Skip, Max)
+%%     end
+%%   end).
 
 
 count(Conn, Type, Conditions) ->
