@@ -125,16 +125,16 @@ transaction(_Conn, TransactionFun) ->
 
 find(Conn, Id) when is_list(Id) ->
   {Type, Collection, MongoId} = infer_type_from_id(Id),
-  try 
-  Res = mongo:find_one(Conn, Collection, {'_id', MongoId}),
+  try
+    Res = mongo:find_one(Conn, Collection, {'_id', MongoId}),
 
-  case Res of
-    {} -> undefined;
-    {Doc} -> mongo_tuple_to_record(Type, Doc)
-  end of
+    case Res of
+      {} -> undefined;
+      {Doc} -> mongo_tuple_to_record(Type, Doc)
+    end of
     V -> V
   catch _ ->
-    {error,"DB failure"}
+    {error, "DB failure"}
   end.
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(Type),
@@ -149,7 +149,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(T
       try
         Curs = execute_find(Conn, Conditions, Collection, Project),
         lists:map(fun(Row) ->
-        mongo_tuple_to_record(Type, Row)
+          mongo_tuple_to_record(Type, Row)
         end, mc_cursor:rest(Curs)) of
         Res -> Res
       catch _ ->
@@ -157,13 +157,18 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(T
       end;
     false -> {error, {module_not_loaded, Type}}
   end.
-update(_, Type, Conditions, Update, Options) when is_atom(Type),
+update(Conn, Type, Conditions, Update, Options) when is_atom(Type),
   is_list(Conditions),
   is_list(Update),
   is_list(Options) ->
   case boss_record_lib:ensure_loaded(Type) of
-    true -> 
-      type_to_collection(Type);
+    true ->
+      Collection = type_to_collection(Type),
+      ParseCondition = build_conditions(Conditions),
+      ParseUpdate = proplist_to_tuple(Update),
+      Upsert = proplists:get_value(upsert, Options, false),
+      Multi = proplists:get_value(multi, Options, false),
+      mongo:update(Conn, Collection, ParseCondition, {'$set', ParseUpdate}, Upsert, Multi);
     false -> {error, {module_not_loaded, Type}}
   end.
 
@@ -171,18 +176,8 @@ execute_find(Conn, Conditions, Collection) ->
   execute_find(Conn, Conditions, Collection, []).
 
 execute_find(Conn, Conditions, Collection, Project) ->
-  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, Conditions, Project]),
   ConditionsFormatted = build_conditions(Conditions),
-  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, ConditionsFormatted, Project]),
   mongo:find(Conn, Collection, ConditionsFormatted, Project).
-%%   execute(Conn, fun() ->
-%%     Selector = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
-%%     case Max of
-%%       all -> mongo:find(Collection, Selector, [], Skip);
-%%       _ -> mongo:find(Collection, Selector, [], Skip, Max)
-%%     end
-%%   end).
-
 
 
 count(Conn, Type, Conditions) ->
@@ -241,8 +236,8 @@ save_record(Conn, Record) when is_tuple(Record) ->
             execute_save_record(Conn, Record, Collection, DefinedId)
         end,
   case Res of
-    ok -> {ok,Record};
-    Tuple when erlang:is_tuple(Tuple) -> {ok, mongo_tuple_to_record(Type,Tuple)};
+    ok -> {ok, Record};
+    Tuple when erlang:is_tuple(Tuple) -> {ok, mongo_tuple_to_record(Type, Tuple)};
     {failure, Reason} -> {error, Reason}
   end.
 
@@ -271,7 +266,7 @@ execute_save_record(Conn, Record, Collection) ->
       [{K, PackedVal} | Acc]
   end, [], Record:attributes()),
   Doc = proplist_to_tuple(PropList),
-  mongo:insert(Conn,Collection,Doc).
+  mongo:insert(Conn, Collection, Doc).
 
 
 % These 3 functions are not part of the behaviour but are required for
@@ -527,7 +522,7 @@ pack_id(BossId) ->
   catch
     Error:Reason ->
       error_logger:warning_msg("Error parsing Boss record id: ~p:~p ~p~n",
-        [Error, Reason,BossId]),
+        [Error, Reason, BossId]),
       []
   end.
 
