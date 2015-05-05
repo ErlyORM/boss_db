@@ -2,7 +2,7 @@
 -module(boss_db_adapter_mock).
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, start/1, stop/0]).
--export([find/2, find/7, count/3, counter/2, incr/3, delete/2, save_record/2]).
+-export([find/2, find/7, find/8,count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, transaction/2]).
 
 start(Options) ->
@@ -24,6 +24,11 @@ terminate(_) ->
 
 find(_, Id) ->
     gen_server:call({global, boss_db_mock}, {find, Id}).
+
+find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder, _) when is_atom(Type), is_list(Conditions),
+    is_integer(Max) orelse Max =:= all, is_integer(Skip),
+    is_atom(Sort), is_atom(SortOrder) ->
+    find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder).
 
 find(_, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
     gen_server:call({global, boss_db_mock}, {find, Type, Conditions, Max, Skip, SortBy, SortOrder}).
