@@ -144,7 +144,11 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(T
         Curs = execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection),
         lists:map(fun(Row) ->
           mongo_tuple_to_record(Type, Row)
-        end, mc_cursor:rest(Curs)) of
+        end, case Max of
+                 all -> mc_cursor:rest(Curs);
+                 N when is_integer(N) -> mc_cursor:take(Curs, N);
+                 _ -> mc_cursor:rest(Curs)
+             end) of
         Res -> Res
       catch _ ->
         {error, "DB error"}
@@ -166,16 +170,13 @@ update(Conn, Type, Conditions, Update, Options) when is_atom(Type),
     false -> {error, {module_not_loaded, Type}}
   end.
 
-execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection) ->
+execute_find(Conn, Conditions, _Max, Skip, Sort, SortOrder, Project, Collection) ->
   ConditionsFormatted =
     case Sort of do_not_sort ->
       build_conditions(Conditions);
       _ -> build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)})
     end,
-  case Max of
-    all -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip);
-    _ -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip, Max)
-  end.
+  mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip).
 
 count(Conn, Type, Conditions) ->
   Collection = type_to_collection(Type),
