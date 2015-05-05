@@ -184,8 +184,12 @@ find(Type, Conditions, Options, Timeout) ->
         _ -> ascending
     end,
     Include = proplists:get_value(include, Options, []),
+    Project = case proplists:get_value(project, Options) of
+                  undefined -> [];
+                  Projection -> Projection
+              end,
     db_call({find, Type, normalize_conditions(Conditions),
-             Max, Skip, Sort, SortOrder, Include}, Timeout).
+             Max, Skip, Sort, SortOrder, Project, Include}, Timeout).
 
 -spec(find_by_sql(Type::atom(), Sql::string()) -> [BossRecord::tuple()]).
 find_by_sql(Type, Sql) when is_list(Sql) ->

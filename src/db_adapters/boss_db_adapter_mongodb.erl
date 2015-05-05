@@ -1,7 +1,7 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
 -include_lib("mongodb/include/mongo_protocol.hrl").
--export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
+-export([start/1, stop/0, init/1, terminate/1, find/2, find/8]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).
 -export([push/2, pop/2, dump/1]).
@@ -145,7 +145,7 @@ find(Conn, Id) when is_list(Id) ->
 
   end.
 
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(Type),
   is_list(Conditions),
   is_integer(Max) orelse Max =:= all,
   is_integer(Skip),
@@ -155,7 +155,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
     true ->
       Collection = type_to_collection(Type),
       try
-        Curs = execute_find(Conn, Conditions, Collection),
+        Curs = execute_find(Conn, Conditions, Collection, Project),
         lists:map(fun(Row) ->
           io:format("Row is ~p", [Row]),
           mongo_tuple_to_record(Type, Row)
@@ -177,12 +177,14 @@ update(_, Type, Conditions, Update, Options) when is_atom(Type),
     false -> {error, {module_not_loaded, Type}}
   end.
 
-execute_find(Conn, Conditions,
-    Collection) ->
-  io:format("Params are Conn ~p Collection ~p Conditions ~p ", [Conn, Collection, Conditions]),
+execute_find(Conn, Conditions, Collection) ->
+  execute_find(Conn, Conditions, Collection, []).
+
+execute_find(Conn, Conditions, Collection, Project) ->
+  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, Conditions, Project]),
   ConditionsFormatted = build_conditions(Conditions),
-  io:format("Params are Conn ~p Collection ~p Conditions ~p ", [Conn, Collection, ConditionsFormatted]),
-  mongo:find(Conn, Collection, ConditionsFormatted).
+  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, ConditionsFormatted, Project]),
+  mongo:find(Conn, Collection, ConditionsFormatted, Project).
 %%   execute(Conn, fun() ->
 %%     Selector = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
 %%     case Max of
