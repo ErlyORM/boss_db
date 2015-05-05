@@ -9,3 +9,5 @@ erl_crash.dump
 *~
 *.sw?
 .rebar
+.idea
+*.iml

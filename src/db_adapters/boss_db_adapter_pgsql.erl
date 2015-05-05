@@ -1,6 +1,6 @@
 -module(boss_db_adapter_pgsql).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
+-export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4,find/8]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3, table_exists/2]).
 -export([get_migrations_table/1, migration_done/3]).
@@ -59,6 +59,11 @@ find(Conn, Id) when is_list(Id) ->
         {error, Reason} ->
             {error, Reason}
     end.
+
+find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder, _) when is_atom(Type), is_list(Conditions),
+    is_integer(Max) orelse Max =:= all, is_integer(Skip),
+    is_atom(Sort), is_atom(SortOrder) ->
+    find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder).
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), 
 							      is_list(Conditions), 
