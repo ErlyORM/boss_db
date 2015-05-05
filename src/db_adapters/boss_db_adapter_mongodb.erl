@@ -270,7 +270,7 @@ make_curser(Curs) ->
 
 migration_done(Conn, Tag, up) ->
   Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
-  mongo:insert(Conn,schema_migrations, Doc).
+  mongo:insert(Conn,schema_migrations, Doc);
 
 migration_done(Conn, Tag, down) ->
   mongo:delete(Conn,schema_migrations, {version, pack_value(atom_to_list(Tag))}).
