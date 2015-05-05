@@ -104,20 +104,6 @@ terminate(Connection) ->
   mongo:disconnect(Connection).
 
 
-execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
-  mongo:do(WriteMode, ReadMode, Connection, Database, Fun);
-execute({WriteMode, ReadMode, Connection, Database, User, Password}, Fun) ->
-  mongo:do(WriteMode, ReadMode, Connection, Database,
-    fun() ->
-      case mongo:auth(User, Password) of
-        true ->
-          Fun();
-        _ ->
-          lager:error("Mongo DB Login Error check username and password ~p:~p", [User, Password]),
-          {error, bad_login}
-      end
-    end).
-
 % Transactions are not currently supported, but we'll treat them as if they are.
 % Use at your own risk!
 transaction(_Conn, TransactionFun) ->
@@ -182,49 +168,36 @@ execute_find(Conn, Conditions, Collection, Project) ->
 
 count(Conn, Type, Conditions) ->
   Collection = type_to_collection(Type),
-  {ok, Count} = execute(Conn, fun() ->
-    C = build_conditions(Conditions),
-    %                ?LOG("Conditions", C),
-    mongo:count(Collection, C)
-  end),
-  Count.
+  ConditionsParsed = build_conditions(Conditions),
+  mongo:count(Conn, Collection, ConditionsParsed).
 
 counter(Conn, Id) when is_list(Id) ->
-  Res = execute(Conn, fun() ->
-    mongo:find_one(boss_counters, {'name', list_to_binary(Id)})
-  end),
-  case Res of
-    {ok, {Doc}} ->
-      PropList = tuple_to_proplist(Doc),
-      proplists:get_value(value, PropList);
-    {failure, Reason} -> {error, Reason}
-
+  try
+    {Doc} = mongo:find_one(boss_counters, {'name', list_to_binary(Id)}, {value, 1}),
+    PropList = tuple_to_proplist(Doc),
+    proplists:get_value(value, PropList) of
+    Count -> Count
+  catch _ ->
+    {error, "Failed getting count"}
   end.
 
 incr(Conn, Id) ->
   incr(Conn, Id, 1).
 
 incr(Conn, Id, Count) ->
-  Res = execute(Conn, fun() ->
-    mongo:repsert(boss_counters,
+  try
+    mongo:update(Conn,<<"boss_counters">>,
       {'name', list_to_binary(Id)},
-      {'$inc', {value, Count}}
-    )
-  end),
-  case Res of
-    {ok, ok} -> counter(Conn, Id);
-    {failure, Reason} -> {error, Reason}
-
+      {'$inc', {value, Count}},true)
+  of
+    ok -> counter(Conn, Id)
+  catch _ ->
+    {error, "Error updating counter"}
   end.
 
 delete(Conn, Id) when is_list(Id) ->
   {_Type, Collection, MongoId} = infer_type_from_id(Id),
-
-  Res = execute(Conn, fun() ->
-    mongo:delete(Collection, {'_id', MongoId})
-  end),
-  resolve(Res).
-
+  mongo:delete(Conn,Collection,{'_id', MongoId}).
 
 save_record(Conn, Record) when is_tuple(Record) ->
   Type = element(1, Record),
@@ -268,6 +241,9 @@ execute_save_record(Conn, Record, Collection) ->
   Doc = proplist_to_tuple(PropList),
   mongo:insert(Conn, Collection, Doc).
 
+execute(Conn,Command)->
+  mongo:command(Conn,Command).
+
 
 % These 3 functions are not part of the behaviour but are required for
 % tests to pass
@@ -278,21 +254,11 @@ dump(_Conn) -> ok.
 % This is needed to support boss_db:migrate
 table_exists(_Conn, _TableName) -> ok.
 
-resolve(_Res = {ok, _}) ->
-  ok;
-resolve(_Res = {failure, Reason}) ->
-  {error, Reason};
-resolve(_Res = {connection_failure, Reason}) ->
-  lager:error("connection failure ~p", [Reason]),
-  {error, Reason}.
-
 
 
 get_migrations_table(Conn) ->
-  Res = execute(Conn, fun() ->
-    mongo:find(schema_migrations, {})
-  end),
-  resolve(Res).
+  mongo:find(Conn,schema_migrations, {}).
+ 
 
 make_curser(Curs) ->
   lists:map(fun(Row) ->
@@ -300,20 +266,15 @@ make_curser(Curs) ->
     {attr_value('id', MongoDoc),
       attr_value(version, MongoDoc),
       attr_value(migrated_at, MongoDoc)}
-  end, mongo:rest(Curs)).
+  end, mc_cursor:rest(Curs)).
 
 migration_done(Conn, Tag, up) ->
-  Res = execute(Conn, fun() ->
-    Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
-    mongo:insert(schema_migrations, Doc)
-  end),
-  resolve(Res);
+  Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
+  mongo:insert(Conn,schema_migrations, Doc).
 
 migration_done(Conn, Tag, down) ->
-  Res = execute(Conn, fun() ->
-    mongo:delete(schema_migrations, {version, pack_value(atom_to_list(Tag))})
-  end),
-  resolve(Res).
+  mongo:delete(Conn,schema_migrations, {version, pack_value(atom_to_list(Tag))}).
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
