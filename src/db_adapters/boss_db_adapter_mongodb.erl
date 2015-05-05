@@ -167,10 +167,14 @@ update(Conn, Type, Conditions, Update, Options) when is_atom(Type),
   end.
 
 execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection) ->
-  ConditionsFormatted = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
+  ConditionsFormatted =
+    case Sort of do_not_sort ->
+      build_conditions(Conditions);
+      _ -> build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
+    end,
   case Max of
-      all -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip);
-      _ -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip, Max)
+    all -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip);
+    _ -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip, Max)
   end.
 
 count(Conn, Type, Conditions) ->
@@ -193,9 +197,9 @@ incr(Conn, Id) ->
 
 incr(Conn, Id, Count) ->
   try
-    mongo:update(Conn,<<"boss_counters">>,
+    mongo:update(Conn, <<"boss_counters">>,
       {'name', list_to_binary(Id)},
-      {'$inc', {value, Count}},true)
+      {'$inc', {value, Count}}, true)
   of
     ok -> counter(Conn, Id)
   catch _ ->
@@ -204,7 +208,7 @@ incr(Conn, Id, Count) ->
 
 delete(Conn, Id) when is_list(Id) ->
   {_Type, Collection, MongoId} = infer_type_from_id(Id),
-  mongo:delete(Conn,Collection,{'_id', MongoId}).
+  mongo:delete(Conn, Collection, {'_id', MongoId}).
 
 save_record(Conn, Record) when is_tuple(Record) ->
   Type = element(1, Record),
@@ -248,8 +252,8 @@ execute_save_record(Conn, Record, Collection) ->
   Doc = proplist_to_tuple(PropList),
   mongo:insert(Conn, Collection, Doc).
 
-execute(Conn,Command)->
-  mongo:command(Conn,Command).
+execute(Conn, Command) ->
+  mongo:command(Conn, Command).
 
 
 % These 3 functions are not part of the behaviour but are required for
@@ -264,8 +268,8 @@ table_exists(_Conn, _TableName) -> ok.
 
 
 get_migrations_table(Conn) ->
-  mongo:find(Conn,schema_migrations, {}).
- 
+  mongo:find(Conn, schema_migrations, {}).
+
 
 make_curser(Curs) ->
   lists:map(fun(Row) ->
@@ -277,11 +281,10 @@ make_curser(Curs) ->
 
 migration_done(Conn, Tag, up) ->
   Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
-  mongo:insert(Conn,schema_migrations, Doc);
+  mongo:insert(Conn, schema_migrations, Doc);
 
 migration_done(Conn, Tag, down) ->
-  mongo:delete(Conn,schema_migrations, {version, pack_value(atom_to_list(Tag))}).
-
+  mongo:delete(Conn, schema_migrations, {version, pack_value(atom_to_list(Tag))}).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
