@@ -167,9 +167,7 @@ update(Conn, Type, Conditions, Update, Options) when is_atom(Type),
   end.
 
 execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection) ->
-  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, Conditions, Project]),
   ConditionsFormatted = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
-  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, ConditionsFormatted, Project]),
   case Max of
       all -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip);
       _ -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip, Max)
