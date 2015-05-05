@@ -22,7 +22,7 @@
 -define(NOT_CONTAINS_FORMAT, "this.~s.indexOf('~s') == -1").
 -type db_op()			:: 'not_equals'|'gt'|'ge'|'lt'|'le'|'in'|'not_in'.
 -type mongo_op()		:: '$ne'|'$gt'|'$gte'|'$lt'|'$lte'|'$in'|'$nin'.
--type read_mode()               :: 'master'|'slave_ok'.
+%%-type read_mode()               :: 'master'|'slave_ok'.
 -type proplist(Key,Value)	:: [{Key, Value}].
 -type proplist()		:: proplist(any(), any()).
 		     	
@@ -71,7 +71,8 @@ make_write_connection(Options, ReadConnection) ->
 	    ReadConnection;
 	WHost ->
 	    WPort       = proplists:get_value(db_write_host_port, Options, 27017),
-	    {ok, WConn} = mongo:connect({WHost, WPort}),
+      Database = proplists:get_value(db_database, Options, "test"),
+      {ok, WConn} = mongo:connect(Database,{WHost, WPort}),
 	    WConn
     end.
 
@@ -81,7 +82,8 @@ make_read_connection(Options, ReadMode) ->
 	undefined ->
 	    Host = proplists:get_value(db_host, Options, "localhost"),
 	    Port = proplists:get_value(db_port, Options, 27017),
-	    {ok, Conn} = mongo:connect({Host, Port}),
+      Database = proplists:get_value(db_database, Options, "test"),
+	    {ok, Conn} = mongo:connect(Database,{Host, Port}),
 	    Conn;
 	ReplSet ->
 	    RSConn        = mongo:rs_connect(ReplSet),
