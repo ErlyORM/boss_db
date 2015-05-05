@@ -1,7 +1,7 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
 -include_lib("mongodb/include/mongo_protocol.hrl").
--export([start/1, stop/0, init/1, terminate/1, find/2, find/8]).
+-export([start/1, stop/0, init/1, terminate/1, find/2, find/7, find/8]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).
 -export([push/2, pop/2, dump/1]).
@@ -123,6 +123,14 @@ find(Conn, Id) when is_list(Id) ->
     {error, "DB failure"}
   end.
 
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
+  is_list(Conditions),
+  is_integer(Max) orelse Max =:= all,
+  is_integer(Skip),
+  is_atom(Sort),
+  is_atom(SortOrder) ->
+  find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, []).
+
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(Type),
   is_list(Conditions),
   is_integer(Max) orelse Max =:= all,
@@ -133,7 +141,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(T
     true ->
       Collection = type_to_collection(Type),
       try
-        Curs = execute_find(Conn, Conditions, Collection, Project),
+        Curs = execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection),
         lists:map(fun(Row) ->
           mongo_tuple_to_record(Type, Row)
         end, mc_cursor:rest(Curs)) of
@@ -158,13 +166,14 @@ update(Conn, Type, Conditions, Update, Options) when is_atom(Type),
     false -> {error, {module_not_loaded, Type}}
   end.
 
-execute_find(Conn, Conditions, Collection) ->
-  execute_find(Conn, Conditions, Collection, []).
-
-execute_find(Conn, Conditions, Collection, Project) ->
-  ConditionsFormatted = build_conditions(Conditions),
-  mongo:find(Conn, Collection, ConditionsFormatted, Project).
-
+execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder, Project, Collection) ->
+  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, Conditions, Project]),
+  ConditionsFormatted = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
+  io:format("Params are Conn ~p Collection ~p Conditions ~p Projection ~p", [Conn, Collection, ConditionsFormatted, Project]),
+  case Max of
+      all -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip);
+      _ -> mongo:find(Conn, Collection, ConditionsFormatted, Project, Skip, Max)
+  end.
 
 count(Conn, Type, Conditions) ->
   Collection = type_to_collection(Type),
