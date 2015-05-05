@@ -22,5 +22,11 @@
    boss_db:start(DBOptions1),
    boss_cache:start(CacheOptions),
    boss_news:start().
-   {ok, boss_db_test_model} = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_model.erl"])).
-[A|_]=boss_db:find(boss_db_test_model,[]).
+   {ok, boss_db_test_simple} = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_simple.erl"])).
+[A|_]=boss_db:find(boss_db_test_simple,[]).
+
+{ok,A} =mongo:connect(test). 
+B= mongo:find(A,<<"hello">>,{}).
+
+
+mongo:update(G,<<"hello">>,{'_id',D},H).

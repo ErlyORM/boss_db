@@ -101,16 +101,7 @@ read_connect1(slave_ok, RSConn) ->
   mongo_replset:secondary_ok(RSConn).
 
 terminate(Connection) ->
-  case element(1, Connection) of
-    connection -> mongo:disconnect(Connection);
-    rs_connection -> mongo:rs_disconnect(Connection)
-  end;
-
-terminate(Connection) ->
-  case element(1, Connection) of
-    connection -> mongo:disconnect(Connection);
-    rs_connection -> mongo:rs_disconnect(Connection)
-  end.
+  mongo:disconnect(Connection).
 
 
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
@@ -134,15 +125,16 @@ transaction(_Conn, TransactionFun) ->
 
 find(Conn, Id) when is_list(Id) ->
   {Type, Collection, MongoId} = infer_type_from_id(Id),
+  try 
+  Res = mongo:find_one(Conn, Collection, {'_id', MongoId}),
 
-  Res = execute(Conn, fun() ->
-    mongo:find_one(Collection, {'_id', MongoId})
-  end),
   case Res of
-    {ok, {}} -> undefined;
-    {ok, {Doc}} -> mongo_tuple_to_record(Type, Doc);
-    {failure, Reason} -> {error, Reason}
-
+    {} -> undefined;
+    {Doc} -> mongo_tuple_to_record(Type, Doc)
+  end of
+    V -> V
+  catch _ ->
+    {error,"DB failure"}
   end.
 
 find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(Type),
@@ -157,8 +149,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project) when is_atom(T
       try
         Curs = execute_find(Conn, Conditions, Collection, Project),
         lists:map(fun(Row) ->
-          io:format("Row is ~p", [Row]),
-          mongo_tuple_to_record(Type, Row)
+        mongo_tuple_to_record(Type, Row)
         end, mc_cursor:rest(Curs)) of
         Res -> Res
       catch _ ->
@@ -171,9 +162,8 @@ update(_, Type, Conditions, Update, Options) when is_atom(Type),
   is_list(Update),
   is_list(Options) ->
   case boss_record_lib:ensure_loaded(Type) of
-    true ->
-      Collection = type_to_collection(Type),
-      io:format("Collection is ~p", [Collection]);
+    true -> 
+      type_to_collection(Type);
     false -> {error, {module_not_loaded, Type}}
   end.
 
@@ -192,6 +182,7 @@ execute_find(Conn, Conditions, Collection, Project) ->
 %%       _ -> mongo:find(Collection, Selector, [], Skip, Max)
 %%     end
 %%   end).
+
 
 
 count(Conn, Type, Conditions) ->
@@ -250,10 +241,9 @@ save_record(Conn, Record) when is_tuple(Record) ->
             execute_save_record(Conn, Record, Collection, DefinedId)
         end,
   case Res of
-    {ok, ok} -> {ok, Record};
-    {ok, Id} -> {ok, Record:set(id, unpack_id(Type, Id))};
+    ok -> {ok,Record};
+    Tuple when erlang:is_tuple(Tuple) -> {ok, mongo_tuple_to_record(Type,Tuple)};
     {failure, Reason} -> {error, Reason}
-
   end.
 
 execute_save_record(Conn, Record, Collection, DefinedId) ->
@@ -265,9 +255,7 @@ execute_save_record(Conn, Record, Collection, DefinedId) ->
       {K, PackedVal}
   end, Record:attributes()),
   Doc = proplist_to_tuple(PropList),
-  execute(Conn, fun() ->
-    mongo:repsert(Collection, {'_id', PackedId}, Doc)
-  end).
+  mongo:update(Conn, Collection, {'_id', PackedId}, Doc, true).
 
 pack_value(K, V) ->
   case is_id_attr(K) of
@@ -283,9 +271,8 @@ execute_save_record(Conn, Record, Collection) ->
       [{K, PackedVal} | Acc]
   end, [], Record:attributes()),
   Doc = proplist_to_tuple(PropList),
-  execute(Conn, fun() ->
-    mongo:insert(Collection, Doc)
-  end).
+  mongo:insert(Conn,Collection,Doc).
+
 
 % These 3 functions are not part of the behaviour but are required for
 % tests to pass
@@ -539,8 +526,8 @@ pack_id(BossId) ->
     {hex2dec(MongoId)}
   catch
     Error:Reason ->
-      error_logger:warning_msg("Error parsing Boss record id: ~p:~p~n",
-        [Error, Reason]),
+      error_logger:warning_msg("Error parsing Boss record id: ~p:~p ~p~n",
+        [Error, Reason,BossId]),
       []
   end.
 
