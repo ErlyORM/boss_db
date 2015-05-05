@@ -23,4 +23,4 @@
    boss_cache:start(CacheOptions),
    boss_news:start().
    {ok, boss_db_test_model} = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_model.erl"])).
-boss_db:find(boss_db_test_model,[]).
+[A|_]=boss_db:find(boss_db_test_model,[]).

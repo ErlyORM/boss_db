@@ -154,15 +154,15 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
   case boss_record_lib:ensure_loaded(Type) of
     true ->
       Collection = type_to_collection(Type),
-      Res = execute_find(Conn, Conditions, Collection),
-      case Res of
-        {ok, Curs} ->
-          lists:map(fun(Row) ->
-            io:format("Row is ~p",[Row]),
-            mongo_tuple_to_record(Type, Row)
-          end, mc_cursor:rest(Curs));
-        {failure, Reason} -> {error, Reason}
-
+      try
+        Curs = execute_find(Conn, Conditions, Collection),
+        lists:map(fun(Row) ->
+          io:format("Row is ~p", [Row]),
+          mongo_tuple_to_record(Type, Row)
+        end, mc_cursor:rest(Curs)) of
+        Res -> Res
+      catch _ ->
+        {error, "DB error"}
       end;
     false -> {error, {module_not_loaded, Type}}
   end.
@@ -179,10 +179,10 @@ update(_, Type, Conditions, Update, Options) when is_atom(Type),
 
 execute_find(Conn, Conditions,
     Collection) ->
-  io:format("Params are Conn ~p Collection ~p Conditions ~p ", [Conn,Collection, Conditions]),
-  A = mongo:find(Conn, Collection, {}),
-  io:format("Output is ~p", [A]),
-  {ok,A}.
+  io:format("Params are Conn ~p Collection ~p Conditions ~p ", [Conn, Collection, Conditions]),
+  ConditionsFormatted = build_conditions(Conditions),
+  io:format("Params are Conn ~p Collection ~p Conditions ~p ", [Conn, Collection, ConditionsFormatted]),
+  mongo:find(Conn, Collection, ConditionsFormatted).
 %%   execute(Conn, fun() ->
 %%     Selector = build_conditions(Conditions, {Sort, pack_sort_order(SortOrder)}),
 %%     case Max of
