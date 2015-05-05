@@ -52,7 +52,9 @@
         save_record/1, 
         save_record/2, 
         validate_record/1,
-        validate_record/2,
+        validate_record/2, 
+        update/4, 
+        update/5,
         validate_record_types/1,
         type/1,
         type/2,
@@ -260,6 +262,15 @@ count(Type, Conditions) when is_list(Conditions) ->
 
 count(Type, Conditions, Timeout) ->
     db_call({count, Type, normalize_conditions(Conditions)}, Timeout).
+
+%% @spec update( Type::atom(),Conditions,Update::proplist(),Options ) -> Record | undefined
+%% @doc Updates the entity in database.
+update(Type, Conditions,Update ,Options) ->
+  db_call({update,Type,normalize_conditions(Conditions),Update,Options},?DEFAULT_TIMEOUT).
+%% @spec update( Type::atom(),Conditions,Update::proplist(),Options ) -> Record | undefined
+%% @doc Updates the entity in database.
+update(Type, Conditions,Update ,Options,TimeOut) ->
+  db_call({update,Type,normalize_conditions(Conditions),Update,Options},TimeOut).
 
 %% @spec counter( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and return its value.

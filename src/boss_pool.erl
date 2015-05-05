@@ -9,6 +9,7 @@ call(Pool, Msg) ->
 
 call(Pool, Msg, Timeout) ->
     Worker = poolboy:checkout(Pool, true, Timeout),
+    io:format("Worker is ~p",[Worker]),
     Reply = gen_server:call(Worker, Msg, Timeout),
     poolboy:checkin(Pool, Worker),
     Reply.
