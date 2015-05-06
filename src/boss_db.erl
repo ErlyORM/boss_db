@@ -101,7 +101,7 @@ db_call(Msg) ->
 db_call(Msg, Timeout) when is_integer(Timeout), Timeout > 0 ->
     case erlang:get(boss_db_transaction_info) of
         undefined ->
-            boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
+            boss_pool:call(?POOLNAME, Msg, Timeout);
         State ->
             {reply, Reply, NewState} =
                 boss_db_controller:handle_call(Msg, undefined, State),
