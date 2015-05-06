@@ -316,6 +316,12 @@ build_conditions1([{Key, 'not_matches', Value, Options} | Rest], Acc) ->
 build_conditions1([{_, 'nor', Value} | Rest], Acc) ->
   build_conditions1(Rest, [{'$nor', build_conditions1(Value, [])} | Acc]);
 
+build_conditions1([{_, 'or', Value} | Rest], Acc) ->
+  build_conditions1(Rest, [{'$or', build_conditions1(Value, [])} | Acc]);
+
+build_conditions1([{_, 'and', Value} | Rest], Acc) ->
+  build_conditions1(Rest, [{'$and', build_conditions1(Value, [])} | Acc]);
+
 build_conditions1([{id, Operator, Value} | Rest], Acc) ->
   build_conditions1([{'_id', Operator, Value} | Rest], Acc);
 
