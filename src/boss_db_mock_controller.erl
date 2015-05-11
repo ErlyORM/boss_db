@@ -97,25 +97,29 @@ handle_info(_Info, State) ->
 
 
 do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
-    Tail = lists:nthtail(Skip, 
-        lists:sort(fun(RecordA, RecordB) ->
-                    AttributeA = sortable_attribute(RecordA, SortBy),
-                    AttributeB = sortable_attribute(RecordB, SortBy),
-                    case SortOrder of
-                        ascending ->
-                            AttributeA < AttributeB;
-                        descending ->
-                            AttributeA > AttributeB
-                    end
-            end,
-            lists:map(fun({_, V}) -> V end,
-                dict:to_list(dict:filter(
-                        fun(_Id, Record) when is_tuple(Record) ->
-                                element(1, Record) =:= Type andalso
-                                match_cond(Record, Conditions);
-                            (_Id, _) ->
-                                false
-                        end, Dict))))), 
+    UnsortedList = lists:map(fun({_, V}) -> V end,
+        dict:to_list(dict:filter(
+            fun(_Id, Record) when is_tuple(Record) ->
+                element(1, Record) =:= Type andalso
+                    match_cond(Record, Conditions);
+                (_Id, _) ->
+                    false
+            end, Dict))),
+    SortedList = case SortBy of
+                     do_not_sort -> UnsortedList;
+                     _ ->
+                         lists:sort(fun(RecordA, RecordB) ->
+                             AttributeA = sortable_attribute(RecordA, SortBy),
+                             AttributeB = sortable_attribute(RecordB, SortBy),
+                             case SortOrder of
+                                 ascending ->
+                                     AttributeA < AttributeB;
+                                 descending ->
+                                     AttributeA > AttributeB
+                             end
+                         end,
+                             UnsortedList) end,
+    Tail = lists:nthtail(Skip, SortedList),
     case Max of all -> Tail; _ -> lists:sublist(Tail, Max) end.
 
 match_cond(_Record, []) ->
