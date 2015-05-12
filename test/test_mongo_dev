@@ -29,7 +29,7 @@ boss_db:update(boss_db_test_simple,[{id,"boss_db_test_simple-5548cec4cf0c4523b70
 
 
 
-boss_db:update(boss_db_test_simple,[{id,"boss_db_test_simple-5548cec4cf0c4523b7000001"}],[{some_array,4}],[{operator,'$push'}]).
+boss_db:update(boss_db_test_simple,[{id,"boss_db_test_simple-5548cec4cf0c4523b7000001"}],[{some_array,4}],[{operator,'$addToSet'}]).
 
 
 {ok,A} =mongo:connect(test). 

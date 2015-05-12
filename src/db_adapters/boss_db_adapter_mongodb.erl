@@ -2,7 +2,7 @@
 -behaviour(boss_db_adapter).
 -include_lib("mongodb/include/mongo_protocol.hrl").
 -export([start/1, stop/0, init/1, terminate/1, find/2, find/7, find/8]).
--export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
+-export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2,update/5]).
 -export([execute/2, transaction/2]).
 -export([push/2, pop/2, dump/1]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
@@ -13,7 +13,6 @@
 
 % Number of seconds between beginning of gregorian calendar and 1970
 -define(GREGORIAN_SECONDS_1970, 62167219200).
--compile(export_all).
 -ifdef(TEST).
 -compile(export_all).
 -endif.
