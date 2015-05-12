@@ -6,5 +6,5 @@
 %%% @end
 %%% Created : 05. May 2015 5:32 PM
 %%%-------------------------------------------------------------------
--module(boss_db_test_simple, [Id, SomeInteger,SomeText]).
+-module(boss_db_test_simple, [Id, SomeInteger,SomeText,SomeArray]).
 -compile(export_all).

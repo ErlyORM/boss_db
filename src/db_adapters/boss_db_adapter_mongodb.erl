@@ -166,7 +166,11 @@ update(Conn, Type, Conditions, Update, Options) when is_atom(Type),
       ParseUpdate = proplist_to_tuple(Update),
       Upsert = proplists:get_value(upsert, Options, false),
       Multi = proplists:get_value(multi, Options, false),
-      mongo:update(Conn, Collection, ParseCondition, {'$set', ParseUpdate}, Upsert, Multi);
+      Operation = case proplists:get_value(operator, Options, false) of
+                    false -> '$set';
+                    Op -> Op
+                  end,
+      mongo:update(Conn, Collection, ParseCondition,{Operation, ParseUpdate}, Upsert, Multi);
     false -> {error, {module_not_loaded, Type}}
   end.
 

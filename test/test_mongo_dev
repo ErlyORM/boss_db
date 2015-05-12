@@ -25,7 +25,12 @@
    {ok, boss_db_test_simple} = boss_record_compiler:compile(filename:join(["priv", "test_models", "boss_db_test_simple.erl"])).
 [A|_]=boss_db:find(boss_db_test_simple,[]).
 
-boss_db:update(boss_db_test_simple,[{id,"boss_db_test_simple-5548b569cf0c4546ee000001"}],[{simple_text,<<"hi-update">>}],[]).
+boss_db:update(boss_db_test_simple,[{id,"boss_db_test_simple-5548cec4cf0c4523b7000001"}],[{simple_text,<<"hi-update">>},{some_array,[1]}],[]).
+
+
+
+boss_db:update(boss_db_test_simple,[{id,"boss_db_test_simple-5548cec4cf0c4523b7000001"}],[{some_array,4}],[{operator,'$push'}]).
+
 
 {ok,A} =mongo:connect(test). 
 B= mongo:find(A,<<"hello">>,{}).
