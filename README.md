@@ -1,6 +1,7 @@
 BossDB: A sharded, caching, pooling, evented ORM for Erlang
 ===========================================================
-[![Build Status](https://travis-ci.org/zkessin/boss_db.png?branch=proper)](https://travis-ci.org/zkessin/boss_db)
+[![Build Status](https://travis-ci.org/ErlyORM/boss_db.svg?branch=master)](https://travis-ci.org/ErlyORM/boss_db)
+
 Supported databases
 -------------------
 
@@ -15,13 +16,13 @@ Supported databases
 Complete API references
 -----------------------
 
-Querying: http://www.chicagoboss.org/api-db.html
+Querying: http://www.chicagoboss.org/doc/api-db.html
 
-Records: http://www.chicagoboss.org/api-record.html
+Records: http://www.chicagoboss.org/doc/api-record.html
 
-BossNews: http://chicagoboss.org/api-news.html
+BossNews: http://chicagoboss.org/doc/api-news.html
 
-Write an adapter: https://github.com/evanmiller/ChicagoBoss/wiki/DB-Adapter-Quickstart
+Write an adapter: https://github.com/ChicagoBoss/ChicagoBoss/wiki/DB-Adapter-Quickstart
 
 Usage
 -----
@@ -245,7 +246,7 @@ if you want to log each time a puppy's name is changed,
                 error_logger:info_msg("Puppy's name changed from ~p to ~p", [OldName, NewName])
             end)
 
-For more details see the documentation at http://www.chicagoboss.org/api-news.html
+For more details see the documentation at http://www.chicagoboss.org/doc/api-news.html
 
 
 Caching

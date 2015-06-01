@@ -1,6 +1,0 @@
-#!/bin/bash
-
-rebar compile  skip_deps=true  && \
-rebar eunit skip_deps=true     && \
-bash dialyzer.sh
-
