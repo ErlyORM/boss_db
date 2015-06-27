@@ -411,7 +411,7 @@ save_record(Record, Timeout) ->
             % Action dependent valitation
             case validate_record(Record, IsNew) of
                 ok ->
-                    HookResult = case boss_record_lib:run_before_hooks(Record, IsNew) of
+                    HookResult = case boss_record_lib:run_before_hooks(OldRecord, Record, IsNew) of
                                      ok -> {ok, Record};
                                      {ok, Record1} -> {ok, Record1};
                                      {error, Reason} -> {error, Reason}

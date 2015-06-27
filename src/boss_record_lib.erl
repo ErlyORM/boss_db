@@ -1,5 +1,5 @@
 -module(boss_record_lib).
--export([run_before_hooks/2, 
+-export([run_before_hooks/3,
         run_after_hooks/3,
         run_before_delete_hooks/1,
         is_boss_record/2,
@@ -18,10 +18,11 @@
 -define(THOUSAND, 1000).
 -define(MILLION, ?THOUSAND*?THOUSAND).
 
--spec run_before_hooks(tuple(),boolean()) -> any().
+-spec run_before_hooks(tuple(),tuple(),boolean()) -> any().
 -spec run_after_hooks(_,tuple(),boolean()) -> any().
 -spec run_before_delete_hooks(tuple()) -> any().
--spec run_hooks(tuple(),atom() | tuple(),'after_create' | 'after_update' | 'before_create' | 'before_delete' | 'before_update') -> any().
+-spec run_hooks(tuple(),atom() | tuple(),'after_create' | 'before_create' | 'before_delete') -> any().
+-spec run_hooks(tuple(),tuple(),atom() | tuple(),'after_update' | 'before_update') -> any().
 -spec is_boss_record(_,_) -> boolean().
 -spec dummy_record(atom() | tuple()) -> any().
 -spec attribute_names(atom() | tuple()) -> any().
@@ -33,10 +34,10 @@
 -type target_types() :: 'binary' | 'boolean' | 'date' | 'datetime' | 'float' | 'integer' | 'string' | 'timestamp' | 'undefined'.
 -spec convert_value_to_type(_,target_types()) -> any().
 
-run_before_hooks(Record, true) ->
+run_before_hooks(_OldRecord, Record, true) ->
     run_hooks(Record, element(1, Record), before_create);
-run_before_hooks(Record, false) ->
-    run_hooks(Record, element(1, Record), before_update).
+run_before_hooks(OldRecord, Record, false) ->
+    run_hooks(OldRecord, Record, element(1, Record), before_update).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -45,7 +46,7 @@ run_after_hooks(_UnsavedRecord, SavedRecord, true) ->
     run_hooks(SavedRecord, element(1, SavedRecord), after_create);
 run_after_hooks(UnsavedRecord, SavedRecord, false) ->
     boss_news:updated(SavedRecord:id(), UnsavedRecord:attributes(), SavedRecord:attributes()),
-    run_hooks(SavedRecord, element(1, SavedRecord), after_update).
+    run_hooks(UnsavedRecord, SavedRecord, element(1, SavedRecord), after_update).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -58,6 +59,15 @@ run_hooks(Record, Type, Function) ->
     case erlang:function_exported(Type, Function, 1) of
         true  -> Record:Function();
         false -> ok
+    end.
+
+run_hooks(OldRecord, Record, Type, Function) ->
+    case erlang:function_exported(Type, Function, 2) of
+        true  ->
+            Record:Function(OldRecord);
+        false ->
+            %% As for backward compatibilities check if a old *_update/1 function exists
+            run_hooks(Record, Type, Function)
     end.
 
 
