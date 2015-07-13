@@ -13,9 +13,9 @@
 	  connection_delay,
 	  connection_retry_timer,
 	  options,
-	  adapter, 
-	  read_connection, 
-	  write_connection, 
+	  adapter,
+	  read_connection,
+	  write_connection,
 	  shards	= [],
 	  model_dict	= dict:new(),
 	  cache_enable,
@@ -63,9 +63,9 @@ try_connection(Pid, Options) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-terminate_if_defined(_Adapter, undefined) -> 
+terminate_if_defined(_Adapter, undefined) ->
     ok;
-terminate_if_defined(Adapter, Conn) -> 
+terminate_if_defined(Adapter, Conn) ->
     Adapter:terminate(Conn).
 
 
@@ -106,9 +106,9 @@ handle_call({find, Key}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn, _} = db_for_key(Key, State),
     {reply, Adapter:find(Conn, Key), State};
 
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd, From, 
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Project, Include} = Cmd, From,
     #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
-    Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
+    Key = {Type, Conditions, Max, Skip, Sort, SortOrder, Project},
     case boss_cache:get(Prefix, Key) of
         undefined ->
             Res = find_list(Type, Include, Cmd, From, Prefix, State, Key),
@@ -117,9 +117,9 @@ handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd,
             boss_news:extend_watch(Key),
             {reply, CachedValue, State}
     end;
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, _}, _From, #state{ cache_enable = false } = State) ->
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Project, _}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn, _} = db_for_type(Type, State),
-    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder), State};
+    {reply, Adapter:find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder, Project), State};
 
 handle_call({find_by_sql, Type, Sql, Parameters}, _From, State) ->
     {Adapter, Conn, _} = db_for_type(Type, State),
@@ -160,6 +160,10 @@ handle_call({delete, Id}, _From, State) ->
 handle_call({save_record, Record}, _From, State) ->
     {Adapter, _, Conn} = db_for_record(Record, State),
     {reply, Adapter:save_record(Conn, Record), State};
+
+handle_call({update, Type, Conditions, Update, Options}, _From, State) ->
+  {Adapter, Conn, _} = db_for_type(Type, State),
+  {reply, Adapter:update(Conn, Type, Conditions, Update, Options), State};
 
 handle_call(push, _From, State) ->
     Adapter = State#state.adapter,
@@ -277,14 +281,14 @@ find_by_key(Key, From, Prefix, State, _CachedValue = undefined) ->
     case IsSuccess of
 	true ->
 	    boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-	    WatchString = lists:concat([Key, ", ", Key, ".*"]), 
-	    boss_news:set_watch(Key, WatchString, 
-				fun boss_db_cache:handle_record_news/3, 
-				{Prefix, Key}, 
+	    WatchString = lists:concat([Key, ", ", Key, ".*"]),
+	    boss_news:set_watch(Key, WatchString,
+				fun boss_db_cache:handle_record_news/3,
+				{Prefix, Key},
 				State#state.cache_ttl);
 	false ->
 	    lager:error("Find in Cache by key error ~p ~p ", [Key, Res]),
-	    error 
+	    error
     end,
     {reply, Res, State};
 find_by_key(Key, _From, _Prefix, State, CachedValue) ->
@@ -313,7 +317,7 @@ find_list(Type, Include, Cmd, From, Prefix, State, Key) ->
                         boss_cache:set(Prefix, Rec:id(), Rec, State#state.cache_ttl)
                       end, IncludedRecords),
             boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-            WatchString         = lists:concat([inflector:pluralize(atom_to_list(Type)), 
+            WatchString         = lists:concat([inflector:pluralize(atom_to_list(Type)),
 						", ", Type, "-*.*"]),
             boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_collection_news/3,
 				{Prefix, Key}, State#state.cache_ttl);

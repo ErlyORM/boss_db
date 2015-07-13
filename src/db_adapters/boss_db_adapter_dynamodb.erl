@@ -1,6 +1,6 @@
 -module(boss_db_adapter_dynamodb).
 -behaviour(boss_db_adapter).
--export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
+-export([start/1, stop/0, init/1, terminate/1, find/2, find/7,find/8]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
@@ -51,6 +51,10 @@ find(_Conn, Id) when is_list(Id) ->
 		{error, Error} ->
 			{error, Error}
 	end.
+find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder, _) when is_atom(Type), is_list(Conditions),
+	is_integer(Max) orelse Max =:= all, is_integer(Skip),
+	is_atom(Sort), is_atom(SortOrder) ->
+	find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder).
 
 find(_Conn, Type, Conditions, Max, Skip, Sort, SortOrder) 
   when is_atom(Type), is_list(Conditions),

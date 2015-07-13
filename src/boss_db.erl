@@ -52,7 +52,9 @@
         save_record/1, 
         save_record/2, 
         validate_record/1,
-        validate_record/2,
+        validate_record/2, 
+        update/4, 
+        update/5,
         validate_record_types/1,
         type/1,
         type/2,
@@ -99,7 +101,7 @@ db_call(Msg) ->
 db_call(Msg, Timeout) when is_integer(Timeout), Timeout > 0 ->
     case erlang:get(boss_db_transaction_info) of
         undefined ->
-            boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
+            boss_pool:call(?POOLNAME, Msg, Timeout);
         State ->
             {reply, Reply, NewState} =
                 boss_db_controller:handle_call(Msg, undefined, State),
@@ -182,8 +184,12 @@ find(Type, Conditions, Options, Timeout) ->
         _ -> ascending
     end,
     Include = proplists:get_value(include, Options, []),
+    Project = case proplists:get_value(project, Options) of
+                  undefined -> [];
+                  Projection -> Projection
+              end,
     db_call({find, Type, normalize_conditions(Conditions),
-             Max, Skip, Sort, SortOrder, Include}, Timeout).
+             Max, Skip, Sort, SortOrder, Project, Include}, Timeout).
 
 -spec(find_by_sql(Type::atom(), Sql::string()) -> [BossRecord::tuple()]).
 find_by_sql(Type, Sql) when is_list(Sql) ->
@@ -260,6 +266,15 @@ count(Type, Conditions) when is_list(Conditions) ->
 
 count(Type, Conditions, Timeout) ->
     db_call({count, Type, normalize_conditions(Conditions)}, Timeout).
+
+%% @spec update( Type::atom(),Conditions,Update::proplist(),Options ) -> Record | undefined
+%% @doc Updates the entity in database.
+update(Type, Conditions,Update ,Options) ->
+  db_call({update,Type,normalize_conditions(Conditions),Update,Options},?DEFAULT_TIMEOUT).
+%% @spec update( Type::atom(),Conditions,Update::proplist(),Options ) -> Record | undefined
+%% @doc Updates the entity in database.
+update(Type, Conditions,Update ,Options,TimeOut) ->
+  db_call({update,Type,normalize_conditions(Conditions),Update,Options},TimeOut).
 
 %% @spec counter( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and return its value.
