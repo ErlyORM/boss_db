@@ -7,7 +7,7 @@
 -endif.
 -record(state, {
         watch_dict              = dict:new()       ::dict:dict(),
-        ttl_tree                = gb_trees:empty() ::gb_trees:gb_tree(),
+        ttl_tree                = gb_trees:empty() ::gb_trees:tree(),
 
         set_watchers            = dict:new()       ::dict:dict(), 
         id_watchers             = dict:new()       ::dict:dict(),
@@ -33,7 +33,7 @@
 -spec start_link(_)         -> 'ignore' | {'error',_} | {'ok',pid()}.
 -spec init([])               -> {'ok',  #state{}}.
 -spec handle_call('dump' | 'reset' | {'cancel_watch',_} | {'extend_watch',_} | {'created',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_} | {'deleted',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_} | {'updated',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_} | {'watch',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_,number()} | {'set_watch',_,binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_,number()},_,_) ->
-                         {'reply',_,#state{ttl_tree::gb_trees:gb_tree()}}.
+                         {'reply',_,#state{ttl_tree::gb_trees:tree()}}.
 -spec handle_cast(_,_)      -> {'noreply',_}.
 -spec terminate(_,_)        -> 'ok'.
 -spec code_change(_,_,_)    -> {'ok',_}.
@@ -49,7 +49,7 @@
 
 -export([future_time/1]).
 -spec make_wildcard_watchers(#state{watch_dict::dict:dict(),
-                                    ttl_tree::gb_trees:gb_tree(),
+                                    ttl_tree::gb_trees:tree(),
                                     set_watchers::dict:dict(),
                                     id_watchers::dict:dict(),
                                     set_attr_watchers::dict:dict(),
