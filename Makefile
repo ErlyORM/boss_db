@@ -1,13 +1,14 @@
-
 ERL=erl
 REBAR=./rebar
 GIT = git
-REBAR_VER = 2.5.1
+REBAR_VER = 2.6.0
 DB_CONFIG_DIR=priv/test_db_config
 
 .PHONY: deps get-deps test
 
-all:
+all: compile
+
+compile:
 	@$(REBAR) get-deps
 	@$(REBAR) compile
 
@@ -50,7 +51,6 @@ plt:
 
 clean:
 	@$(REBAR) clean
-	rm -fv ebin/*.beam
 	rm -fv erl_crash.dump
 	rm -f $(PLT_FILE)
 
