@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
--include_lib("mongodb/include/mongo_protocol.hrl").
+%-include_lib("mongodb/include/mongo_protocol.hrl").
 -export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).

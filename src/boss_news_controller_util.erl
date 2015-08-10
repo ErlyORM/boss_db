@@ -45,7 +45,7 @@ execute_fun(Fun, Event, EventInfo, UserInfo) ->
     end.
 
 %% this one first
--spec(process_dict( watch_id(), dict(), string()) -> dict()).
+-spec(process_dict( watch_id(), dict:dict(), string()) -> dict:dict()).
 process_dict(WatchId, Dict, TopicString) ->
     case dict:fetch(TopicString, Dict) of
 	[WatchId] ->
@@ -210,7 +210,7 @@ process_news_state( WatchId, StateAcc, WatchList) ->
 %src/boss_news_controller_util.erl:237:
 % Record construction #state{watch_dict::dict(),ttl_tree::{number(),'nil' | {_,_,'nil' | {_,_,_,_},_}},set_watchers::dict(),id_watchers::dict(),set_attr_watchers::dict(),id_attr_watchers::dict(),watch_counter::integer()}%
 %violates the declared type of field ttl_tree::gb_tree()
--spec prune_expired_entries(#state{ttl_tree::gb_tree()}) -> #state{ttl_tree::gb_tree()}.
+-spec prune_expired_entries(#state{ttl_tree::gb_trees:tree()}) -> #state{ttl_tree::gb_trees:tree()}.
 prune_expired_entries(#state{ ttl_tree = Tree } = State) ->
     Now                 = boss_news_controller:future_time(0),
     {NewState, NewTree} = tiny_pq:prune_collect_old(fun prune_itterator/2, State, Tree, Now),
