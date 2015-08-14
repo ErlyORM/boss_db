@@ -522,6 +522,6 @@ column_options_to_sql(Options) ->
 
 -spec(option_to_sql({not_null|primary_key, true}) -> string()).
 option_to_sql({not_null, true}) ->
-    "NOT NULL";
+    "NOT NULL ";
 option_to_sql({primary_key, true}) ->
-    "PRIMARY KEY".
+    "PRIMARY KEY ".
