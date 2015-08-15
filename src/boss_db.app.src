@@ -12,7 +12,8 @@
     {applications, [
         kernel,
         stdlib,
-        crypto
+        crypto,
+        aleppo
             ]},
     {env, []}
     ]}.
