@@ -218,9 +218,16 @@ define one or more of these functions in your model file:
 
     before_create/0 -> ok | {ok, ModifiedRecord} | {error, Reason}
     before_update/0 -> ok | {ok, ModifiedRecord} | {error, Reason}
-    after_create/0 
+    before_update/1 -> ok | {ok, ModifiedRecord} | {error, Reason}
+    after_create/0
     after_update/0
+    after_update/1
     before_delete/0 -> ok | {error, Reason}
+
+The before_update/1 and after_update/1 hooks provide access to the old
+boss record as an additional parameter. If both hooks like before_update/0
+and before_update/1 exists in a boss model module, before_update/0 will
+be ignored. The same behaviour applies to after_update/1 and after_update/0.
 
 BossNews is more complicated but also more powerful. It is a notification
 system that executes asynchronously, so the code that calls "save" does
