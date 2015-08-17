@@ -22,9 +22,17 @@ init(Options) ->
     DBUsername  = proplists:get_value(db_username, Options, "guest"),
     DBPassword  = proplists:get_value(db_password, Options, ""),
     DBDatabase  = proplists:get_value(db_database, Options, "test"),
+    DBSsl       = proplists:get_value(db_ssl, Options, false),
     DBConfigure = proplists:get_value(db_configure, Options, []),
-    pgsql:connect(DBHost, DBUsername, DBPassword, 
-        [{port, DBPort}, {database, DBDatabase} | DBConfigure]).
+
+    if
+        DBSsl == true orelse DBSsl == required ->
+            ssl:start();
+        true ->
+            ok
+    end,
+    pgsql:connect(DBHost, DBUsername, DBPassword,
+                  [{port, DBPort}, {database, DBDatabase}, {ssl, DBSsl} | DBConfigure]).
 
 terminate(Conn) ->
     pgsql:close(Conn).
