@@ -41,7 +41,7 @@ paginate(_, Model, Conditions, Opts) ->
         
         {aborted, Reason} -> 
             {error, Reason}
-    end,
+    end.
     
 % -----
 find(_, Id) when is_list(Id) ->
