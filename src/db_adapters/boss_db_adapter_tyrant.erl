@@ -98,7 +98,7 @@ save_record(Conn, Record) when is_tuple(Record) ->
 
 pack_record(RecordWithId, Type) ->
     Columns = lists:map(fun
-            (Attr) -> 
+            (Attr) ->
                 Val = RecordWithId:Attr(),
                 {attribute_to_colname(Attr), pack_value(Val)}
         end, RecordWithId:attribute_names()),

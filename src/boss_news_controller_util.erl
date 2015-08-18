@@ -26,9 +26,9 @@ execute_callback(Fun, Event, EventInfo, UserInfo, WatchId) when is_function(Fun)
     erlang:spawn(fun() ->
 			 Result = execute_fun(Fun, Event, EventInfo, UserInfo),
 			 case Result of
-			     {ok, cancel_watch} -> 
+			     {ok, cancel_watch} ->
 				 boss_news:cancel_watch(WatchId);
-			     {ok, extend_watch} -> 
+			     {ok, extend_watch} ->
 				 boss_news:extend_watch(WatchId);
 			     _ ->
                         ok

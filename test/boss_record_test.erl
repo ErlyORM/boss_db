@@ -9,11 +9,11 @@ convert_test() ->
 			     [{to_file, user}])),
     ?assert(proper:quickcheck(boss_record:prop_convert_attributes_b(),
 			     [{to_file, user}])).
-    
+
 set_attribute_test_() ->
     {setup,
      fun() ->
-	     
+
 	     code:load_abs("../priv/gh_repo"),
 	     gh_repo
      end,

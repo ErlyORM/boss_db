@@ -22,7 +22,7 @@ make_counters_test() ->
 
 prop_duplicated_forms() ->
     ?FORALL({Parameters},
-            { 
+            {
              list(atom())
              },
             begin
@@ -52,7 +52,7 @@ has_duplicates_test() ->
     ?assert(proper:check_spec({boss_record_compiler,has_duplicates, 1},
                                       [{to_file, user}])),
     ok.
-    
+
 
 list_functions_test() ->
             ?assert(proper:check_spec({boss_record_compiler,list_functions, 1},
@@ -67,10 +67,10 @@ override_functions_test_() ->
      ?_test(
         begin
             ?assert(proper:check_spec({boss_record_compiler,override_functions, 2},
-                                      [{to_file, user}, 
+                                      [{to_file, user},
                                        40])),
             ?assert(proper:check_spec({boss_record_compiler,override_functions, 3},
-                                      [{to_file, user}, 
+                                      [{to_file, user},
                                        40])),
             ok
         end)}.
@@ -83,14 +83,14 @@ export_forms_test() ->
 
             ?assert(proper:check_spec({boss_record_compiler,export_forms, 1},
                                       [{to_file, user}])),
-            
+
             ?assert(proper:check_spec({boss_record_compiler,export_forms, 2},
-                                      [{to_file, user}, 
+                                      [{to_file, user},
                                        40])),
             ok
         end)}.
 
-    
+
 
 
 database_column_forms_test() ->
@@ -207,7 +207,7 @@ has_many_query_forms_with_conditions_test() ->
  ?assert(proper:check_spec({boss_record_compiler, has_many_query_forms_with_conditions, 1},
                               [{to_file, user}])),
     ok.
-        
+
 
 
 counter_belongs_to_forms_test() ->
@@ -239,14 +239,14 @@ counter_name_forms_test() ->
     ?assert(proper:check_spec({boss_record_compiler, counter_name_forms, 1},
                               [{to_file, user}])),
     ok.
-        
-  
-    
+
+
+
 paramater_to_colname_test() ->
     ?assertEqual("test",     boss_record_compiler:parameter_to_colname('test')),
     ?assertEqual("test_one",boss_record_compiler:parameter_to_colname('TestOne')),
     ?assert(proper:check_spec({boss_record_compiler, parameter_to_colname, 1},
                               [{to_file, user}])),
     ok.
-        
-  
+
+

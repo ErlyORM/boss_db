@@ -67,7 +67,7 @@ replace_parameters_test() ->
 	 ?assertEqual("123", replace_parameters("123", [])),
 	 ?assertEqual("select * from whatever where x = 'something'",replace_parameters("select * from whatever where x = $1", ["something"]))
 	]}.
-	 
+
 replace_parameters(Str, Params) ->
 	lists:flatten(boss_db_adapter_mysql:replace_parameters(Str, Params)).
 

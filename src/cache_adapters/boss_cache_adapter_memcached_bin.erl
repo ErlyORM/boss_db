@@ -23,9 +23,9 @@ terminate(Conn) ->
 
 get(_Conn, Prefix, Key) ->
     case erlmc:get(term_to_key(Prefix, Key)) of
-        <<>> -> 
+        <<>> ->
             undefined;
-        Bin -> 
+        Bin ->
             binary_to_term(Bin)
     end.
 

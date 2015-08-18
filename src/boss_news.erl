@@ -25,7 +25,7 @@ start(Options) ->
 stop() ->
     ok.
 
-%% @doc Watch records and attributes described by `TopicString', and execute 
+%% @doc Watch records and attributes described by `TopicString', and execute
 %% `CallBack(Event, EventInfo)' each time any of them changes.
 %% Note that the callback should be specified as a named fun and not a closure,
 %% or you may experience unexpected results during code reloads.

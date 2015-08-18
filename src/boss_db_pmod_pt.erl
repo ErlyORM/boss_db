@@ -53,7 +53,7 @@ parse_transform(Forms0, _Options) ->
 	    File = get_file(Forms),
 	    {error,[{File,Errors}],[]}
     end.
-  
+
 format_error(extends_self) ->
     "cannot extend from self";
 format_error(define_instance) ->
@@ -64,7 +64,7 @@ add_error(Line, Error) ->
 
 get_file([{attribute,_,file,{File,_}}|_]) -> File;
 get_file([_|T]) -> get_file(T).
-    
+
 transform(Forms0) ->
     Def = collect_defined(Forms0),
     {Base,ModAs,Forms1} = attribs(Forms0, [], undefined, []),

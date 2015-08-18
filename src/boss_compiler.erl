@@ -21,12 +21,12 @@
 -spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
 -spec compile_forms(_,binary() | [atom() | [any()] | char()],atom() | [any()]) -> any().
 
--spec parse(binary() | [atom() | [any()] | char()],_,_) -> 
+-spec parse(binary() | [atom() | [any()] | char()],_,_) ->
                    {'error',atom() | {'undefined' | [any()],[any(),...]}} |
-                   {'error',[{_,_}]} | 
+                   {'error',[{_,_}]} |
                    {'ok',[any()],_}.
 
--spec parse_text('undefined' | [atom() | [any()] | char()],binary(),_,_) -> {'error',{'undefined' | [any()],[any(),...]}} | 
+-spec parse_text('undefined' | [atom() | [any()] | char()],binary(),_,_) -> {'error',{'undefined' | [any()],[any(),...]}} |
                                                                             {'error',[{_,_}]} |
                                                                             {'ok',[any()],_}.
 -spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()]) -> {[any()],[{_,_}]}.
@@ -58,7 +58,7 @@ compile(File, Options) ->
 handle_parse_success(File, Options, Forms, TokenInfo) ->
     Version         = otp_version(),
     CompilerOptions = compiler_options(Options),
-    
+
     Forms1          = make_new_forms(Options, Forms, TokenInfo),
     {Forms2, BossDBParseTransforms} = make_forms_by_version(Forms1,
                                                             Version),
@@ -131,10 +131,10 @@ make_new_forms(Options, Forms, TokenInfo) ->
                           fun(([form()], [token()]) ->_)) -> _).
 transform_action(Forms, _, undefined) ->
     Forms;
-transform_action(Forms, _TokenInfo, TransformFun) when is_function(TransformFun, 1) -> 
+transform_action(Forms, _TokenInfo, TransformFun) when is_function(TransformFun, 1) ->
     TransformFun(Forms);
 transform_action(Forms,  TokenInfo, TransformFun) when is_function(TransformFun, 2) ->
-    TransformFun(Forms, TokenInfo). 
+    TransformFun(Forms, TokenInfo).
 
 
 compile_forms(Forms, File, Options) ->
@@ -237,7 +237,7 @@ parse_tokens([Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName) ->
     parse_tokens(Rest, [Token|TokenAcc], FormAcc, ErrorAcc, FileName).
 
 scan_transform(FileContents) ->
-    scan_transform(FileContents, {1, 1}). 
+    scan_transform(FileContents, {1, 1}).
 
 scan_transform([], StartLocation) ->
     {ok, [{eof, StartLocation}]};
