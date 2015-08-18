@@ -293,3 +293,10 @@ are useful PKs when data are being aggregated from multiple sources.
 
 The default Id type ::serial() may be explicitly supplied.  Note that
 all Id types, valid or otherwise, pass type validation.
+
+Contribution Guidelines
+-----------------------
+
+Please ensure your pull request adheres to the following guidelines:
+
+* Please use [EditorConfig](http://editorconfig.org) to ensure consistent line-endings, tabs/spaces, etc. or make sure, that your editor does satisfy the coding styles defined within [.editorconfig](https://github.com/ErlyORM/boss_db/blob/master/.editorconfig).
