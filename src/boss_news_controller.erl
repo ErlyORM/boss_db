@@ -237,7 +237,7 @@ handle_info(_Info, State) ->
 
 
 future_time(TTL) ->
-    {MegaSecs, Secs, _} = erlang:now(),
+    {MegaSecs, Secs, _} = os:timestamp(),
     MegaSecs * 1000 * 1000 + Secs + TTL.
 
 activate_record(Id, Attrs) ->

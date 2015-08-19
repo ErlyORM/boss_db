@@ -306,7 +306,7 @@ make_curser(Curs) ->
 
 migration_done(Conn, Tag, up) ->
     Res = execute(Conn, fun() ->
-                Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
+                Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(os:timestamp())},
                 mongo:insert(schema_migrations, Doc)
         end),
     resolve(Res);

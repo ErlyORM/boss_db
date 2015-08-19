@@ -218,7 +218,7 @@ get_migrations_table(_) ->
 
 migration_done(_, Tag, up) ->
     Id = "schema_migrations-" ++ integer_to_list(gen_uid(schema_migrations)),
-    RecordWithId = {schema_migrations, Id, atom_to_list(Tag), erlang:now()},
+    RecordWithId = {schema_migrations, Id, atom_to_list(Tag), os:timestamp()},
 
     Fun = fun() -> mnesia:write(schema_migrations, RecordWithId, write) end,
     
