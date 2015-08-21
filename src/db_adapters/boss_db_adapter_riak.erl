@@ -109,10 +109,10 @@ delete(Conn, Id) ->
     {_Type, Bucket, Key} = infer_type_from_id(Id),
     ok = riakc_pb_socket:delete(Conn, Bucket, Key).
 
-%The call riakc_obj:new(Bucket::binary(),'undefined',PropList::[{binary(),_}]) 
+%The call riakc_obj:new(Bucket::binary(),'undefined',PropList::[{binary(),_}])
 % will never return since the success typing is
-% ('undefined' | binary(),'undefined' | binary(),'undefined' | binary()) -> 
-% {'riakc_obj','undefined' | binary(),'undefined' | binary(),'undefined',[],'undefined','undefined' | binary()} and the contract is 
+% ('undefined' | binary(),'undefined' | binary(),'undefined' | binary()) ->
+% {'riakc_obj','undefined' | binary(),'undefined' | binary(),'undefined',[],'undefined','undefined' | binary()} and the contract is
 % (bucket(),key(),value()) -> riakc_obj()
 save_record(Conn, Record) ->
     Type = element(1, Record),

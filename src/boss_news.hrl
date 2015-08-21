@@ -2,7 +2,7 @@
         watch_dict		= dict:new() ::dict:dict(),
         ttl_tree		= gb_trees:empty() ::gb_trees:tree(),
 
-        set_watchers	= dict:new()  ::dict:dict(), 
+        set_watchers	= dict:new()  ::dict:dict(),
         id_watchers		= dict:new()  ::dict:dict(),
 
         set_attr_watchers	= dict:new()  ::dict:dict(),

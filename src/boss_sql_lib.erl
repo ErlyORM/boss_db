@@ -38,7 +38,7 @@ convert_id_condition_to_use_table_ids({Key, Op, {Min, Max}}) when Op =:= 'in'; O
     {_Type, _TableName, _IdColumn, TableId1} = infer_type_from_id(Min),
     {_Type, _TableName, _IdColumn, TableId2} = infer_type_from_id(Max),
     {Key, Op, {TableId1, TableId2}};
-convert_id_condition_to_use_table_ids({Key, Op, ValueList}) when is_list(ValueList) andalso (Op =:= 'in' orelse Op =:= 'not_in') -> 
+convert_id_condition_to_use_table_ids({Key, Op, ValueList}) when is_list(ValueList) andalso (Op =:= 'in' orelse Op =:= 'not_in') ->
     Value2 = lists:map(fun(V) ->
                 {_Type, _TableName, _IdColumn, TableId} = infer_type_from_id(V),
                 TableId
@@ -49,7 +49,7 @@ is_foreign_key(Type, Key) when is_atom(Key) ->
 	KeyTokens = string:tokens(atom_to_list(Key), "_"),
 	LastToken = hd(lists:reverse(KeyTokens)),
 	case (length(KeyTokens) > 1 andalso LastToken == "id") of
-		true -> 
+		true ->
             Module = list_to_atom(join(lists:reverse(tl(lists:reverse(KeyTokens))), "_")),
             DummyRecord = boss_record_lib:dummy_record(Type),
             lists:member(Module, DummyRecord:belongs_to_names());
@@ -73,14 +73,14 @@ integer_to_id(Val, KeyString) when is_list(KeyString) ->
 
 convert_possible_foreign_key(AwkwardAssociations, Type, Key, Value, AttrType) ->
     case boss_sql_lib:is_foreign_key(Type, Key) of
-	true -> 
-	    case [ ModuleName || {FieldName, ModuleName} <- AwkwardAssociations, list_to_atom(atom_to_list(FieldName) ++ "_id") =:= Key] of 
+	true ->
+	    case [ ModuleName || {FieldName, ModuleName} <- AwkwardAssociations, list_to_atom(atom_to_list(FieldName) ++ "_id") =:= Key] of
 		[] ->
 		    integer_to_id(Value, atom_to_list(Key));
 		[Module] when is_atom(Module) ->
-		    atom_to_list(Module) ++ "-" ++ boss_record_lib:convert_value_to_type(Value, string) 
+		    atom_to_list(Module) ++ "-" ++ boss_record_lib:convert_value_to_type(Value, string)
 	    end;
-	false -> 
+	false ->
 	    boss_record_lib:convert_value_to_type(Value, AttrType)
     end.
 

@@ -37,7 +37,7 @@ all_test() ->
     ok.
 
 prop_all() ->
-    ?FORALL(CondList, 
+    ?FORALL(CondList,
             [boolean()],
             begin
                 IsAllTrue = lists:all(fun(X) -> X end, CondList),
@@ -54,7 +54,7 @@ prop_all() ->
                 WatchId = lists:nth(WatchP, WatchList),
 
                 Dict2   = dict:store(TopicString, WatchList, Dict1),
-              
+
                 RDict   = boss_news_controller_util:process_dict(WatchId, Dict2,TopicString),
                 all([ keylen(RDict, TopicString) +1 =:= keylen(Dict2, TopicString),
                       true])
@@ -69,18 +69,18 @@ process_dict_test() ->
                                {spec_timeout, infinity}])),
     ok.
 
-                            
+
 
 prop_prune_itterator() ->
-    ?FORALL({WatchId,WatchList}, 
+    ?FORALL({WatchId,WatchList},
             {nonempty_string(),#watch{}},
             begin
                 Dict      = dict:from_list([{WatchId, WatchList}]),
                 InitState = #state{watch_dict = Dict},
-                
+
                 #state{watch_dict = NewDict} = boss_news_controller_util:prune_itterator(WatchId,
                                                                                          InitState),
-              
+
                 not(dict:is_key(WatchId, NewDict))
             end).
 
