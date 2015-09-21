@@ -109,7 +109,7 @@ compilation:
     {plugin_dir, ["deps/boss_db/priv/rebar"]}.
     {plugins, [boss_db_rebar]}.
     {boss_db_opts, [
-        {model_dir, "src/model"},
+        {model_dir, "src/model"}
     ]}.
 
 Associations
