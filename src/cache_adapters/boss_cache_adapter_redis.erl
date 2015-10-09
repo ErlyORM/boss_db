@@ -33,7 +33,7 @@ set(Conn, Prefix, Key, Val, TTL) ->
     redo:cmd(Conn,["SETEX",term_to_key(Prefix, Key), TTL, term_to_binary(Val)]).
 
 delete(Conn, Prefix, Key) ->
-    redo:cmd(Conn, ["DELETE", term_to_key(Prefix, Key)]).
+    redo:cmd(Conn, ["DEL", term_to_key(Prefix, Key)]).
 
 % internal
 term_to_key(Prefix, Term) ->
