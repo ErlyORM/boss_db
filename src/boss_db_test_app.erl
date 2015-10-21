@@ -59,7 +59,7 @@ run_tests() ->
     boss_db:mock_transaction(fun run_tests_inner/0).
 
 run_tests_inner() ->
-  lager:info("~-60s", ["Root test"]),
+  _ = lager:info("~-60s", ["Root test"]),
   ModelText = <<"Economists do it with models">>,
   do(
     fun() ->

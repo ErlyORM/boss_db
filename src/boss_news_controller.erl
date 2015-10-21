@@ -48,15 +48,18 @@
 -export([activate_record/2]).
 
 -export([future_time/1]).
--spec make_wildcard_watchers(#state{watch_dict::dict:dict(),
-                                    ttl_tree::gb_trees:tree(),
-                                    set_watchers::dict:dict(),
-                                    id_watchers::dict:dict(),
-                                    set_attr_watchers::dict:dict(),
-                                    id_attr_watchers::dict:dict(),
-                                    watch_counter::integer()},
-                             _) -> any().
-
+-spec make_wildcard_watchers(
+        #state{
+               watch_dict::dict:dict(_,_),
+               ttl_tree::gb_trees:tree(_,_),
+               set_watchers::dict:dict(_,_),
+               id_watchers::dict:dict(_,_),
+               set_attr_watchers::dict:dict(_,_),
+               id_attr_watchers::dict:dict(_,_),
+               watch_counter::integer()
+              },
+        binary() | maybe_improper_list(any(),binary() | [])
+                            ) -> any().
 
 
 start_link() ->
