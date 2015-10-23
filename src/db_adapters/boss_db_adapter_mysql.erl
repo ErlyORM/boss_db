@@ -26,22 +26,22 @@ terminate(Pid) ->
     exit(Pid, normal).
 
 find_by_sql(Pid, Type, Sql, Parameters) when is_atom(Type), is_list(Sql), is_list(Parameters) ->
-	case boss_record_lib:ensure_loaded(Type) of
-		true ->
-			Res = fetch(Pid, Sql, Parameters),
-			case Res of
-				{data, MysqlRes} ->
-					Rows = mysql:get_result_rows(MysqlRes),
-					Columns = mysql:get_result_field_info(MysqlRes),
-					lists:map(fun(Row) ->
-						activate_record(Row, Columns, Type)
-					end, Rows);
-				{error, MysqlRes} ->
-					{error, mysql:get_result_reason(MysqlRes)}
-			end;
-		false ->
-			{error, {module_not_loaded, Type}}
-	end.
+    case boss_record_lib:ensure_loaded(Type) of
+        true ->
+            Res = fetch(Pid, Sql, Parameters),
+            case Res of
+                {data, MysqlRes} ->
+                    Rows = mysql:get_result_rows(MysqlRes),
+                    Columns = mysql:get_result_field_info(MysqlRes),
+                    lists:map(fun(Row) ->
+                        activate_record(Row, Columns, Type)
+                    end, Rows);
+                {error, MysqlRes} ->
+                    {error, mysql:get_result_reason(MysqlRes)}
+            end;
+        false ->
+            {error, {module_not_loaded, Type}}
+    end.
 
 
 find(Pid, Id) when is_list(Id) ->
@@ -202,7 +202,7 @@ execute(Pid, Commands) ->
     fetch(Pid, Commands).
 
 execute(Pid, Commands, Params) ->
-	fetch(Pid, Commands, Params).
+    fetch(Pid, Commands, Params).
 
 transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     do_transaction(Pid, TransactionFun).
@@ -462,15 +462,15 @@ pack_date(Date) ->
 %pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
 pack_value(null) ->
-	"null";
+    "null";
 pack_value(undefined) ->
-	"null";
+    "null";
 pack_value(V) when is_binary(V) ->
     pack_value(binary_to_list(V));
 pack_value(V) when is_list(V) ->
     mysql:encode(V);
 pack_value({_, _, _} = Val) ->
-	pack_date(Val);
+    pack_date(Val);
 pack_value({{_, _, _}, {_, _, _}} = Val) ->
     pack_datetime(Val);
 pack_value(Val) when is_integer(Val) ->
@@ -485,31 +485,31 @@ pack_value(false) ->
 fetch(Pid, Query) ->
     _ = lager:info("Query ~s", [Query]),
     Res = mysql_conn:fetch(Pid, [Query], self()),
-	case Res of
-		{error, MysqlRes} ->
-			_ = lager:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
-		_ -> ok
-	end,
-	Res.
+    _ = case Res of
+        {error, MysqlRes} ->
+            _ = lager:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
+        _ -> ok
+    end,
+    Res.
 
 fetch(Pid, Query, Parameters) ->
-	Sql = replace_parameters(lists:flatten(Query), Parameters),
-	fetch(Pid, Sql).
+    Sql = replace_parameters(lists:flatten(Query), Parameters),
+    fetch(Pid, Sql).
 
 replace_parameters([$$, X, Y | Rest], Parameters) when X >= $1, X =< $9, Y >= $0, Y =< $9 ->
-	Position = (X-$0)*10 + (Y-$0),
-	[lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
+    Position = (X-$0)*10 + (Y-$0),
+    [lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
 replace_parameters([$$, X | Rest], Parameters) when X >= $1, X =< $9 ->
-	Position = X-$0,
-	[lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
+    Position = X-$0,
+    [lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
 replace_parameters([X | Rest], Parameters) ->
-	[X | replace_parameters(Rest, Parameters)];
+    [X | replace_parameters(Rest, Parameters)];
 replace_parameters([], _) ->
-	[].
+    [].
 
 lookup_single_parameter(Position, Parameters) ->
-	try lists:nth(Position, Parameters) of
-		V -> pack_value(V)
-	catch
-		Error -> throw(io_lib:format("Error (~p) getting parameter $~w. Provided Params: ~p", [Error, Position, Parameters]))
-	end.
+    try lists:nth(Position, Parameters) of
+        V -> pack_value(V)
+    catch
+        Error -> throw(io_lib:format("Error (~p) getting parameter $~w. Provided Params: ~p", [Error, Position, Parameters]))
+    end.
