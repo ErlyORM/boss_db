@@ -7,10 +7,10 @@
 -export([
         migrate/1,
         migrate/2,
-        find/1, 
-        find/2, 
-        find/3, 
-        find/4, 
+        find/1,
+        find/2,
+        find/3,
+        find/4,
         find_by_sql/3,
         find_by_sql/2,
         find_first/1,
@@ -24,13 +24,13 @@
         count/1,
         count/2,
         count/3,
-        counter/1, 
-        counter/2, 
-        incr/1, 
-        incr/2, 
-        incr/3, 
-        delete/1, 
-        delete/2, 
+        counter/1,
+        counter/2,
+        incr/1,
+        incr/2,
+        incr/3,
+        delete/1,
+        delete/2,
         push/0,
         push/1,
         pop/0,
@@ -49,8 +49,8 @@
         transaction/1,
         transaction/2,
         mock_transaction/1,
-        save_record/1, 
-        save_record/2, 
+        save_record/1,
+        save_record/2,
         validate_record/1,
         validate_record/2,
         validate_record_types/1,
@@ -411,7 +411,7 @@ save_record(Record, Timeout) ->
             % Action dependent valitation
             case validate_record(Record, IsNew) of
                 ok ->
-                    HookResult = case boss_record_lib:run_before_hooks(Record, IsNew) of
+                    HookResult = case boss_record_lib:run_before_hooks(OldRecord, Record, IsNew) of
                                      ok -> {ok, Record};
                                      {ok, Record1} -> {ok, Record1};
                                      {error, Reason} -> {error, Reason}

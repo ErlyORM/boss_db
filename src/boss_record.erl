@@ -17,8 +17,8 @@ new_from_json(Model, JSON) ->
 set_attribute(FieldName, JSON, Model) ->
     BName = atom_to_binary(FieldName,'utf8'),
     Model:set(FieldName, proplists:get_value(BName, JSON, null)).
-    
-    
+
+
 -spec(convert_attributes({string()|binary()|atom(), any()}) ->
      {atom(), any()}).
 convert_attributes({Name, Value}) when is_list(Name) ->
@@ -48,7 +48,7 @@ prop_set_attribute() ->
 		NewModel	= set_attribute(Field, JSON, DummyRecord),
 		Value		=:= NewModel:Field()
 	    end).
-		   
+
 prop_set_attribute_data_missing() ->
     DummyRecord = boss_record_lib:dummy_record(gh_repo),
     ?FORALL({Field, Value},
@@ -58,40 +58,40 @@ prop_set_attribute_data_missing() ->
 		NewModel	= set_attribute(Field, JSON, DummyRecord),
 		null    	=:= NewModel:Field()
 	    end).
-	
+
 
 prop_convert_attributes_l() ->
-    ?FORALL({Name,Value}, 
+    ?FORALL({Name,Value},
 	    { list(range(65,90)), binary()},
 	    begin
 	        RName           = list_to_atom(Name),
 		{AName, ValueP} = convert_attributes({Name, Value}),
-		all_true([is_atom(AName), ValueP =:=Value,RName =:= AName]) 
+		all_true([is_atom(AName), ValueP =:=Value,RName =:= AName])
 	    end).
 
 prop_convert_attributes_a() ->
-    ?FORALL({Name,Value}, 
+    ?FORALL({Name,Value},
 	    { atom(), binary()},
 	    begin
 
 		{AName, ValueP} = convert_attributes({Name, Value}),
-		all_true([is_atom(AName), ValueP =:=Value,Name =:= AName]) 
+		all_true([is_atom(AName), ValueP =:=Value,Name =:= AName])
 	    end).
 
 prop_convert_attributes_b() ->
-    ?FORALL({Name,Value}, 
+    ?FORALL({Name,Value},
 	    { list(range(65,90)), binary()},
 	    begin
 		B		= list_to_binary(Name),
 		RName		= binary_to_atom(B, 'utf8'),
 		{AName, ValueP} = convert_attributes({B, Value}),
-		all_true([is_atom(AName), ValueP =:=Value,RName =:= AName]) 
+		all_true([is_atom(AName), ValueP =:=Value,RName =:= AName])
 	    end).
 
 
 -spec(all_true([boolean()]) -> boolean()).
 all_true(L) ->
     lists:all(fun(X) ->
-		      X 
+		      X
 	      end, L).
 %-endif.

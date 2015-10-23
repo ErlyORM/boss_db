@@ -22,9 +22,17 @@ init(Options) ->
     DBUsername  = proplists:get_value(db_username, Options, "guest"),
     DBPassword  = proplists:get_value(db_password, Options, ""),
     DBDatabase  = proplists:get_value(db_database, Options, "test"),
+    DBSsl       = proplists:get_value(db_ssl, Options, false),
     DBConfigure = proplists:get_value(db_configure, Options, []),
-    pgsql:connect(DBHost, DBUsername, DBPassword, 
-        [{port, DBPort}, {database, DBDatabase} | DBConfigure]).
+
+    if
+        DBSsl == true orelse DBSsl == required ->
+            ssl:start();
+        true ->
+            ok
+    end,
+    pgsql:connect(DBHost, DBUsername, DBPassword,
+                  [{port, DBPort}, {database, DBDatabase}, {ssl, DBSsl} | DBConfigure]).
 
 terminate(Conn) ->
     pgsql:close(Conn).
@@ -91,7 +99,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
 count(Conn, Type, Conditions) ->
     ConditionClause = build_conditions(Type, Conditions),
     TableName = boss_record_lib:database_table(Type),
-    {ok, _, [{Count}]} = pgsql:equery(Conn, 
+    {ok, _, [{Count}]} = pgsql:equery(Conn,
         ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
     Count.
 
@@ -103,12 +111,12 @@ counter(Conn, Id) when is_list(Id) ->
     end.
 
 incr(Conn, Id, Count) ->
-    Res = pgsql:equery(Conn, "UPDATE counters SET value = value + $1 WHERE name = $2 RETURNING value", 
+    Res = pgsql:equery(Conn, "UPDATE counters SET value = value + $1 WHERE name = $2 RETURNING value",
         [Count, Id]),
     case Res of
         {ok, _, _, [{Value}]} -> Value;
-        {error, _Reason} -> 
-            Res1 = pgsql:equery(Conn, "INSERT INTO counters (name, value) VALUES ($1, $2) RETURNING value", 
+        {error, _Reason} ->
+            Res1 = pgsql:equery(Conn, "INSERT INTO counters (name, value) VALUES ($1, $2) RETURNING value",
                 [Id, Count]),
             case Res1 of
                 {ok, _, _, [{Value}]} -> Value;
@@ -120,7 +128,7 @@ delete(Conn, Id) when is_list(Id) ->
     {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
     Res = pgsql:equery(Conn, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = $1"], [TableId]),
     case Res of
-        {ok, _Count} -> 
+        {ok, _Count} ->
             pgsql:equery(Conn, "DELETE FROM counters WHERE name = $1", [Id]),
             ok;
         {error, Reason} -> {error, Reason}
@@ -211,7 +219,7 @@ maybe_populate_id_value(Record) ->
 
 -type keytype() ::uuid|id.
 -spec(maybe_populate_id_value(tuple(), uuid|id) -> tuple()).
-maybe_populate_id_value(Record, uuid) ->    
+maybe_populate_id_value(Record, uuid) ->
     Type = element(1, Record),
     Record:set(id, lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]));
 maybe_populate_id_value(Record, id) ->
@@ -226,7 +234,7 @@ activate_record(Record, Metadata, Type) ->
     AttributeColumns    = boss_record_lib:database_columns(Type),
 
     RetypedForeignKeys    = boss_sql_lib:get_retyped_foreign_keys(Type),
-                  
+
     apply(Type, new, lists:map(fun
                 (id) ->
                     DBColumn = proplists:get_value('id', AttributeColumns),
@@ -239,7 +247,7 @@ activate_record(Record, Metadata, Type) ->
                     case element(Index, Record) of
                         undefined -> undefined;
                         null -> undefined;
-                        Val -> 
+                        Val ->
                             boss_sql_lib:convert_possible_foreign_key(RetypedForeignKeys, Type, Key, Val, AttrType)
                     end
             end, boss_record_lib:attribute_names(Type))).
@@ -306,8 +314,6 @@ make_insert_attributes(Record, Type) ->
                 end, {[], []}, Record:attributes()).
 
 
-
-
 %TODO: Test this
 make_value(Type, A, V) ->
     case boss_sql_lib:is_foreign_key(Type, A) of
@@ -323,7 +329,7 @@ build_update_query(Record) ->
     AttributeColumns = Record:database_columns(),
     {Attributes, Values} = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({A, V}, {Attrs, Vals}) -> 
+            ({A, V}, {Attrs, Vals}) ->
                 DBColumn = proplists:get_value(A, AttributeColumns),
                 Value = case {boss_sql_lib:is_foreign_key(Type, A), V =/= undefined} of
                     {true, true} ->
@@ -342,7 +348,7 @@ build_update_query(Record) ->
 
 build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     TableName = boss_record_lib:database_table(Type),
-    ["SELECT * FROM ", TableName, 
+    ["SELECT * FROM ", TableName,
         " WHERE ", build_conditions(Type, Conditions),
         " ORDER BY ", atom_to_list(Sort), " ", sort_order_sql(SortOrder),
         case Max of all -> ""; _ -> " LIMIT " ++ integer_to_list(Max) ++
@@ -450,7 +456,7 @@ pack_datetime({Date, {Y, M, S}}) when is_float(S) ->
     pack_datetime({Date, {Y, M, erlang:round(S)}});
 pack_datetime(DateTime) ->
     "TIMESTAMP " ++dh_date:format("'Y-m-dTH:i:s'",DateTime).
-    
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -522,6 +528,6 @@ column_options_to_sql(Options) ->
 
 -spec(option_to_sql({not_null|primary_key, true}) -> string()).
 option_to_sql({not_null, true}) ->
-    "NOT NULL";
+    "NOT NULL ";
 option_to_sql({primary_key, true}) ->
-    "PRIMARY KEY".
+    "PRIMARY KEY ".

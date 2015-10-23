@@ -27,7 +27,7 @@
 
 -module(inflector).
 -author('Luke Galea <luke@ideaforge.org>').
--export([pluralize/1, singularize/1, camelize/1, lower_camelize/1, titleize/1, 
+-export([pluralize/1, singularize/1, camelize/1, lower_camelize/1, titleize/1,
 	 capitalize/1, humanize/1, underscore/1, dasherize/1, tableize/1, moduleize/1,
 	 foreign_key/1, ordinalize/1]).
 
@@ -41,9 +41,9 @@ pluralize(Word) ->
     pluralize_or_singularize( Word, plurals() ).
 
 camelize(LowerCaseAndUnderscoredWord) ->
-    lists:flatten( 
-      lists:map( 
-	fun ([L|Rest]) -> [ string:to_upper(L) | Rest ] end, 
+    lists:flatten(
+      lists:map(
+	fun ([L|Rest]) -> [ string:to_upper(L) | Rest ] end,
 	underscore_tokens( LowerCaseAndUnderscoredWord ) ) ).
 
 lower_camelize(LowerCaseAndUnderscoredWord) ->
@@ -66,9 +66,9 @@ humanize(Word) ->
 underscore(CamelCasedWord) ->
     RE1 = re_compile("([A-Z]+)([A-Z][a-z])"),
     RE2 = re_compile("([a-z\\d])([A-Z])"),
-    string:to_lower( 
-      re_replace( 
-	re_replace( CamelCasedWord, RE1, "\\1_\\2" ), 
+    string:to_lower(
+      re_replace(
+	re_replace( CamelCasedWord, RE1, "\\1_\\2" ),
 	RE2, "\\1_\\2" ) ).
 
 dasherize(UnderscoredWord) ->
@@ -92,9 +92,9 @@ ord(N) when (N rem 10) =:= 1 -> io_lib:format("~Bst", [N]);
 ord(N) when (N rem 10) =:= 2 -> io_lib:format("~Bnd", [N]);
 ord(N) when (N rem 10) =:= 3 -> io_lib:format("~Brd", [N]);
 ord(N) -> io_lib:format("~Bth", [N]).
-    
 
-%% Helpers		       
+
+%% Helpers
 re_compile( RE ) ->
     { ok, Compiled } = re:compile(RE, []),
     Compiled.
@@ -120,7 +120,7 @@ is_uncountable(Word) ->
 replace(Word, [] ) ->
     Word;
 replace(Word, [ {Regex, Replacement} | Remainder ] ) ->
-    RE = re_compile( Regex ), 
+    RE = re_compile( Regex ),
     case re:run( Word, RE ) of
 	{ match, _ } ->
 	    re_replace( Word, RE, Replacement );
@@ -151,7 +151,7 @@ plurals() ->
       {"s$",                    "s"     },
       {"$",                     "s"     } ].
 
-singulars() ->    
+singulars() ->
     [ {"(quiz)zes$",            "\\1"     },
       {"(matr)ices$",           "\\1ix"   },
       {"(vert|ind)ices$",       "\\1ex"   },
@@ -220,7 +220,7 @@ singularize_test() ->
     "sheep"			= singularize("sheep"),
     "child"			= singularize("children"),
     "dog"			= singularize("dog").
-    
+
 pluralize_test() ->
     "dogs"			= pluralize("dog"),
     "dogs"			= pluralize("dogs"),

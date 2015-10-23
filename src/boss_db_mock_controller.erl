@@ -52,7 +52,7 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
                   uuid   -> {lists:concat([Type, "-", uuid:to_string(uuid:uuid4())]), IdCounter};
                   _      -> {lists:concat([Type, "-", IdCounter]), IdCounter + 1}
               end;
-        ExistingId -> 
+        ExistingId ->
             case boss_sql_lib:keytype(Record) of
                 uuid -> {ExistingId, IdCounter};
                 _    ->
@@ -67,8 +67,14 @@ handle_call({save_record, Record}, _From, [{Dict, IdCounter}|OldState]) ->
     NewAttributes = lists:map(fun
             ({id, _}) ->
                 {id, Id};
-            ({Attr, {_, _, _} = Val}) ->
-                {Attr, calendar:now_to_datetime(Val)};
+            ({Attr, {_, _, _} = Val} = Other) ->
+                AttributeTypes = Record:attribute_types(),
+                case proplists:get_value(Attr, AttributeTypes) of
+                    timestamp ->
+                        {Attr, calendar:now_to_datetime(Val)};
+                    _ ->
+                        Other
+                end;
             (Other) ->
                 Other
         end, Record:attributes()),
@@ -97,7 +103,7 @@ handle_info(_Info, State) ->
 
 
 do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
-    Tail = lists:nthtail(Skip, 
+    Tail = lists:nthtail(Skip,
         lists:sort(fun(RecordA, RecordB) ->
                     AttributeA = sortable_attribute(RecordA, SortBy),
                     AttributeB = sortable_attribute(RecordB, SortBy),
@@ -115,7 +121,7 @@ do_find(Dict, Type, Conditions, Max, Skip, SortBy, SortOrder) ->
                                 match_cond(Record, Conditions);
                             (_Id, _) ->
                                 false
-                        end, Dict))))), 
+                        end, Dict))))),
     case Max of all -> Tail; _ -> lists:sublist(Tail, Max) end.
 
 match_cond(_Record, []) ->

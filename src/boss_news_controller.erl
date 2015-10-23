@@ -9,7 +9,7 @@
         watch_dict              = dict:new()       ::dict:dict(),
         ttl_tree                = gb_trees:empty() ::gb_trees:tree(),
 
-        set_watchers            = dict:new()       ::dict:dict(), 
+        set_watchers            = dict:new()       ::dict:dict(),
         id_watchers             = dict:new()       ::dict:dict(),
 
         set_attr_watchers       = dict:new()       ::dict:dict(),
@@ -113,7 +113,7 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
                                     }, {id_attr, Id, Attr}}
                         end,
                         {ok, NewState1, [WatchInfo|WatchListAcc]};
-                    _ -> 
+                    _ ->
                         case re:split(SingleTopic, "-", [{return, list}, {parts, 2}]) of
                             [_Module, _IdNum] ->
                                 IdWatchers = case dict:find(SingleTopic, State#state.id_watchers) of
@@ -137,13 +137,13 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
                 Error
         end, {ok, State, []}, re:split(TopicString, ", +", [{return, list}, {parts, 2}])),
     case RetVal of
-        ok -> {reply, RetVal, NewState#state{ 
-                    watch_dict = dict:store(WatchId, 
-                        #watch{ 
-                            watch_list = WatchList, 
-                            callback = CallBack, 
-                            user_info = UserInfo, 
-                            exp_time = ExpTime, 
+        ok -> {reply, RetVal, NewState#state{
+                    watch_dict = dict:store(WatchId,
+                        #watch{
+                            watch_list = WatchList,
+                            callback = CallBack,
+                            user_info = UserInfo,
+                            exp_time = ExpTime,
                             ttl = TTL}, NewState#state.watch_dict),
                     ttl_tree = tiny_pq:insert_value(ExpTime, WatchId, NewState#state.ttl_tree)
                 }};
@@ -166,9 +166,9 @@ handle_call({extend_watch, WatchId}, _From, State0) ->
             NewExpTime = future_time(TTL),
             NewTree    = tiny_pq:move_value(ExpTime, NewExpTime, WatchId, State#state.ttl_tree),
             {ok, State#state{
-                   ttl_tree   = NewTree, 
+                   ttl_tree   = NewTree,
                    watch_dict = dict:store(WatchId,
-                                            Watch#watch{ exp_time = NewExpTime }, 
+                                            Watch#watch{ exp_time = NewExpTime },
                                             State#state.watch_dict) }};
         _ ->
             {{error, not_found}, State}
@@ -202,7 +202,7 @@ handle_call({updated, Id, OldAttrs, NewAttrs}, _From, State0) ->
 
     OldRecord           = activate_record(Id, OldAttrs),
     OldAttributes       = OldRecord:attributes(),
-    
+
     NewRecord           = activate_record(Id, NewAttrs),
     NewAttributes       = NewRecord:attributes(),
 

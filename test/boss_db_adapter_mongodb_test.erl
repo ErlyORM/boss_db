@@ -28,7 +28,7 @@ prolist_test() ->
 -type proplist() :: [{any(), any()}].
 prop_tuple_proplist_conversion() ->
     ?FORALL(Proplist,
-	    proplist(), 
+	    proplist(),
 	    begin
 		Tuple = ?T_MODULE:proplist_to_tuple(Proplist),
 		NProplist = ?T_MODULE:tuple_to_proplist(Tuple),
@@ -39,7 +39,7 @@ pack_sort_order_test() ->
     ?assert(proper:check_spec({?T_MODULE,pack_sort_order, 1},
 			      [{to_file, user}])),
     ok.
-    
+
 boss_to_mongo_op_test() ->
     ?assert(proper:check_spec({?T_MODULE,boss_to_mongo_op, 1},
 			      [{to_file, user}])),
@@ -52,7 +52,7 @@ attr_value_test() ->
 			      [{to_file, user}])),
     ok.
 
-    
+
 prop_pack_value_binary() ->
     ?FORALL(Input,
 	    binary(),
@@ -68,12 +68,12 @@ prop_pack_value_integer_list() ->
 		Result = ?T_MODULE:pack_value({integers, Integers}),
 		Result =:= Integers
 	    end).
-		  
+
 pack_value_test() ->
-    ?assert(proper:quickcheck(prop_pack_value_integer_list(), 
+    ?assert(proper:quickcheck(prop_pack_value_integer_list(),
 			      [{to_file, user}])),
 
-    ?assert(proper:quickcheck(prop_pack_value_binary(), 
+    ?assert(proper:quickcheck(prop_pack_value_binary(),
     			      [{to_file, user}])),
 
     ok.
@@ -95,5 +95,5 @@ pack_value_test() ->
 %% 		 Result = ?T_MODULE:multiple_where_clauses_string("~p=~p",
 %% 								  Key, ValueList,"and"),
 %% 		 ?debugVal(Result),
-%% 		 is_list(Result)		
+%% 		 is_list(Result)
 %% 	    end).

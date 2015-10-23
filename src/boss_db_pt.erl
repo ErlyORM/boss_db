@@ -39,8 +39,8 @@ parse_transform(Forms, Options) ->
                     RevertedForm
             end
     end,
-    function({boss_db, find, any}, TransformOperatorsFun, 
-        function({boss_db, count, 2}, TransformOperatorsFun, Forms, Options), 
+    function({boss_db, find, any}, TransformOperatorsFun,
+        function({boss_db, count, 2}, TransformOperatorsFun, Forms, Options),
         Options).
 
 replace_operators({cons, _Location, {match, MatchLoc, LHS, RHS}, Rest}) ->
@@ -176,7 +176,7 @@ transform(Forms, Before, After, Context) ->
                     try Before(Type, Form, Context)
                     catch
                         error:Reason ->
-                            ?ERROR(Reason, 'before', Before, 
+                            ?ERROR(Reason, 'before', Before,
                                    [{type, Type},
                                     {context, Context},
                                     {form, Form}])
@@ -195,7 +195,7 @@ transform(Forms, Before, After, Context) ->
                 try After(Type2, Form2, Context1)
                 catch
                     error:Reason2 ->
-                        ?ERROR(Reason2, 'after', After, 
+                        ?ERROR(Reason2, 'after', After,
                                [{type, Type2},
                                 {context, Context1},
                                 {form, Form2}])
@@ -230,7 +230,7 @@ rpt_error(Reason, BeforeOrAfter, Fun, Info) ->
              "*** applying ~w fun (~p)~n",
              "*** function info: ~p~n",
              ["*** ~10w = ~p~n" || _ <- Info]]),
-    Args = [Reason, BeforeOrAfter, Fun, erlang:fun_info(Fun) | 
+    Args = [Reason, BeforeOrAfter, Fun, erlang:fun_info(Fun) |
             lists:foldr(
               fun({K,V}, Acc) ->
                       [K, V | Acc]
