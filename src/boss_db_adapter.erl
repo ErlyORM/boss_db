@@ -1,5 +1,6 @@
 -module(boss_db_adapter).
 
+%% TODO: exact types
 -callback start(_) -> ok.
 -callback stop() -> ok.
 -callback init(_) -> any().

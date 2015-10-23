@@ -511,7 +511,7 @@ tabledefinition_to_sql(TableDefinition) ->
        column_options_to_sql(Options) ||
       {ColumnName, ColumnType, Options} <- TableDefinition], ", ").
 
--spec(column_type_to_sql(auto_increment|string|integer|datetime) ->string()).
+-spec column_type_to_sql('auto_increment' | 'datetime' | 'integer' | 'string') -> [1..255,...].
 
 column_type_to_sql(auto_increment) ->
     "SERIAL";
@@ -522,11 +522,11 @@ column_type_to_sql(integer) ->
 column_type_to_sql(datetime) ->
     "TIMESTAMP".
 
--spec(column_options_to_sql([{not_null| primary_key,any()}]) -> [string()]).
+-spec column_options_to_sql([{not_null| primary_key,any()}]) -> [string()].
 column_options_to_sql(Options) ->
     [option_to_sql({Option, Args}) || {Option, Args= true} <- proplists:unfold(Options)].
 
--spec(option_to_sql({not_null|primary_key, true}) -> string()).
+-spec option_to_sql({'not_null','true'} | {'primary_key','true'}) -> [1..255,...].
 option_to_sql({not_null, true}) ->
     "NOT NULL ";
 option_to_sql({primary_key, true}) ->

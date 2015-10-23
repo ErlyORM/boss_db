@@ -24,4 +24,3 @@ handle_collection_news(updated, {_Record, Attr, _OldVal, _NewVal}, {Prefix, Key}
             boss_cache:delete(Prefix, Key),
             {ok, cancel_watch}
     end.
-
