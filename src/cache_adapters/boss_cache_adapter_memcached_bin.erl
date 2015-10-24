@@ -9,8 +9,7 @@ start() ->
 
 start(Options) ->
     CacheServers = proplists:get_value(cache_servers, Options, [{"localhost", 11211, 1}]),
-    ok = erlmc:start(CacheServers),
-    ok.
+    erlmc:start_link(CacheServers).
 
 stop(_Conn) ->
     erlmc:quit().
@@ -30,7 +29,7 @@ get(_Conn, Prefix, Key) ->
     end.
 
 set(_Conn, Prefix, Key, Val, TTL) ->
-    erlmc:set(term_to_key(Prefix, Key), term_to_binary(Val), TTL).
+    erlmc:set(term_to_key(Prefix, Key), term_to_binary(Val), TTL, 5000).
 
 delete(_Conn, Prefix, Key) ->
     erlmc:delete(term_to_key(Prefix, Key)).

@@ -1,7 +1,7 @@
 -module(boss_cache_adapter).
 
--callback start() -> pid().
--callback start(_) -> pid().
+-callback start() -> pid() | 'ok'.
+-callback start(_) -> pid() | 'ok'.
 -callback stop(atom() | pid() | {atom(),_} | {'via',_,_}) -> 'ok'.
 -callback init(_) -> {'ok',pid()}.
 -callback terminate(atom() | pid() | {atom(),_} | {'via',_,_}) -> 'ok'.
