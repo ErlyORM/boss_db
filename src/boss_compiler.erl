@@ -17,8 +17,8 @@
 
 -type otp_version() :: 14|15|16|17.
 -spec(make_forms_by_version([syntaxTree()], otp_version()) ->syntaxTree()).
--spec compile(binary() | [atom() | [any()] | char()]) -> any().
--spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
+-spec compile(binary() | [atom() | [any()] | char()]) -> {'error',atom() | {_,[any(),...]}}.
+-spec compile(binary() | [atom() | [any()] | char()],[any()]) -> {'error',atom() | {_,[any(),...]}}.
 -spec compile_forms(_,binary() | [atom() | [any()] | char()],atom() | [any()]) -> any().
 
 -spec parse(binary() | [atom() | [any()] | char()],_,_) ->
@@ -44,7 +44,7 @@ compile(File) ->
     compile(File, []).
 
 compile(File, Options) ->
-    lager:notice("Compile file ~p with options ~p ", [File, Options]),
+    _ = lager:notice("Compile file ~p with options ~p ", [File, Options]),
     IncludeDirs    = ["include"] ++ proplists:get_value(include_dirs,    Options, []) ++
                      proplists:get_all_values(i, compiler_options(Options)),
     TokenTransform = proplists:get_value(token_transform, Options),

@@ -27,7 +27,7 @@ start(Options) ->
     end,
     case cache_server:start_link([{checkpid, CheckPid}|Options]) of
         {ok, Conn} -> lager:info("ETS cache server started");
-        {error, {already_started, Conn}} -> lager:warning("ETS cache server alredy started")
+        {error, {already_started, Conn}} -> lager:warning("ETS cache server already started")
     end,
     Conn.
 

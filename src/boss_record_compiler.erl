@@ -20,8 +20,8 @@
 
 
 -export([compile/1, compile/2, edoc_module/1, edoc_module/2, process_tokens/1, trick_out_forms/2]).
--spec compile(binary() | [atom() | [any()] | char()]) -> any().
--spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
+-spec compile(binary() | [atom() | [any()] | char()]) -> {'error',atom() | {_,[any(),...]}}.
+-spec compile(binary() | [atom() | [any()] | char()],[any()]) -> {'error',atom() | {_,[any(),...]}}.
 -spec edoc_module(string()) -> {atom() | tuple(),_}.
 -spec edoc_module(string(),_) -> {module(),_}.
 -spec process_tokens(nonempty_maybe_improper_list())                 ->  {nonempty_maybe_improper_list(),[{_,_}]}.
@@ -38,9 +38,9 @@
                            [pair(),...],
                            [pair(),...],
                            [ atom()]) -> error([syntaxTree()]).
--spec has_duplicates([any()]) ->any().
--spec trick_out_forms([any(),...],[any()])                                -> [any(),...].
--spec trick_out_forms([any(),...],[any()],[any()])                        -> [any(),...].
+-spec has_duplicates([any()]) -> boolean().
+-spec trick_out_forms([any(),...],[{atom(),atom()},...])                  -> [any(),...].
+-spec trick_out_forms([any(),...],[any()],[{atom(),atom()},...])          -> [any(),...].
 -spec trick_out_forms([any(),...],[any()],atom(),[any()],[any()])         -> [any(),...].
 -spec list_functions([atom()])                                            -> [fctn_n()].
 -spec list_functions([atom()],[fctn_n()])                                 -> [fctn_n()].
@@ -48,8 +48,8 @@
 -spec override_functions([syntaxTree()|fctn()],[syntaxTree()],[fctn_n()]) -> [any()].
 -spec export_forms([{atom(), pos_integer()}])                             -> syntaxTree().
 -spec export_forms([{atom(), pos_integer()}],[syntaxTree()])              -> syntaxTree().
--spec database_columns_forms(atom() ,[atom()],[pair()])          -> syntaxTree().
--spec database_table_forms(atom(),[pair()])                      -> syntaxTree().
+-spec database_columns_forms(atom() ,[atom()],[pair()])                   -> syntaxTree().
+-spec database_table_forms(atom(),[pair()])                               -> syntaxTree().
 -spec attribute_types_forms(atom() ,[{atom(), atom()}])                   -> syntaxTree().
 -spec validate_types_forms(atom())                                        -> syntaxTree().
 -spec validate_forms(atom())                                              -> syntaxTree().
@@ -62,12 +62,12 @@
 -spec set_attributes_forms(atom(),[atom()])                               -> syntaxTree().
 -spec association_forms(atom(),[assoc()])                                 -> [any(),...].
 
--spec belongs_to_list_forms([{atom(),any()}])                             -> syntaxTree().
+-spec belongs_to_list_forms([{atom(),atom()}])                            -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
 
--spec belongs_to_list_make_list([pair()])                        -> syntaxTree().
+-spec belongs_to_list_make_list([pair()])                                 -> syntaxTree().
 -spec attribute_names_forms(name(),[atom()])                              -> syntaxTree().
 -spec has_one_forms(name(),atom(),[any()])                                -> syntaxTree().
--spec has_many_forms(atom(),atom(), limit(), [any()])      -> syntaxTree().
+-spec has_many_forms(atom(),atom(), limit(), [any()])                     -> syntaxTree().
 -spec first_or_undefined_forms( syntaxTree())                             -> syntaxTree().
 -spec has_many_application_forms(name(),{'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},
                                  pos_integer() | all,
@@ -85,7 +85,7 @@
 -spec counter_reset_forms([name()])                                       -> syntaxTree().
 -spec counter_incr_forms([name()])                                        -> syntaxTree().
 -spec counter_name_forms(name())                                          -> syntaxTree().
--spec parameter_to_colname(atom())                                        -> string().
+-spec parameter_to_colname(atom())                                        -> [byte()].
 
 
 %% @Spec compile( File::string() )                                   -> {ok, Module} | {error, Reason}
@@ -117,7 +117,7 @@ edoc_module(File, Options) ->
                         Options).
 
 process_tokens(Tokens) ->
-    lager:info("Tokens ~p",[Tokens]),
+    _ = lager:info("Tokens ~p",[Tokens]),
     process_tokens(Tokens, [], []).
 
 process_tokens([{']',_},
@@ -146,10 +146,10 @@ process_tokens([{'-',_N             } = T1,
                 {'::',_},
                 {atom,_,VarType},
                 {'(',_},
-                {')',_}|Rest]  = _T,
-               TokenAcc, []) ->
-   % lager:notice("Tokens ~p", [_T]) ,
-    lager:info("Var Type ~p",[VarType]),
+                {')',_}|Rest]  = _T, 
+               TokenAcc, []) ->  
+   % lager:notice("Tokens ~p", [_T]) , 
+    _ = lager:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), [{'Id', VarType}]);
 
 process_tokens([{',',_}               = T1,
@@ -160,7 +160,7 @@ process_tokens([{',',_}               = T1,
                 {')',_} |Rest] = _T,
                TokenAcc, Acc) ->
 %    lager:notice("Tokens ~p", [_T]),
-    lager:info("Var Type ~p",[VarType]),
+    _ = lager:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, VarType}|Acc]);
 
 process_tokens([H|T], TokenAcc, Acc) ->
@@ -216,13 +216,13 @@ make_generated_forms(ModuleName, Parameters, _TokenInfo, _Attributes,
 make_generated_forms(ModuleName, Parameters, _TokenInfo, _Attributes,
                      _Counters, _Dup = true) ->
     DupFields = Parameters -- sets:to_list(sets:from_list(Parameters)),
-    lager:error("Unable to compile module ~p due to duplicate field(s) ~p",
+    _ = lager:error("Unable to compile module ~p due to duplicate field(s) ~p",
                [ModuleName, DupFields]),
     {error, "Duplicate Fields"};
 
 make_generated_forms(ModuleName, Parameters, TokenInfo, Attributes,
                      Counters, _Dup = false) ->
-    lager:notice("Module \"~p\" Parameters ~p Attributes~p", [ModuleName,Parameters, Attributes]),
+    _ = lager:notice("Module \"~p\" Parameters ~p Attributes~p", [ModuleName,Parameters, Attributes]),
     GF = attribute_names_forms(ModuleName, Parameters)                  ++
         attribute_types_forms(ModuleName, TokenInfo)               ++
         database_columns_forms(ModuleName, Parameters, Attributes) ++

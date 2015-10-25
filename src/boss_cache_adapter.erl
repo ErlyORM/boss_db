@@ -1,11 +1,10 @@
 -module(boss_cache_adapter).
--export([behaviour_info/1]).
 
-%% @spec behaviour_info( atom() ) -> [ {Function::atom(), Arity::integer()} ] | undefined
-behaviour_info(callbacks) ->
-    [
-        {start, 0}, {start, 1}, {stop, 1}, {init, 1}, {terminate, 1},
-        {get, 3}, {set, 5}, {delete, 3}
-    ];
-behaviour_info(_Other) ->
-    undefined.
+-callback start() -> pid() | 'ok'.
+-callback start(_) -> pid() | 'ok'.
+-callback stop(atom() | pid() | {atom(),_} | {'via',_,_}) -> 'ok'.
+-callback init(_) -> {'ok', pid() | undefined}.
+-callback terminate(atom() | pid() | {atom(),_} | {'via',_,_}) -> 'ok'.
+-callback get(_,atom() | string() | number(),_) -> any().
+-callback set(_,atom() | string() | number(),_,_,non_neg_integer()) -> 'ok'.
+-callback delete(atom() | pid() | {atom(),_} | {'via',_,_},atom() | string() | number(),_) -> 'ok'.
