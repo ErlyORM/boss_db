@@ -217,7 +217,7 @@ maybe_populate_id_value(Record) ->
     KeyType  = boss_sql_lib:keytype(Record),
     maybe_populate_id_value(Record, KeyType).
 
--type keytype() ::uuid|id.
+% unused -type keytype() ::uuid|id.
 -spec(maybe_populate_id_value(tuple(), uuid|id) -> tuple()).
 maybe_populate_id_value(Record, uuid) ->
     Type = element(1, Record),
