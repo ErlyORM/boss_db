@@ -178,14 +178,14 @@ singulars() ->
       {"s$",                     ""      } ] ++ reversed_irregulars().
 
 irregulars() ->
-    [{"move",   "moves"   },
-     {"sex",    "sexes"   },
-     {"child",  "children"},
-     {"man",    "men"     },
-     {"person", "people"  }].
+    [{"move$",   "moves"   },
+     {"sex$",    "sexes"   },
+     {"child$",  "children"},
+     {"man$",    "men"     },
+     {"person$", "people"  }].
 
 reversed_irregulars() ->
-    F = fun ({A, B}) -> {B, A} end,
+    F = fun ({A, B}) -> {B ++ "$", re:replace(A, "\\$", "", [{return, list}])} end,
     lists:map(F, irregulars()).
 
 uncountables() ->
@@ -227,7 +227,8 @@ pluralize_test() ->
     "buses"			= pluralize("bus"),
     "sexes"			= pluralize("sex"),
     "sheep"			= pluralize("sheep"),
-    "children"			= pluralize("child").
+    "children"			= pluralize("child"),
+    "personal_websites" = pluralize("personal_website").
 
 camelize_test() ->
     "CamelCase"			= camelize("camel_case").
