@@ -18,7 +18,7 @@ set_attribute(FieldName, JSON, Model) ->
     BName = atom_to_binary(FieldName,'utf8'),
     Model:set(FieldName, proplists:get_value(BName, JSON, null)).
 
-
+-ifdef(TEST).
 -spec(convert_attributes({string()|binary()|atom(), any()}) ->
      {atom(), any()}).
 convert_attributes({Name, Value}) when is_list(Name) ->
@@ -28,7 +28,6 @@ convert_attributes({Name, Value}) when is_binary(Name) ->
 convert_attributes({Name, Value}) ->
     {Name, Value}.
 
-%-ifdef(TEST).
 -type test_fields() :: id|name|full_name|private|html_url|description|fork|url|forks|forks_url|
                keys_url|collaborators_url|teams_url|hooks_url|issue_events_url|events_url|
                assignees_url|branches_url|tags_url|blobs_url|git_tags_url|git_refs_url|
@@ -94,4 +93,4 @@ all_true(L) ->
     lists:all(fun(X) ->
               X
           end, L).
-%-endif.
+-endif.
