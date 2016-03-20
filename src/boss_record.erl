@@ -1,7 +1,9 @@
 -module(boss_record).
 -export([new/2, new_from_json/2]).
--include_lib("proper/include/proper.hrl").
 
+-ifdef(TEST).
+-include_lib("proper/include/proper.hrl").
+-endif.
 
 new(Model, Attributes) ->
     DummyRecord = boss_record_lib:dummy_record(Model),
@@ -19,6 +21,7 @@ set_attribute(FieldName, JSON, Model) ->
     Model:set(FieldName, proplists:get_value(BName, JSON, null)).
 
 -ifdef(TEST).
+
 -spec(convert_attributes({string()|binary()|atom(), any()}) ->
      {atom(), any()}).
 convert_attributes({Name, Value}) when is_list(Name) ->
