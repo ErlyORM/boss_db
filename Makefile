@@ -29,7 +29,7 @@ clean:
 	rm -f $(PLT_FILE)
 
 test:
-	@$(REBAR) as test eunit
+	@$(REBAR) eunit
 
 compile_db_test:
 	@$(REBAR) as test, boss_test do clean, compile
