@@ -29,7 +29,7 @@ deps:
 	@$(REBAR) compile
 
 dialyze:
-	@$(REBAR) dialyzer
+	@$(REBAR) dialyzer || [ $$? -eq 2 ];
 
 clean:
 	@$(REBAR) clean
