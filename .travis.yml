@@ -15,7 +15,6 @@ otp_release:
 script:
   - make
 #  - rebar eunit -v skip_deps=true
-  - make plt
   - make dialyze
 notifications:
   email: false
