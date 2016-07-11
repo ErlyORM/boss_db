@@ -2,7 +2,7 @@ BossDB: A sharded, caching, pooling, evented ORM for Erlang
 ===========================================================
 [![Build Status](https://travis-ci.org/ErlyORM/boss_db.svg?branch=master)](https://travis-ci.org/ErlyORM/boss_db)
 
-Attention! This is a master branch supporting Erlang 18. For older Erlang versions use legacy branch.
+Attention! This is a master branch supporting Erlang 18 and above. For older Erlang versions use legacy branch.
 
 Supported databases
 -------------------
