@@ -59,17 +59,17 @@ run_tests() ->
     boss_db:mock_transaction(fun run_tests_inner/0).
 
 run_tests_inner() ->
-  lager:info("~-60s", ["Root test"]),
+  _ = lager:info("~-60s", ["Root test"]),
   ModelText = <<"Economists do it with models">>,
   do(
     fun() ->
         ParentModel = boss_db_test_parent_model:new(id, <<"foo">>),
         {ok, SavedParentModel} = ParentModel:save(),
-        Model = boss_db_test_model:new(id, ModelText, 
+        Model = boss_db_test_model:new(id, ModelText,
           {{1776, 7, 4}, {0, 0, 0}}, true, 42, 3.14159, SavedParentModel:id()),
         {ok, SavedModel} = Model:save(),
         {SavedModel, SavedParentModel}
-    end, 
+    end,
     [
       fun({SavedModel, _}) ->
           {SavedModel:id() =/= id,
@@ -95,7 +95,7 @@ run_tests_inner() ->
           {(SavedModel:boss_db_test_parent_model()):some_text() =:= SavedParentModel:some_text(),
               "Association doesn't have expected Text"}
       end
-    ], 
+    ],
     [ "Check for record in the database",
       fun({SavedModel, _}) ->
           do(
@@ -134,14 +134,14 @@ run_tests_inner() ->
       fun({Model1, _}) ->
           do(
             fun() ->
-                % boss_db_test_model:new(id, <<"Economists do it with models">>, 
+                % boss_db_test_model:new(id, <<"Economists do it with models">>,
                 % {{1776, 7, 4}, {0, 0, 0}}, true, 42, 3.14159),
-                {ok, Model2} = (boss_db_test_model:new(id, "Bold coffee", 
+                {ok, Model2} = (boss_db_test_model:new(id, "Bold coffee",
                     {{1969, 7, 20}, {0, 0, 0}}, false, 100, 5.5, undefined)):save(),
-                {ok, Model3} = (boss_db_test_model:new(id, "A Bold Society", 
+                {ok, Model3} = (boss_db_test_model:new(id, "A Bold Society",
                     {{1984, 1, 1}, {0, 0, 0}}, true, 200, 28.8, undefined)):save(),
                 [Model1:id(), Model2:id(), Model3:id()]
-            end, 
+            end,
             [
               fun([Id, _, _]) ->
                   Model = boss_db:find(Id),
@@ -179,10 +179,10 @@ run_tests_inner() ->
                   {boss_db:count(boss_db_test_model, []) =:= 3, "Count with empty conditions failed"}
               end,
               fun(_) ->
-                  {boss_db:count(boss_db_test_model, [{some_integer, 'gt', 50}]) =:= 2, 
+                  {boss_db:count(boss_db_test_model, [{some_integer, 'gt', 50}]) =:= 2,
                     "Count with non-trivial conditions failed"}
               end
-            ], 
+            ],
             [
               "Run query tests",
               fun(Ids) ->
@@ -213,7 +213,7 @@ run_tests_inner() ->
               fun([Id1|_]) ->
                   do(fun() ->
                         boss_db:delete(Id1)
-                    end, 
+                    end,
                     [
                       fun(RetVal) ->
                           {RetVal =:= ok, "Return value not OK"}
@@ -230,7 +230,7 @@ run_tests_inner() ->
     ]).
 
 do(Fun, Assertions, Continuations) ->
-  boss_test:process_assertions_and_continuations(Assertions, Continuations, Fun(), 
+  boss_test:process_assertions_and_continuations(Assertions, Continuations, Fun(),
       fun boss_db:push/0, fun boss_db:pop/0, fun boss_db:dump/0).
 
 query_tests([Id1, Id2, Id3]) ->
@@ -275,13 +275,13 @@ query_tests([Id1, Id2, Id3]) ->
     {[{some_text, 'not_matches', "Bold [cS]"}],         [Id1          ]},
     {[{some_text, 'contains', "Bold"}],                 [     Id2, Id3]},
     {[{some_text, 'not_contains', "Bold"}],             [Id1          ]},
-    {[{some_text, 'contains_all', ["Bold", "Society"]}], 
+    {[{some_text, 'contains_all', ["Bold", "Society"]}],
         [          Id3]},
-    {[{some_text, 'not_contains_all', ["Bold", "Society"]}],  
+    {[{some_text, 'not_contains_all', ["Bold", "Society"]}],
         [Id1, Id2     ]},
-    {[{some_text, 'contains_any', ["models", "Society"]}],      
+    {[{some_text, 'contains_any', ["models", "Society"]}],
         [Id1,      Id3]},
-    {[{some_text, 'contains_none', ["models", "Society"]}],     
+    {[{some_text, 'contains_none', ["models", "Society"]}],
         [     Id2     ]}
 
   ].

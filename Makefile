@@ -1,21 +1,19 @@
-
 ERL=erl
 REBAR=./rebar
 GIT = git
-REBAR_VER = 2.5.1
+REBAR_VER = 2.6.0
 DB_CONFIG_DIR=priv/test_db_config
 
 .PHONY: deps get-deps test
 
-all:
+all: compile
+
+compile:
 	@$(REBAR) get-deps
 	@$(REBAR) compile
 
 boss_db:
 	@$(REBAR) compile skip_deps=true
-
-clean:
-	@$(REBAR) clean
 
 rebar_src:
 	@rm -rf $(PWD)/rebar_src
@@ -30,6 +28,31 @@ get-deps:
 
 deps:
 	@$(REBAR) compile
+
+## dialyzer
+PLT_FILE = ~/boss_db.plt
+PLT_APPS ?= kernel stdlib erts compiler runtime_tools syntax_tools crypto \
+		mnesia ssl public_key eunit xmerl inets asn1 hipe deps/*
+DIALYZER_OPTS ?= -Werror_handling -Wrace_conditions -Wunmatched_returns \
+		-Wunderspecs --verbose --fullpath -n
+
+.PHONY: dialyze
+dialyze: all
+	@[ -f $(PLT_FILE) ] || $(MAKE) plt
+	@dialyzer --plt $(PLT_FILE) $(DIALYZER_OPTS) ebin || [ $$? -eq 2 ];
+
+## In case you are missing a plt file for dialyzer,
+## you can run/adapt this command
+.PHONY: plt
+plt:
+	@echo "Building PLT, may take a few minutes"
+	@dialyzer --build_plt --output_plt $(PLT_FILE) --apps \
+		$(PLT_APPS) || [ $$? -eq 2 ];
+
+clean:
+	@$(REBAR) clean
+	rm -fv erl_crash.dump
+	rm -f $(PLT_FILE)
 
 test:
 	@$(REBAR) skip_deps=true eunit

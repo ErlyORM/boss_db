@@ -19,7 +19,7 @@
 
 -module(boss_db_pmod_pt).
 -export([parse_transform/2,
-	 format_error/1]).
+     format_error/1]).
 
 %% Expand function definition forms of parameterized module.
 %% The code is based on the code in sys_expand_pmod which used to be
@@ -40,20 +40,20 @@
 %%   because they have not been added yet.
 
 -record(pmod, {parameters,
-	       defined
-	      }).
+           defined
+          }).
 
 parse_transform(Forms0, _Options) ->
     put(?MODULE, []),
     Forms = transform(Forms0),
     case erase(?MODULE) of
-	[] ->
-	    Forms;
-	[_|_]=Errors ->
-	    File = get_file(Forms),
-	    {error,[{File,Errors}],[]}
+    [] ->
+        Forms;
+    [_|_]=Errors ->
+        File = get_file(Forms),
+        {error,[{File,Errors}],[]}
     end.
-  
+
 format_error(extends_self) ->
     "cannot extend from self";
 format_error(define_instance) ->
@@ -64,20 +64,20 @@ add_error(Line, Error) ->
 
 get_file([{attribute,_,file,{File,_}}|_]) -> File;
 get_file([_|T]) -> get_file(T).
-    
+
 transform(Forms0) ->
     Def = collect_defined(Forms0),
     {Base,ModAs,Forms1} = attribs(Forms0, [], undefined, []),
     {Mod,Ps0} = case ModAs of
-		    {M0,P0} -> {M0,P0};
-		    M0 -> {M0,undefined}
-		end,
+            {M0,P0} -> {M0,P0};
+            M0 -> {M0,undefined}
+        end,
     Forms2 = case Ps0 of
-		 undefined ->
-		     Forms1;
-		 _ ->
-		     pmod_expand(Forms1, Mod, Base, Ps0, Def)
-	     end,
+         undefined ->
+             Forms1;
+         _ ->
+             pmod_expand(Forms1, Mod, Base, Ps0, Def)
+         end,
 
     %% Add new functions.
     NewFs0 = maybe_extend(Base, Mod, Ps0),
@@ -87,10 +87,10 @@ transform(Forms0) ->
 
 pmod_expand(Forms0, Mod, Base, Ps0, Def) ->
     Ps = if is_atom(Base) ->
-		 ['BASE' | Ps0];
-	    true ->
-		 Ps0
-	 end,
+         ['BASE' | Ps0];
+        true ->
+         Ps0
+     end,
     St0 = #pmod{parameters=Ps,defined=gb_sets:from_list(Def)},
     {Forms1,_} = forms(Forms0, St0),
     Forms2 = update_exps(Forms1),
@@ -128,16 +128,16 @@ maybe_extend(Base, Mod, Ps) ->
     DontCares = [{var,0,'_'} || _ <- Ps],
     TuplePs = {tuple,0,[{atom,0,Mod},{var,0,'BaseVars'}|DontCares]},
     G = [{call,0,{atom,0,is_atom},
-	  [{call,0,{atom,0,element},
-	    [{integer,0,1},{var,0,'BaseVars'}]}]}],
+      [{call,0,{atom,0,element},
+        [{integer,0,1},{var,0,'BaseVars'}]}]}],
     FixedArgs = make_lists_rev([{var,0,'Rs'},
-				{cons,0,{var,0,'BaseVars'},{nil,0}}]),
+                {cons,0,{var,0,'BaseVars'},{nil,0}}]),
     Body = [{'case',0,make_lists_rev([{var,0,'Args'}]),
-	     [{clause,0,[{cons,0,TuplePs,{var,0,'Rs'}}],[G],
-	       [make_apply({atom,0,Base}, {var,0,'Func'}, FixedArgs)]},
-	      {clause,0,[{var,0,'_'}],[],
-	       [make_apply({atom,0,Base}, {var,0,'Func'}, {var,0,'Args'})]}
-	     ]}],
+         [{clause,0,[{cons,0,TuplePs,{var,0,'Rs'}}],[G],
+           [make_apply({atom,0,Base}, {var,0,'Func'}, FixedArgs)]},
+          {clause,0,[{var,0,'_'}],[],
+           [make_apply({atom,0,Base}, {var,0,'Func'}, {var,0,'Args'})]}
+         ]}],
     F = {function,0,Name,2,[{clause,0,Args,[],Body}]},
     [F].
 
@@ -149,10 +149,10 @@ make_lists_rev(As) ->
 
 ensure_new(Base, Ps, Fs) ->
     case has_new(Fs) of
-	true ->
-	    Fs;
-	false ->
-	    add_new(Base, Ps, Fs)
+    true ->
+        Fs;
+    false ->
+        add_new(Base, Ps, Fs)
     end.
 
 has_new([{function,_L,new,_A,_Cs} | _Fs]) ->
@@ -165,10 +165,10 @@ has_new([]) ->
 add_new(Base, Ps, Fs) ->
     Vs = [{var,0,V} || V <- Ps],
     As = if is_atom(Base) ->
-		 [{call,0,{remote,0,{atom,0,Base},{atom,0,new}},Vs} | Vs];
-	    true ->
-		 Vs
-	 end,
+         [{call,0,{remote,0,{atom,0,Base},{atom,0,new}},Vs} | Vs];
+        true ->
+         Vs
+     end,
     Body = [{call,0,{atom,0,instance},As}],
     add_func(new, Vs, Body, Fs).
 
@@ -191,15 +191,15 @@ attribs([{attribute,_,module,Mod}=H|T], Base, _, Acc) ->
     attribs(T, Base, Mod, [H|Acc]);
 attribs([{attribute,Line,extends,Base}|T], Base0, Ps, Acc) when is_atom(Base) ->
     Mod = case Ps of
-	      {Mod0,_} -> Mod0;
-	      Mod0 -> Mod0
-	  end,
+          {Mod0,_} -> Mod0;
+          Mod0 -> Mod0
+      end,
     case Mod of
-	Base ->
-	    add_error(Line, extends_self),
-	    attribs(T, Base0, Ps, Acc);
-	_ ->
-	    attribs(T, Base, Ps, Acc)
+    Base ->
+        add_error(Line, extends_self),
+        attribs(T, Base0, Ps, Acc);
+    _ ->
+        attribs(T, Base, Ps, Acc)
     end;
 attribs([H|T], Base, Ps, Acc) ->
     attribs(T, Base, Ps, [H|Acc]);
@@ -266,17 +266,17 @@ clause({clause,Line,H,G,B0},St) ->
 
 pattern_grp([{bin_element,L1,E1,S1,T1} | Fs],St) ->
     S2 = case S1 of
-	     default ->
-		 default;
-	     _ ->
-		 expr(S1,St)
-	 end,
+         default ->
+         default;
+         _ ->
+         expr(S1,St)
+     end,
     T2 = case T1 of
-	     default ->
-		 default;
-	     _ ->
-		 bit_types(T1)
-	 end,
+         default ->
+         default;
+         _ ->
+         bit_types(T1)
+     end,
     [{bin_element,L1,expr(E1,St),S2,T2} | pattern_grp(Fs,St)];
 pattern_grp([],_St) ->
     [].
@@ -364,24 +364,24 @@ expr({'fun',_,{function,_,_,_}}=ExtFun,_St) ->
     ExtFun;
 expr({'fun',Line,Body},St) ->
     case Body of
-	{clauses,Cs0} ->
-	    Cs1 = fun_clauses(Cs0,St),
-	    {'fun',Line,{clauses,Cs1}};
-	{function,F,A} = Function ->
-	    {F1,A1} = update_function_name({F,A}),
-	    if A1 =:= A ->
-		    {'fun',Line,Function};
-	       true ->
-		    %% Must rewrite local fun-name to a fun that does a
-		    %% call with the extra THIS parameter.
-		    As = make_vars(A, Line),
-		    As1 = As ++ [{var,Line,'THIS'}],
-		    Call = {call,Line,{atom,Line,F1},As1},
-		    Cs = [{clause,Line,As,[],[Call]}],
-		    {'fun',Line,{clauses,Cs}}
-	    end;
-	{function,_M,_F,_A} = Fun4 ->		%This is an error in lint!
-	    {'fun',Line,Fun4}
+    {clauses,Cs0} ->
+        Cs1 = fun_clauses(Cs0,St),
+        {'fun',Line,{clauses,Cs1}};
+    {function,F,A} = Function ->
+        {F1,A1} = update_function_name({F,A}),
+        if A1 =:= A ->
+            {'fun',Line,Function};
+           true ->
+            %% Must rewrite local fun-name to a fun that does a
+            %% call with the extra THIS parameter.
+            As = make_vars(A, Line),
+            As1 = As ++ [{var,Line,'THIS'}],
+            Call = {call,Line,{atom,Line,F1},As1},
+            Cs = [{clause,Line,As,[],[Call]}],
+            {'fun',Line,{clauses,Cs}}
+        end;
+    {function,_M,_F,_A} = Fun4 ->        %This is an error in lint!
+        {'fun',Line,Fun4}
     end;
 expr({call,Lc,{atom,_,instance}=Name,As0},St) ->
     %% All local functions 'instance(...)' are static by definition,
@@ -396,12 +396,12 @@ expr({call,Lc,{atom,_,new}=Name,As0},St) ->
 expr({call,Lc,{atom,_Lf,F}=Atom,As0}, #pmod{defined=Def}=St) ->
     As1 = expr_list(As0,St),
     case gb_sets:is_member({F,length(As0)}, Def) of
-	false ->
-	    %% BIF or imported function.
-	    {call,Lc,Atom,As1};
-	true ->
-	    %% Local function call - needs THIS parameter.
-	    {call,Lc,Atom,As1 ++ [{var,0,'THIS'}]}
+    false ->
+        %% BIF or imported function.
+        {call,Lc,Atom,As1};
+    true ->
+        %% Local function call - needs THIS parameter.
+        {call,Lc,Atom,As1 ++ [{var,0,'THIS'}]}
     end;
 expr({call,Line,F0,As0},St) ->
     %% Other function call

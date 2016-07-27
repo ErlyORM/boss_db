@@ -18,10 +18,10 @@
                       {has,        {atom(), limit(), [any()]}} |
                       {belongs_to, atom()}.
 
-                              
+
 -export([compile/1, compile/2, edoc_module/1, edoc_module/2, process_tokens/1, trick_out_forms/2]).
--spec compile(binary() | [atom() | [any()] | char()]) -> any().
--spec compile(binary() | [atom() | [any()] | char()],[any()]) -> any().
+-spec compile(binary() | [atom() | [any()] | char()]) -> {'error',atom() | {_,[any(),...]}}.
+-spec compile(binary() | [atom() | [any()] | char()],[any()]) -> {'error',atom() | {_,[any(),...]}}.
 -spec edoc_module(string()) -> {atom() | tuple(),_}.
 -spec edoc_module(string(),_) -> {module(),_}.
 -spec process_tokens(nonempty_maybe_improper_list())                 ->  {nonempty_maybe_improper_list(),[{_,_}]}.
@@ -31,16 +31,16 @@
                            [atom(),...],
                            [pair(),...],
                            [pair(),...],
-                           [ atom()], 
+                           [ atom()],
                            boolean()) -> error([syntaxTree()]).
 -spec make_generated_forms(atom(),
                            [atom(),...],
                            [pair(),...],
                            [pair(),...],
                            [ atom()]) -> error([syntaxTree()]).
--spec has_duplicates([any()]) ->any().
--spec trick_out_forms([any(),...],[any()])                                -> [any(),...].
--spec trick_out_forms([any(),...],[any()],[any()])                        -> [any(),...].
+-spec has_duplicates([any()]) -> boolean().
+-spec trick_out_forms([any(),...],[{atom(),atom()},...])                  -> [any(),...].
+-spec trick_out_forms([any(),...],[any()],[{atom(),atom()},...])          -> [any(),...].
 -spec trick_out_forms([any(),...],[any()],atom(),[any()],[any()])         -> [any(),...].
 -spec list_functions([atom()])                                            -> [fctn_n()].
 -spec list_functions([atom()],[fctn_n()])                                 -> [fctn_n()].
@@ -48,8 +48,8 @@
 -spec override_functions([syntaxTree()|fctn()],[syntaxTree()],[fctn_n()]) -> [any()].
 -spec export_forms([{atom(), pos_integer()}])                             -> syntaxTree().
 -spec export_forms([{atom(), pos_integer()}],[syntaxTree()])              -> syntaxTree().
--spec database_columns_forms(atom() ,[atom()],[pair()])          -> syntaxTree().
--spec database_table_forms(atom(),[pair()])                      -> syntaxTree().
+-spec database_columns_forms(atom() ,[atom()],[pair()])                   -> syntaxTree().
+-spec database_table_forms(atom(),[pair()])                               -> syntaxTree().
 -spec attribute_types_forms(atom() ,[{atom(), atom()}])                   -> syntaxTree().
 -spec validate_types_forms(atom())                                        -> syntaxTree().
 -spec validate_forms(atom())                                              -> syntaxTree().
@@ -62,12 +62,12 @@
 -spec set_attributes_forms(atom(),[atom()])                               -> syntaxTree().
 -spec association_forms(atom(),[assoc()])                                 -> [any(),...].
 
--spec belongs_to_list_forms([{atom(),any()}])                             -> syntaxTree().
+-spec belongs_to_list_forms([{atom(),atom()}])                            -> [{'tree',atom(),{_,_,_,_},_} | {'wrapper',atom(),{_,_,_,_},_},...].
 
--spec belongs_to_list_make_list([pair()])                        -> syntaxTree().
+-spec belongs_to_list_make_list([pair()])                                 -> syntaxTree().
 -spec attribute_names_forms(name(),[atom()])                              -> syntaxTree().
 -spec has_one_forms(name(),atom(),[any()])                                -> syntaxTree().
--spec has_many_forms(atom(),atom(), limit(), [any()])      -> syntaxTree().
+-spec has_many_forms(atom(),atom(), limit(), [any()])                     -> syntaxTree().
 -spec first_or_undefined_forms( syntaxTree())                             -> syntaxTree().
 -spec has_many_application_forms(name(),{'tree',atom(),{'attr',_,[any()],'none' | {_,_,_}},_} | {'wrapper',atom(),{'attr',_,[any()],'none' | {_,_,_}},_},
                                  pos_integer() | all,
@@ -85,7 +85,7 @@
 -spec counter_reset_forms([name()])                                       -> syntaxTree().
 -spec counter_incr_forms([name()])                                        -> syntaxTree().
 -spec counter_name_forms(name())                                          -> syntaxTree().
--spec parameter_to_colname(atom())                                        -> string().
+-spec parameter_to_colname(atom())                                        -> [byte()].
 
 
 %% @Spec compile( File::string() )                                   -> {ok, Module} | {error, Reason}
@@ -94,7 +94,7 @@ compile(File) ->
     compile(File, []).
 
 compile(File, Options) ->
-    boss_compiler:compile(File, 
+    boss_compiler:compile(File,
                           [debug_info,
                            {pre_revert_transform, fun ?MODULE:trick_out_forms/2},
                            {token_transform,      fun ?MODULE:process_tokens/1}
@@ -111,22 +111,22 @@ edoc_module(File) ->
 
 edoc_module(File, Options) ->
     {ok, Forms, TokenInfo} = boss_compiler:parse(File, fun ?MODULE:process_tokens/1, []),
-    edoc_extract:source(trick_out_forms(Forms, TokenInfo), 
-                        edoc:read_comments(File), 
+    edoc_extract:source(trick_out_forms(Forms, TokenInfo),
+                        edoc:read_comments(File),
                         File, edoc_lib:get_doc_env([]),
                         Options).
 
 process_tokens(Tokens) ->
-    lager:info("Tokens ~p",[Tokens]),
+    _ = lager:info("Tokens ~p",[Tokens]),
     process_tokens(Tokens, [], []).
 
 process_tokens([{']',_},
-                {')',_}, 
+                {')',_},
                 {dot,_} |_ ] = Tokens, TokenAcc, Acc) ->
     {lists:reverse(TokenAcc, Tokens), Acc};
 %-module(Foo, [...]) with no specs
-process_tokens([{'-',N              } = T1, 
-                {atom,N,module      } = T2, 
+process_tokens([{'-',N              } = T1,
+                {atom,N,module      } = T2,
                 {'(',_              } = T3,
                 {atom,_,_ModuleName } = T4,
                 {',',_              } = T5,
@@ -149,18 +149,18 @@ process_tokens([{'-',_N             } = T1,
                 {')',_}|Rest]  = _T, 
                TokenAcc, []) ->  
    % lager:notice("Tokens ~p", [_T]) , 
-    lager:info("Var Type ~p",[VarType]),
+    _ = lager:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), [{'Id', VarType}]);
 
 process_tokens([{',',_}               = T1,
                 {var,_,VarName}       = T2,
                 {'::',_},
-                {atom,_,VarType}, 
+                {atom,_,VarType},
                 {'(',_},
-                {')',_} |Rest] = _T, 
+                {')',_} |Rest] = _T,
                TokenAcc, Acc) ->
 %    lager:notice("Tokens ~p", [_T]),
-    lager:info("Var Type ~p",[VarType]),
+    _ = lager:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, VarType}|Acc]);
 
 process_tokens([H|T], TokenAcc, Acc) ->
@@ -171,8 +171,8 @@ trick_out_forms(Forms, TokenInfo) ->
 
 trick_out_forms([
                  {attribute, _Pos, module, {ModuleName, Parameters}} = H
-                 | Forms], 
-                LeadingForms, 
+                 | Forms],
+                LeadingForms,
                 TokenInfo) ->
     trick_out_forms(lists:reverse([H|LeadingForms]), Forms, ModuleName, Parameters, TokenInfo);
 trick_out_forms([H|T], LeadingForms, TokenInfo) ->
@@ -187,8 +187,8 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
     [{eof, _Line}|ReversedOtherForms] = lists:reverse(Forms),
     UserForms                         = lists:reverse(ReversedOtherForms),
     Counters                          = make_counters(Attributes),
-    
-    {ok,GeneratedForms}               = 
+
+    {ok,GeneratedForms}               =
         make_generated_forms(ModuleName, Parameters, TokenInfo, Attributes,
                              Counters),
 
@@ -197,7 +197,7 @@ trick_out_forms(LeadingForms, Forms, ModuleName, Parameters, TokenInfo) ->
 
     GeneratedExportForms              = export_forms(GeneratedFunctionList),
 
-    LeadingForms ++ GeneratedExportForms ++ UserForms ++ 
+    LeadingForms ++ GeneratedExportForms ++ UserForms ++
         override_functions(GeneratedForms, UserFunctionList).
 
 make_counters(Attributes) ->
@@ -209,20 +209,20 @@ make_counters(Attributes) ->
 
 make_generated_forms(ModuleName, Parameters, _TokenInfo, _Attributes,
                      _Counters) ->
-    make_generated_forms(ModuleName, 
+    make_generated_forms(ModuleName,
                          Parameters, _TokenInfo, _Attributes,
                          _Counters, has_duplicates(Parameters)).
 
 make_generated_forms(ModuleName, Parameters, _TokenInfo, _Attributes,
                      _Counters, _Dup = true) ->
     DupFields = Parameters -- sets:to_list(sets:from_list(Parameters)),
-    lager:error("Unable to compile module ~p due to duplicate field(s) ~p",
+    _ = lager:error("Unable to compile module ~p due to duplicate field(s) ~p",
                [ModuleName, DupFields]),
     {error, "Duplicate Fields"};
 
 make_generated_forms(ModuleName, Parameters, TokenInfo, Attributes,
                      Counters, _Dup = false) ->
-    lager:notice("Module \"~p\" Parameters ~p Attributes~p", [ModuleName,Parameters, Attributes]),
+    _ = lager:notice("Module \"~p\" Parameters ~p Attributes~p", [ModuleName,Parameters, Attributes]),
     GF = attribute_names_forms(ModuleName, Parameters)                  ++
         attribute_types_forms(ModuleName, TokenInfo)               ++
         database_columns_forms(ModuleName, Parameters, Attributes) ++
@@ -247,10 +247,10 @@ list_functions([], DefinedFunctions) ->
     lists:reverse(DefinedFunctions);
 list_functions([{'function', _, Name, Arity, _}|Rest], DefinedFunctions) ->
     list_functions(Rest, [{Name, Arity}|DefinedFunctions]);
-list_functions([{tree, 'function', _, {FunctionTag, {tree, 'atom', _, Name}, 
-                [{tree, 'clause', _, {'clause', Args, _, _}}|_]}}|Rest], 
+list_functions([{tree, 'function', _, {FunctionTag, {tree, 'atom', _, Name},
+                [{tree, 'clause', _, {'clause', Args, _, _}}|_]}}|Rest],
     DefinedFunctions) when FunctionTag =:= 'function'; FunctionTag =:= 'func' ->
-    Arity = length(Args), 
+    Arity = length(Args),
     list_functions(Rest, [{Name, Arity}|DefinedFunctions]);
 list_functions([_H|T], DefinedFunctions) ->
     list_functions(T, DefinedFunctions).
@@ -263,9 +263,9 @@ override_functions([{'function', _, Name, Arity, _} = Function|Rest], Acc, Defin
         true -> override_functions(Rest, Acc, DefinedFunctions);
         false -> override_functions(Rest, [Function|Acc], [{Name, Arity}|DefinedFunctions])
     end;
-override_functions([{tree, 'function', _, {FunctionTag, {tree, 'atom', _, Name}, 
+override_functions([{tree, 'function', _, {FunctionTag, {tree, 'atom', _, Name},
                 [{tree, 'clause', _, {'clause', Args, _, _}}|_]
-            }} = Function|Rest], 
+            }} = Function|Rest],
     Acc, DefinedFunctions) when FunctionTag =:= 'function'; FunctionTag =:= 'func' ->
     Arity = length(Args),
     case lists:member({Name, Arity}, DefinedFunctions) of
@@ -283,9 +283,9 @@ export_forms(FunctionList) ->
 export_forms([], Acc) ->
     lists:reverse(Acc);
 export_forms([{Name, Arity}|Rest], Acc) ->
-    export_forms(Rest, 
-                 [erl_syntax:attribute(erl_syntax:atom(export), 
-                                       [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Name), 
+    export_forms(Rest,
+                 [erl_syntax:attribute(erl_syntax:atom(export),
+                                       [erl_syntax:list([erl_syntax:arity_qualifier(erl_syntax:atom(Name),
                                                                                     erl_syntax:integer(Arity))])])
                   |Acc]).
 
@@ -293,7 +293,7 @@ database_columns_forms(ModuleName, Parameters, Attributes) ->
     DefinedColumns = proplists:get_value(columns, Attributes, []),
     Function = erl_syntax:function(
         erl_syntax:atom(database_columns),
-        [erl_syntax:clause([], none, [erl_syntax:list(lists:map( fun(P) -> 
+        [erl_syntax:clause([], none, [erl_syntax:list(lists:map( fun(P) ->
                                     LC = parameter_to_colname(P),
                                     AC = list_to_atom(LC),
                                     Column = proplists:get_value(AC, DefinedColumns, LC),
@@ -329,7 +329,7 @@ validate_types_forms(ModuleName) ->
     [erl_syntax:add_precomments([erl_syntax:comment(
                     ["% @spec validate_types() -> ok | {error, [ErrorMessages]}",
                         lists:concat(["% @doc Validates the parameter types of `", ModuleName, "' without saving to the database."])
-                    ])], 
+                    ])],
             erl_syntax:function(
                 erl_syntax:atom(validate_types),
                 [erl_syntax:clause([], none,
@@ -349,7 +349,7 @@ validate_forms(ModuleName) ->
                         "% or `false' if it is invalid. `ErrorMessage' should be a (constant) string that will be ",
                         "% included in `ErrorMessages' if the associated `TestFunction' returns `false' on this ",
                         lists:concat(["% particular `", ModuleName, "'."])
-                    ])], 
+                    ])],
             erl_syntax:function(
                 erl_syntax:atom(validate),
                 [erl_syntax:clause([], none,
@@ -372,9 +372,9 @@ save_forms(ModuleName) ->
                                 erl_syntax:atom(?DATABASE_MODULE),
                                 erl_syntax:atom(save_record),
                                 [erl_syntax:variable("THIS")]
-                            )])]))].  
+                            )])]))].
 parameter_getter_forms(Parameters) ->
-    lists:map(fun(P) -> 
+    lists:map(fun(P) ->
                 erl_syntax:add_precomments([erl_syntax:comment(
                         [lists:concat(["% @spec ", parameter_to_colname(P), "() -> ", P]),
                             lists:concat(["% @doc Returns the value of `", P, "'"])])],
@@ -418,7 +418,7 @@ deep_get_forms() ->
                                                     [erl_syntax:variable(?PREFIX++"Token")]),
                                                 erl_syntax:list([])])])
                             ]),
-                            erl_syntax:variable("THIS"), 
+                            erl_syntax:variable("THIS"),
                             erl_syntax:application(
                                 erl_syntax:atom(string),
                                 erl_syntax:atom(tokens),
@@ -487,12 +487,12 @@ association_forms(ModuleName, Attributes) ->
             ({has, {HasMany, Limit, Opts}}, {Acc, BT}) ->
                 {has_many_forms(HasMany, ModuleName, Limit, Opts) ++ Acc, BT};
             ({belongs_to, BelongsTo}, {Acc, BT}) ->
-                {[belongs_to_forms(BelongsTo, BelongsTo, ModuleName)|Acc], 
+                {[belongs_to_forms(BelongsTo, BelongsTo, ModuleName)|Acc],
                     [{BelongsTo, BelongsTo}|BT]};
             ({OtherAttr, BelongsTo}, {Acc, BT}) ->
                 case atom_to_list(OtherAttr) of
                     "belongs_to_"++Type ->
-                        {[belongs_to_forms(Type, BelongsTo, ModuleName)|Acc], 
+                        {[belongs_to_forms(Type, BelongsTo, ModuleName)|Acc],
                             [{BelongsTo, list_to_atom(Type)}|BT]};
                     _ ->
                         {Acc, BT}
@@ -522,7 +522,7 @@ belongs_to_list_forms(BelongsToList) ->
                                                     erl_syntax:atom(Name),
                                                     erl_syntax:atom(Type)])
                                     end, BelongsToList))])])),
-    
+
       erl_syntax:add_precomments([erl_syntax:comment(
                                     ["% @spec belongs_to() -> [{atom(), BossRecord}]",
                                      lists:concat(["% @doc Retrieve all of the `belongs_to' associations at once."])])],
@@ -598,7 +598,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
         erl_syntax:add_precomments([erl_syntax:comment(
                     [
                         lists:concat(["% @spec first_", Singular, "() -> ", Type, " | undefined"]),
-                        lists:concat(["% @doc Retrieves the first `", Type, 
+                        lists:concat(["% @doc Retrieves the first `", Type,
                                 "' that would be returned by `", HasMany, "()'"])])],
             erl_syntax:function(erl_syntax:atom("first_"++Singular),
                 [erl_syntax:clause([], none, [
@@ -609,7 +609,7 @@ has_many_forms(HasMany, ModuleName, Limit, Opts) ->
         erl_syntax:add_precomments([erl_syntax:comment(
                     [
                         lists:concat(["% @spec first_", Singular, "(Conditions) -> ", Type, " | undefined"]),
-                        lists:concat(["% @doc Retrieves the first `", Type, 
+                        lists:concat(["% @doc Retrieves the first `", Type,
                                 "' that would be returned by `", HasMany, "(Conditions)'"])])],
             erl_syntax:function(erl_syntax:atom("first_"++Singular),
                 [erl_syntax:clause([erl_syntax:variable(?PREFIX++"Conditions")], none, [
@@ -646,9 +646,9 @@ first_or_undefined_forms(Forms) ->
                          [erl_syntax:clause([erl_syntax:list([erl_syntax:variable(?PREFIX++"Record")])],
                                             none,
                                             [erl_syntax:variable(?PREFIX++"Record")]),
-                          
-                          erl_syntax:clause([erl_syntax:underscore()], 
-                                            none, 
+
+                          erl_syntax:clause([erl_syntax:underscore()],
+                                            none,
                                             [erl_syntax:atom(undefined)])]).
 
 has_many_query_forms(ForeignKey) ->
@@ -673,7 +673,7 @@ has_many_application_forms(Type, ConditionForms, Limit, Sort, IsDescending, Incl
                 end,
 
     erl_syntax:application(
-        erl_syntax:atom(?DATABASE_MODULE), 
+        erl_syntax:atom(?DATABASE_MODULE),
         erl_syntax:atom(find),
         [erl_syntax:atom(Type),
             ConditionForms,
@@ -695,10 +695,10 @@ has_many_application_forms(Type, ConditionForms, Limit, Sort, IsDescending, Incl
 
 belongs_to_forms(Type, BelongsTo, ModuleName) ->
     erl_syntax:add_precomments([erl_syntax:comment(
-                [lists:concat(["% @spec ", BelongsTo, "() -> ", 
+                [lists:concat(["% @spec ", BelongsTo, "() -> ",
                             inflector:camelize(atom_to_list(BelongsTo))]),
-                    lists:concat(["% @doc Retrieves the ", Type, 
-                            " with `Id' equal to the `", 
+                    lists:concat(["% @doc Retrieves the ", Type,
+                            " with `Id' equal to the `",
                             inflector:camelize(atom_to_list(BelongsTo)), "Id'",
                            " of this ", ModuleName])])],
         erl_syntax:function(erl_syntax:atom(BelongsTo),
@@ -716,7 +716,7 @@ counter_getter_forms(Counters) ->
                             [
                                 lists:concat(["% @spec ", Counter, "() -> integer()"]),
                                 lists:concat(["% @doc Retrieve the value of the `", Counter, "' counter"])])],
-                                           
+
                     erl_syntax:function(erl_syntax:atom(Counter),
                         [erl_syntax:clause([], none, [
                                     erl_syntax:application(
@@ -726,7 +726,7 @@ counter_getter_forms(Counters) ->
                                                 erl_syntax:variable("Id"),
                                                 erl_syntax:operator("++"),
                                                 erl_syntax:string("-counter-" ++ atom_to_list(Counter))
-                                          )])])])) 
+                                          )])])]))
         end,
       Counters).
 
@@ -751,7 +751,7 @@ counter_incr_forms([]) ->
 counter_incr_forms(Counters) ->
     [ erl_syntax:add_precomments([erl_syntax:comment(
                                     ["% @spec incr( Counter::atom() ) -> integer()",
-                                     "@doc Atomically increment a counter by 1."]) 
+                                     "@doc Atomically increment a counter by 1."])
                                  ],
             erl_syntax:function(erl_syntax:atom(incr),
                 lists:map(
@@ -760,7 +760,7 @@ counter_incr_forms(Counters) ->
                                     erl_syntax:application(
                                         erl_syntax:atom(?DATABASE_MODULE),
                                         erl_syntax:atom(incr),
-                                        [counter_name_forms(Counter)])]) 
+                                        [counter_name_forms(Counter)])])
                     end, Counters)))
 ,
         erl_syntax:add_precomments([

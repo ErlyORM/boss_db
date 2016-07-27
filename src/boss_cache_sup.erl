@@ -15,10 +15,10 @@ start_link(StartArgs) ->
 
 init(StartArgs) ->
     Args = [{name, {local, boss_cache_pool}},
-	    {worker_module, boss_cache_controller},
-	    {size, 20}, {max_overflow, 40}|StartArgs],
-    PoolSpec = 
-	{cache_controller, 
-	 {poolboy, start_link, [Args]}, 
-	 permanent, 2000, worker, [poolboy]},
+        {worker_module, boss_cache_controller},
+        {size, 20}, {max_overflow, 40}|StartArgs],
+    PoolSpec =
+    {cache_controller,
+     {poolboy, start_link, [Args]},
+     permanent, 2000, worker, [poolboy]},
     {ok, {{one_for_one, 10, 10}, [PoolSpec]}}.

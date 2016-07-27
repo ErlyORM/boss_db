@@ -26,19 +26,19 @@ id_value_to_string_test() ->
     ?assert(proper:check_spec({boss_db_adapter_pgsql,id_value_to_string, 1},
 			     [{to_file, user}])),
     ok.
-    
+
 sort_order_test() ->
     ?assert(proper:check_spec({boss_db_adapter_pgsql,sort_order_sql, 1},
 			     [{to_file, user}])),
     ok.
- 
+
 pack_datetime_test() ->
     ?assert(proper:quickcheck(prop_pack_date_tuple(),
                               [{to_file, user}])),
 
     ?assert(proper:quickcheck(prop_pack_datetime_tuple(),
                               [{to_file, user}])),
-  
+
     ?assert(proper:check_spec({boss_db_adapter_pgsql, pack_datetime,1},
 			      [{to_file, user}])),
     ok.
@@ -88,9 +88,9 @@ date_format(DateTime = {{Y,M,D},{Hour,Min, Sec}}) ->
               equal(M, substr_to_i(Result,17, 18)),
               equal(D, substr_to_i(Result,20, 21)),
               equal(Hour, substr_to_i(Result,23, 25)),
-              equal(Min, substr_to_i(Result,26, 28)),  
+              equal(Min, substr_to_i(Result,26, 28)),
               equal(Sec, substr_to_i(Result,29, 31)),
-              
+
 
               true]).
 
@@ -100,7 +100,7 @@ date_format(DateTime = {{Y,M,D},{Hour,Min, Sec}}) ->
 substr_to_i(Result, S, E) ->
     {I,_} = string:to_integer(string:sub_string(Result, S, E)),
     I.
-   
+
 pack_value_test() ->
     ?assert(proper:check_spec({boss_db_adapter_pgsql, pack_value,1},
 			      [{to_file, user}])),
@@ -109,7 +109,7 @@ pack_value_test() ->
 %% maybe_populate_id_value_test_() ->
 %%     {setup,
 %%      fun() ->
-	     
+
 %% 	     code:load_abs("../priv/gh_repo"),
 %% 	     gh_repo
 %%      end,
@@ -129,14 +129,14 @@ pack_value_test() ->
 %%             keytype(),
 %%             begin
 %%                 Record = gh_repo:new([]),
-                
+
 
 %%             end).
 
 %% insert_attributes_test() ->
 %%     {setup,
 %%      fun() ->
-	     
+
 %% 	     code:load_abs("../priv/gh_repo"),
 %% 	     gh_repo
 %%      end,

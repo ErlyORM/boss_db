@@ -6,14 +6,14 @@
 -compile(export_all).
 -endif.
 -record(state, {
-        watch_dict              = dict:new()       ::dict(),
-        ttl_tree                = gb_trees:empty() ::gb_tree(),
+        watch_dict              = dict:new()       ::dict:dict(),
+        ttl_tree                = gb_trees:empty() ::gb_trees:tree(),
 
-        set_watchers            = dict:new()       ::dict(), 
-        id_watchers             = dict:new()       ::dict(),
+        set_watchers            = dict:new()       ::dict:dict(),
+        id_watchers             = dict:new()       ::dict:dict(),
 
-        set_attr_watchers       = dict:new()       ::dict(),
-        id_attr_watchers        = dict:new()       ::dict(),
+        set_attr_watchers       = dict:new()       ::dict:dict(),
+        id_attr_watchers        = dict:new()       ::dict:dict(),
         watch_counter           = 0                ::integer()}).
 
 -type news_callback()   :: fun((event(),event_info()) ->any()) | fun((event(),event_info(), user_info())-> any()).
@@ -33,7 +33,7 @@
 -spec start_link(_)         -> 'ignore' | {'error',_} | {'ok',pid()}.
 -spec init([])               -> {'ok',  #state{}}.
 -spec handle_call('dump' | 'reset' | {'cancel_watch',_} | {'extend_watch',_} | {'created',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_} | {'deleted',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_} | {'updated',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_} | {'watch',binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_,number()} | {'set_watch',_,binary() | maybe_improper_list(binary() | maybe_improper_list(any(),binary() | []) | char(),binary() | []),_,_,number()},_,_) ->
-                         {'reply',_,#state{ttl_tree::gb_tree()}}.
+                         {'reply',_,#state{ttl_tree::gb_trees:tree()}}.
 -spec handle_cast(_,_)      -> {'noreply',_}.
 -spec terminate(_,_)        -> 'ok'.
 -spec code_change(_,_,_)    -> {'ok',_}.
@@ -48,15 +48,18 @@
 -export([activate_record/2]).
 
 -export([future_time/1]).
--spec make_wildcard_watchers(#state{watch_dict::dict(),
-                                    ttl_tree::gb_tree(),
-                                    set_watchers::dict(),
-                                    id_watchers::dict(),
-                                    set_attr_watchers::dict(),
-                                    id_attr_watchers::dict(),
-                                    watch_counter::integer()},
-                             _) -> any().
-
+-spec make_wildcard_watchers(
+        #state{
+               watch_dict::dict:dict(_,_),
+               ttl_tree::gb_trees:tree(_,_),
+               set_watchers::dict:dict(_,_),
+               id_watchers::dict:dict(_,_),
+               set_attr_watchers::dict:dict(_,_),
+               id_attr_watchers::dict:dict(_,_),
+               watch_counter::integer()
+              },
+        binary() | maybe_improper_list(any(),binary() | [])
+                            ) -> any().
 
 
 start_link() ->
@@ -110,7 +113,7 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
                                     }, {id_attr, Id, Attr}}
                         end,
                         {ok, NewState1, [WatchInfo|WatchListAcc]};
-                    _ -> 
+                    _ ->
                         case re:split(SingleTopic, "-", [{return, list}, {parts, 2}]) of
                             [_Module, _IdNum] ->
                                 IdWatchers = case dict:find(SingleTopic, State#state.id_watchers) of
@@ -134,13 +137,13 @@ handle_call({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}, From, St
                 Error
         end, {ok, State, []}, re:split(TopicString, ", +", [{return, list}, {parts, 2}])),
     case RetVal of
-        ok -> {reply, RetVal, NewState#state{ 
-                    watch_dict = dict:store(WatchId, 
-                        #watch{ 
-                            watch_list = WatchList, 
-                            callback = CallBack, 
-                            user_info = UserInfo, 
-                            exp_time = ExpTime, 
+        ok -> {reply, RetVal, NewState#state{
+                    watch_dict = dict:store(WatchId,
+                        #watch{
+                            watch_list = WatchList,
+                            callback = CallBack,
+                            user_info = UserInfo,
+                            exp_time = ExpTime,
                             ttl = TTL}, NewState#state.watch_dict),
                     ttl_tree = tiny_pq:insert_value(ExpTime, WatchId, NewState#state.ttl_tree)
                 }};
@@ -163,9 +166,9 @@ handle_call({extend_watch, WatchId}, _From, State0) ->
             NewExpTime = future_time(TTL),
             NewTree    = tiny_pq:move_value(ExpTime, NewExpTime, WatchId, State#state.ttl_tree),
             {ok, State#state{
-                   ttl_tree   = NewTree, 
+                   ttl_tree   = NewTree,
                    watch_dict = dict:store(WatchId,
-                                            Watch#watch{ exp_time = NewExpTime }, 
+                                            Watch#watch{ exp_time = NewExpTime },
                                             State#state.watch_dict) }};
         _ ->
             {{error, not_found}, State}
@@ -199,7 +202,7 @@ handle_call({updated, Id, OldAttrs, NewAttrs}, _From, State0) ->
 
     OldRecord           = activate_record(Id, OldAttrs),
     OldAttributes       = OldRecord:attributes(),
-    
+
     NewRecord           = activate_record(Id, NewAttrs),
     NewAttributes       = NewRecord:attributes(),
 
@@ -237,7 +240,7 @@ handle_info(_Info, State) ->
 
 
 future_time(TTL) ->
-    {MegaSecs, Secs, _} = erlang:now(),
+    {MegaSecs, Secs, _} = os:timestamp(),
     MegaSecs * 1000 * 1000 + Secs + TTL.
 
 activate_record(Id, Attrs) ->

@@ -19,29 +19,29 @@ init(Options) ->
     DBDatabase   = proplists:get_value(db_database, Options, "test"),
     DBIdentifier = proplists:get_value(db_shard_id, Options, boss_pool),
     Encoding     = utf8,
-    mysql_conn:start_link(DBHost, DBPort, DBUsername, DBPassword, DBDatabase, 
+    mysql_conn:start_link(DBHost, DBPort, DBUsername, DBPassword, DBDatabase,
         fun(_, _, _, _) -> ok end, Encoding, DBIdentifier).
 
-terminate(Pid) -> 
+terminate(Pid) ->
     exit(Pid, normal).
 
 find_by_sql(Pid, Type, Sql, Parameters) when is_atom(Type), is_list(Sql), is_list(Parameters) ->
-	case boss_record_lib:ensure_loaded(Type) of
-		true ->
-			Res = fetch(Pid, Sql, Parameters),
-			case Res of
-				{data, MysqlRes} ->
-					Rows = mysql:get_result_rows(MysqlRes),
-					Columns = mysql:get_result_field_info(MysqlRes),
-					lists:map(fun(Row) ->
-						activate_record(Row, Columns, Type)
-					end, Rows);
-				{error, MysqlRes} ->
-					{error, mysql:get_result_reason(MysqlRes)}
-			end;
-		false -> 
-			{error, {module_not_loaded, Type}}
-	end.
+    case boss_record_lib:ensure_loaded(Type) of
+        true ->
+            Res = fetch(Pid, Sql, Parameters),
+            case Res of
+                {data, MysqlRes} ->
+                    Rows = mysql:get_result_rows(MysqlRes),
+                    Columns = mysql:get_result_field_info(MysqlRes),
+                    lists:map(fun(Row) ->
+                        activate_record(Row, Columns, Type)
+                    end, Rows);
+                {error, MysqlRes} ->
+                    {error, mysql:get_result_reason(MysqlRes)}
+            end;
+        false ->
+            {error, {module_not_loaded, Type}}
+    end.
 
 
 find(Pid, Id) when is_list(Id) ->
@@ -62,8 +62,8 @@ find(Pid, Id) when is_list(Id) ->
             {error, mysql:get_result_reason(MysqlRes)}
     end.
 
-find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
-                                                              is_integer(Max) orelse Max =:= all, is_integer(Skip), 
+find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
+                                                              is_integer(Max) orelse Max =:= all, is_integer(Skip),
                                                               is_atom(Sort), is_atom(SortOrder) ->
     case boss_record_lib:ensure_loaded(Type) of
         true ->
@@ -100,7 +100,7 @@ count(Pid, Type, Conditions) ->
         {error, MysqlRes} ->
             {error, mysql:get_result_reason(MysqlRes)}
     end.
-    
+
 table_exists(Pid, Type) ->
     TableName = boss_record_lib:database_table(Type),
     Res = fetch(Pid, ["SELECT 1 FROM ", TableName," LIMIT 1"]),
@@ -120,12 +120,12 @@ counter(Pid, Id) when is_list(Id) ->
     end.
 
 incr(Pid, Id, Count) ->
-    Res = fetch(Pid, ["UPDATE counters SET value = value + ", pack_value(Count), 
+    Res = fetch(Pid, ["UPDATE counters SET value = value + ", pack_value(Count),
             " WHERE name = ", pack_value(Id)]),
     case Res of
         {updated, _} ->
             counter(Pid, Id); % race condition
-        {error, _Reason} -> 
+        {error, _Reason} ->
             Res1 = fetch(Pid, ["INSERT INTO counters (name, value) VALUES (",
                     pack_value(Id), ", ", pack_value(Count), ")"]),
             case Res1 of
@@ -136,11 +136,11 @@ incr(Pid, Id, Count) ->
 
 delete(Pid, Id) when is_list(Id) ->
     {_, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
-    Res = fetch(Pid, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = ", 
+    Res = fetch(Pid, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = ",
             pack_value(TableId)]),
     case Res of
         {updated, _} ->
-            fetch(Pid, ["DELETE FROM counters WHERE name = ", 
+            fetch(Pid, ["DELETE FROM counters WHERE name = ",
                     pack_value(Id)]),
             ok;
         {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
@@ -172,7 +172,7 @@ save_record(Pid, Record) when is_tuple(Record) ->
                 {updated, _} ->
                     {ok, Record:set(id, lists:concat([Type, "-", integer_to_list(Identifier)]))};
                 {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
-            end;			
+            end;
         Defined when is_list(Defined) ->
             Query = build_update_query(Record),
             Res = fetch(Pid, Query),
@@ -202,24 +202,24 @@ execute(Pid, Commands) ->
     fetch(Pid, Commands).
 
 execute(Pid, Commands, Params) ->
-	fetch(Pid, Commands, Params).
+    fetch(Pid, Commands, Params).
 
 transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     do_transaction(Pid, TransactionFun).
-    
+
 do_transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     case do_begin(Pid, self()) of
-        {error, _} = Err ->	
+        {error, _} = Err ->
             {aborted, Err};
         {updated,{mysql_result,[],[],0,0,[]}} ->
             case catch TransactionFun() of
-                error = Err ->  
+                error = Err ->
                     do_rollback(Pid, self()),
                     {aborted, Err};
-                {error, _} = Err -> 
+                {error, _} = Err ->
                     do_rollback(Pid, self()),
                     {aborted, Err};
-                {'EXIT', _} = Err -> 
+                {'EXIT', _} = Err ->
                     do_rollback(Pid, self()),
                     {aborted, Err};
                 Res ->
@@ -234,7 +234,7 @@ do_transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     end.
 
 do_begin(Pid,_)->
-    fetch(Pid, ["BEGIN"]).	
+    fetch(Pid, ["BEGIN"]).
 
 do_commit(Pid,_)->
     fetch(Pid, ["COMMIT"]).
@@ -275,7 +275,7 @@ activate_record(Record, Metadata, Type) ->
                     case lists:nth(Index, Record) of
                         undefined -> undefined;
                         {datetime, DateTime} -> boss_record_lib:convert_value_to_type(DateTime, AttrType);
-                        Val -> 
+                        Val ->
                             boss_sql_lib:convert_possible_foreign_key(RetypedForeignKeys, Type, Key, Val, AttrType)
                     end
             end, boss_record_lib:attribute_names(Type))).
@@ -303,9 +303,9 @@ build_insert_query(Record) ->
     {Attributes, Values} = lists:foldl(fun
             ({_, undefined}, Acc) -> Acc;
             ({'id', 'id'}, Acc) -> Acc;
-            ({'id', V}, {Attrs, Vals}) when is_integer(V) -> 
+            ({'id', V}, {Attrs, Vals}) when is_integer(V) ->
                  {[atom_to_list(id)|Attrs], [pack_value(V)|Vals]};
-            ({'id', V}, {Attrs, Vals}) -> 
+            ({'id', V}, {Attrs, Vals}) ->
                 DBColumn = proplists:get_value('id', AttributeColumns),
                 {_, _, _, TableId} = boss_sql_lib:infer_type_from_id(V),
                 {[DBColumn|Attrs], [pack_value(TableId)|Vals]};
@@ -320,7 +320,7 @@ build_insert_query(Record) ->
                 end,
                 {[DBColumn|Attrs], [pack_value(Value)|Vals]}
         end, {[], []}, Record:attributes()),
-    ["INSERT INTO ", TableName, " (", 
+    ["INSERT INTO ", TableName, " (",
         string:join(escape_attr(Attributes), ", "),
         ") values (",
         string:join(Values, ", "),
@@ -334,7 +334,7 @@ build_update_query(Record) ->
     AttributeColumns = Record:database_columns(),
     Updates = lists:foldl(fun
             ({id, _}, Acc) -> Acc;
-            ({A, V}, Acc) -> 
+            ({A, V}, Acc) ->
                 DBColumn = proplists:get_value(A, AttributeColumns),
                 Value = case {boss_sql_lib:is_foreign_key(Type, A), V =/= undefined} of
                     {true, true} ->
@@ -350,9 +350,9 @@ build_update_query(Record) ->
     ["UPDATE ", TableName, " SET ", string:join(Updates, ", "),
         " WHERE ", IdColumn, " = ", pack_value(TableId)].
 
-build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->	
+build_select_query(Type, Conditions, Max, Skip, Sort, SortOrder) ->
     TableName = boss_record_lib:database_table(Type),
-    ["SELECT * FROM ", TableName, 
+    ["SELECT * FROM ", TableName,
         " WHERE ", build_conditions(Type, Conditions),
         " ORDER BY ", atom_to_list(Sort), " ", sort_order_sql(SortOrder),
         case Max of all -> ""; _ -> [" LIMIT ", integer_to_list(Max),
@@ -462,15 +462,15 @@ pack_date(Date) ->
 %pack_now(Now) -> pack_datetime(calendar:now_to_datetime(Now)).
 
 pack_value(null) ->
-	"null";
+    "null";
 pack_value(undefined) ->
-	"null";
+    "null";
 pack_value(V) when is_binary(V) ->
     pack_value(binary_to_list(V));
 pack_value(V) when is_list(V) ->
     mysql:encode(V);
 pack_value({_, _, _} = Val) ->
-	pack_date(Val);    
+    pack_date(Val);
 pack_value({{_, _, _}, {_, _, _}} = Val) ->
     pack_datetime(Val);
 pack_value(Val) when is_integer(Val) ->
@@ -483,33 +483,33 @@ pack_value(false) ->
     "FALSE".
 
 fetch(Pid, Query) ->
-    lager:info("Query ~s", [Query]),
+    _ = lager:info("Query ~s", [Query]),
     Res = mysql_conn:fetch(Pid, [Query], self()),
-	case Res of
-		{error, MysqlRes} ->
-			lager:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
-		_ -> ok
-	end,
-	Res.
+    _ = case Res of
+        {error, MysqlRes} ->
+            _ = lager:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
+        _ -> ok
+    end,
+    Res.
 
 fetch(Pid, Query, Parameters) ->
-	Sql = replace_parameters(lists:flatten(Query), Parameters),
-	fetch(Pid, Sql).
+    Sql = replace_parameters(lists:flatten(Query), Parameters),
+    fetch(Pid, Sql).
 
 replace_parameters([$$, X, Y | Rest], Parameters) when X >= $1, X =< $9, Y >= $0, Y =< $9 ->
-	Position = (X-$0)*10 + (Y-$0),
-	[lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
+    Position = (X-$0)*10 + (Y-$0),
+    [lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
 replace_parameters([$$, X | Rest], Parameters) when X >= $1, X =< $9 ->
-	Position = X-$0,
-	[lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
+    Position = X-$0,
+    [lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
 replace_parameters([X | Rest], Parameters) ->
-	[X | replace_parameters(Rest, Parameters)];
+    [X | replace_parameters(Rest, Parameters)];
 replace_parameters([], _) ->
-	[].
+    [].
 
 lookup_single_parameter(Position, Parameters) ->
-	try lists:nth(Position, Parameters) of
-		V -> pack_value(V)
-	catch
-		Error -> throw(io_lib:format("Error (~p) getting parameter $~w. Provided Params: ~p", [Error, Position, Parameters]))
-	end.
+    try lists:nth(Position, Parameters) of
+        V -> pack_value(V)
+    catch
+        Error -> throw(io_lib:format("Error (~p) getting parameter $~w. Provided Params: ~p", [Error, Position, Parameters]))
+    end.

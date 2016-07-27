@@ -12,7 +12,7 @@ not_empty_test() ->
 			      [{to_file, user}])),
     ok.
 % val_to_binary_test() ->
-%   
+%
 % operator_to_ddb_test() ->
 %     ?assert(proper:check_spec({?T_MODULE,operator_to_ddb, 1},
 %  			      [{to_file, user}])),

@@ -1,12 +1,14 @@
 -module(boss_db_adapter).
--export([behaviour_info/1]).
 
-%% @spec behaviour_info( atom() ) -> [ {Function::atom(), Arity::integer()} ] | undefined
-behaviour_info(callbacks) ->
-    [
-        {start, 1}, {stop, 0}, {init, 1}, {terminate, 1},
-        {find, 2}, {find, 7}, {count, 3}, 
-        {delete, 2}, {counter, 2}, {incr, 3}, {save_record, 2}
-    ];
-behaviour_info(_Other) ->
-    undefined.
+%% TODO: exact types
+-callback start(_) -> ok.
+-callback stop() -> ok.
+-callback init(_) -> any().
+-callback terminate(_) -> any().
+-callback find(_, _) -> any().
+-callback find(_, _, _, _, _, _, _) -> any().
+-callback count(_, _, _) -> any().
+-callback delete(_, _) -> any().
+-callback counter(_, _) -> any().
+-callback incr(_, _, _) -> any().
+-callback save_record(_, _) -> any().

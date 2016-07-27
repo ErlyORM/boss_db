@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mongodb).
 -behaviour(boss_db_adapter).
--include_lib("mongodb/include/mongo_protocol.hrl").
+%-include_lib("mongodb/include/mongo_protocol.hrl").
 -export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([execute/2, transaction/2]).
@@ -12,7 +12,7 @@
 -type error_m(X) :: X|{error, any()}.
 
 % Number of seconds between beginning of gregorian calendar and 1970
--define(GREGORIAN_SECONDS_1970, 62167219200). 
+-define(GREGORIAN_SECONDS_1970, 62167219200).
 -compile(export_all).
 -ifdef(TEST).
 -compile(export_all).
@@ -25,7 +25,7 @@
 -type read_mode()               :: 'master'|'slave_ok'.
 -type proplist(Key,Value)	:: [{Key, Value}].
 -type proplist()		:: proplist(any(), any()).
-		     	
+
 -spec boss_to_mongo_op(db_op()) -> mongo_op().
 -spec pack_sort_order('ascending' | 'descending') -> -1 | 1.
 -spec tuple_to_proplist(tuple()) -> [{_,_}].% Tuple size must be even
@@ -36,7 +36,7 @@
 -spec hex2dec(bitstring(),binary()) -> bitstring().
 -spec dec0(byte()) -> integer().
 -spec hex0(byte()) -> 1..1114111.
-		      
+
 
 start(_Options) ->
     application:start(mongodb).
@@ -54,12 +54,12 @@ init(Options) ->
 						% We pass around arguments required by mongo:do/5
     case {proplists:get_value(db_username, Options),proplists:get_value(db_password, Options)} of
 	{undefined,undefined}  ->
-	    {ok, {readwrite, 
+	    {ok, {readwrite,
 		  {WriteMode, ReadMode, ReadConnection, list_to_atom(Database)},
 		  {WriteMode, ReadMode, WriteConnection, list_to_atom(Database)}}
 	    };
 	{User, Pass} ->
-	    {ok, {readwrite, 
+	    {ok, {readwrite,
 		  {WriteMode, ReadMode, ReadConnection,  list_to_atom(Database),list_to_binary(User),list_to_binary(Pass)},
 		  {WriteMode, ReadMode, WriteConnection, list_to_atom(Database),list_to_binary(User),list_to_binary(Pass)}}
 	    }
@@ -94,7 +94,7 @@ make_read_connection(Options, ReadMode) ->
     end.
 -spec(read_connect1(read_mode(), mongo:rs_connection()) ->
 	     error_m( mongo:connection())).
-      
+
 read_connect1(master, RSConn) ->
      mongo_replset:primary(RSConn);
 read_connect1(slave_ok, RSConn) ->
@@ -116,13 +116,13 @@ terminate({_, _, Connection, _,_,_}) ->
 execute({WriteMode, ReadMode, Connection, Database}, Fun) ->
     mongo:do(WriteMode, ReadMode, Connection, Database, Fun) ;
 execute({WriteMode, ReadMode, Connection, Database, User, Password}, Fun) ->
-    mongo:do(WriteMode, ReadMode, Connection, Database, 
+    mongo:do(WriteMode, ReadMode, Connection, Database,
 	     fun() ->
 		     case mongo:auth(User,Password) of
 			 true ->
 			     Fun();
 			 _ ->
-			     lager:error("Mongo DB Login Error check username and password ~p:~p", [User,Password]),
+			     _ = lager:error("Mongo DB Login Error check username and password ~p:~p", [User,Password]),
 			     {error,bad_login}
 		     end
 	     end).
@@ -134,7 +134,7 @@ transaction(_Conn, TransactionFun) ->
 
 find(Conn, Id) when is_list(Id) ->
     {Type, Collection, MongoId} = infer_type_from_id(Id),
-    
+
     Res = execute(Conn, fun() ->
 				mongo:find_one(Collection, {'_id', MongoId})
 			end),
@@ -142,13 +142,13 @@ find(Conn, Id) when is_list(Id) ->
         {ok, {}}			-> undefined;
         {ok, {Doc}}			-> mongo_tuple_to_record(Type, Doc);
         {failure, Reason}		-> {error, Reason}
-        
+
     end.
 
-find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), 
-							      is_list(Conditions), 
-                                                              is_integer(Max) orelse Max =:= all, 
-							      is_integer(Skip), 
+find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
+							      is_list(Conditions),
+                                                              is_integer(Max) orelse Max =:= all,
+							      is_integer(Skip),
                                                               is_atom(Sort),
 							      is_atom(SortOrder) ->
     case boss_record_lib:ensure_loaded(Type) of
@@ -162,7 +162,7 @@ find(Conn, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type),
 				      mongo_tuple_to_record(Type, Row)
 			      end, mongo:rest(Curs));
                 {failure, Reason} -> {error, Reason}
-                
+
             end;
         false -> {error, {module_not_loaded, Type}}
     end.
@@ -180,7 +180,7 @@ execute_find(Conn, Conditions, Max, Skip, Sort, SortOrder,
 
 count(Conn, Type, Conditions) ->
     Collection = type_to_collection(Type),
-    {ok, Count} = execute(Conn, fun() -> 
+    {ok, Count} = execute(Conn, fun() ->
 					C = build_conditions(Conditions),
 						%                ?LOG("Conditions", C),
 					mongo:count(Collection, C)
@@ -192,19 +192,19 @@ counter(Conn, Id) when is_list(Id) ->
                 mongo:find_one(boss_counters, {'name', list_to_binary(Id)})
         end),
     case Res of
-        {ok, {Doc}} -> 
+        {ok, {Doc}} ->
             PropList = tuple_to_proplist(Doc),
             proplists:get_value(value, PropList);
         {failure, Reason} -> {error, Reason}
-        
+
     end.
 
 incr(Conn, Id) ->
     incr(Conn, Id, 1).
 
 incr(Conn, Id, Count) ->
-    Res = execute(Conn, fun() -> 
-                 mongo:repsert(boss_counters, 
+    Res = execute(Conn, fun() ->
+                 mongo:repsert(boss_counters,
                          {'name', list_to_binary(Id)},
                          {'$inc', {value, Count}}
                          )
@@ -212,12 +212,12 @@ incr(Conn, Id, Count) ->
     case Res of
         {ok, ok}			-> counter(Conn, Id);
         {failure, Reason}		-> {error, Reason}
-        
+
     end.
 
 delete(Conn, Id) when is_list(Id) ->
     {_Type, Collection, MongoId} = infer_type_from_id(Id),
-    
+
     Res = execute(Conn, fun() ->
                 mongo:delete(Collection, {'_id', MongoId})
         end),
@@ -237,7 +237,7 @@ save_record(Conn, Record) when is_tuple(Record) ->
         {ok, ok}			-> {ok, Record};
         {ok, Id}			-> {ok, Record:set(id, unpack_id(Type, Id))};
         {failure, Reason}		-> {error, Reason}
-        
+
     end.
 
 execute_save_record(Conn, Record, Collection, DefinedId) ->
@@ -285,11 +285,11 @@ resolve(_Res ={ok, _}) ->
 resolve(_Res = {failure, Reason}) ->
     {error, Reason};
 resolve(_Res = {connection_failure, Reason}) ->
-    lager:error("connection failure ~p", [Reason]),
+    _ = lager:error("connection failure ~p", [Reason]),
     {error, Reason}.
-	
 
-		
+
+
 get_migrations_table(Conn) ->
     Res = execute(Conn, fun() ->
 				mongo:find(schema_migrations, {})
@@ -306,7 +306,7 @@ make_curser(Curs) ->
 
 migration_done(Conn, Tag, up) ->
     Res = execute(Conn, fun() ->
-                Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(erlang:now())},
+                Doc = {version, pack_value(atom_to_list(Tag)), migrated_at, pack_value(os:timestamp())},
                 mongo:insert(schema_migrations, Doc)
         end),
     resolve(Res);
@@ -447,7 +447,7 @@ multiple_where_clauses(Format, Key, ValueList, Operator) ->
             ValueList, Operator)).
 
 
-%% 
+%%
 %% Boss models introspection
 %%
 
@@ -459,7 +459,7 @@ is_id_attr(AttrName) ->
     lists:suffix("_id", atom_to_list(AttrName)).
 
 
-%% 
+%%
 %% Conversion between Chicago Boss en MongoDB
 %%
 
@@ -522,8 +522,8 @@ pack_id(BossId) ->
         [_, MongoId] = string:tokens(BossId, "-"),
         {hex2dec(MongoId)}
     catch
-        Error:Reason -> 
-            error_logger:warning_msg("Error parsing Boss record id: ~p:~p~n", 
+        Error:Reason ->
+            error_logger:warning_msg("Error parsing Boss record id: ~p:~p~n",
                 [Error, Reason]),
             []
     end.
@@ -550,17 +550,17 @@ unpack_value(_AttrName, [H|T], _ValueType) when is_integer(H) ->
 unpack_value(_AttrName, {_, _, _} = Value, datetime) ->
     calendar:now_to_datetime(Value);
 unpack_value(AttrName, Value, ValueType) ->
-    case is_id_attr(AttrName) and (Value =/= "") of 
-        true -> 
+    case is_id_attr(AttrName) and (Value =/= "") of
+        true ->
             IdType = id_type_from_foreign_key(AttrName),
             unpack_id(IdType, Value);
-        false -> 
+        false ->
             boss_record_lib:convert_value_to_type(Value, ValueType)
     end.
 
 id_type_from_foreign_key(ForeignKey) ->
     Tokens = string:tokens(atom_to_list(ForeignKey), "_"),
-    NameTokens = lists:filter(fun(Token) -> Token =/= "id" end, 
+    NameTokens = lists:filter(fun(Token) -> Token =/= "id" end,
         Tokens),
     string:join(NameTokens, "_").
 
@@ -582,7 +582,7 @@ pack_sort_order(ascending)	-> 1;
 pack_sort_order(descending)	-> -1.
 
 
-%% 
+%%
 %% Generic data structure conversions
 %%
 
@@ -597,7 +597,7 @@ proplist_to_tuple(PropList) ->
     ListOfLists = lists:reverse([[K,V]||{K,V} <- PropList]),
     list_to_tuple(lists:foldl(
             fun([K, V], Acc) ->
-                    [K,V|Acc] 
+                    [K,V|Acc]
             end, [], ListOfLists)).
 
 list_to_proplist([], Acc) -> Acc;
@@ -614,10 +614,10 @@ datetime_to_now(DateTime) ->
 %% Decimal to hexadecimal conversion
 %%
 %% Functions below copied from emongo <https://github.com/boorad/emongo>
-%% 
-%% Copyright (c) 2009 Jacob Vorreuter <jacob.vorreuter@gmail.com> 
-%% Jacob Perkins <japerk@gmail.com> 
-%% Belyaev Dmitry <rumata-estor@nm.ru> 
+%%
+%% Copyright (c) 2009 Jacob Vorreuter <jacob.vorreuter@gmail.com>
+%% Jacob Perkins <japerk@gmail.com>
+%% Belyaev Dmitry <rumata-estor@nm.ru>
 %% François de Metz <fdemetz@af83.com>
 %%
 

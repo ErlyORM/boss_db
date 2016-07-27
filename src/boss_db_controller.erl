@@ -9,19 +9,19 @@
 -define(MAXDELAY, 10000).
 
 -record(state, {
-	  connection_state,
-	  connection_delay,
-	  connection_retry_timer,
-	  options,
-	  adapter, 
-	  read_connection, 
-	  write_connection, 
-	  shards	= [],
-	  model_dict	= dict:new(),
-	  cache_enable,
-	  cache_ttl,
-	  cache_prefix,
-	  depth		= 0}).
+      connection_state,
+      connection_delay,
+      connection_retry_timer,
+      options,
+      adapter,
+      read_connection,
+      write_connection,
+      shards    = [],
+      model_dict    = dict:new(),
+      cache_enable,
+      cache_ttl,
+      cache_prefix,
+      depth        = 0}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_link() ->
@@ -40,19 +40,19 @@ connections_for_adapter(Adapter, Options) ->
             {ok, {Read, Write}};
         {ok, Other} ->
             {ok, {Other, Other}};
-	Error ->
-	    {connection_error, Error}
+    Error ->
+        {connection_error, Error}
     end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 setup_reconnect(State =#state{connection_delay = DelayTime}) ->
     Delay = case DelayTime of
-		D when D < ?MAXDELAY ->
-		    D;
-		_ ->
-		    ?MAXDELAY
-	    end,
+        D when D < ?MAXDELAY ->
+            D;
+        _ ->
+            ?MAXDELAY
+        end,
     Pid = self(),
     timer:apply_after(Delay, boss_db_controller, try_connection, [Pid, State#state.options]).
 
@@ -63,9 +63,9 @@ try_connection(Pid, Options) ->
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-terminate_if_defined(_Adapter, undefined) -> 
+terminate_if_defined(_Adapter, undefined) ->
     ok;
-terminate_if_defined(Adapter, Conn) -> 
+terminate_if_defined(Adapter, Conn) ->
     Adapter:terminate(Conn).
 
 
@@ -80,19 +80,19 @@ terminate_connections(Adapter, RC, WC) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 init(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
-    Adapter	= list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
+    Adapter    = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
     CacheEnable = proplists:get_value(cache_enable, Options, false),
-    CacheTTL	= proplists:get_value(cache_exp_time, Options, 60),
+    CacheTTL    = proplists:get_value(cache_exp_time, Options, 60),
     CachePrefix = proplists:get_value(cache_prefix, Options, db),
     process_flag(trap_exit, true),
     try_connection(self(), Options),
-    {ok, #state{connection_state	= connecting,
-		connection_delay	= 1,
-		options			= Options,
-		adapter			= Adapter,
-		cache_enable		= CacheEnable,
-		cache_ttl		= CacheTTL,
-		cache_prefix		= CachePrefix }}.
+    {ok, #state{connection_state    = connecting,
+        connection_delay    = 1,
+        options            = Options,
+        adapter            = Adapter,
+        cache_enable        = CacheEnable,
+        cache_ttl        = CacheTTL,
+        cache_prefix        = CachePrefix }}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -106,7 +106,7 @@ handle_call({find, Key}, _From, #state{ cache_enable = false } = State) ->
     {Adapter, Conn, _} = db_for_key(Key, State),
     {reply, Adapter:find(Conn, Key), State};
 
-handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd, From, 
+handle_call({find, Type, Conditions, Max, Skip, Sort, SortOrder, Include} = Cmd, From,
     #state{ cache_enable = true, cache_prefix = Prefix } = State) ->
     Key = {Type, Conditions, Max, Skip, Sort, SortOrder},
     case boss_cache:get(Prefix, Key) of
@@ -212,21 +212,21 @@ handle_call(state, _From, State) ->
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 handle_cast({try_connect, Options}, State) when State#state.connection_state /= connected ->
-    Adapter	= State#state.adapter,
+    Adapter    = State#state.adapter,
     CacheEnable = State#state.cache_enable,
-    CacheTTL	= State#state.cache_ttl,
+    CacheTTL    = State#state.cache_ttl,
     try connections_for_adapter(Adapter, Options) of
-	{ok, {ReadConn, WriteConn}} ->
-	    {Shards, ModelDict} = make_shards(Options, Adapter),
-	    {noreply, #state{connection_state = connected, connection_delay = 1,
-			     adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn,
-			     shards = lists:reverse(Shards), model_dict = ModelDict, options = Options,
-			     cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
-	_Failure ->
-	    reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL)
+    {ok, {ReadConn, WriteConn}} ->
+        {Shards, ModelDict} = make_shards(Options, Adapter),
+        {noreply, #state{connection_state = connected, connection_delay = 1,
+                 adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn,
+                 shards = lists:reverse(Shards), model_dict = ModelDict, options = Options,
+                 cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
+    _Failure ->
+        reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL)
     catch
-	_Error ->
-	    reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL)
+    _Error ->
+        reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL)
     end;
 
 handle_cast(_Request, State) ->
@@ -237,10 +237,10 @@ handle_cast(_Request, State) ->
 terminate(_Reason, State) ->
     Adapter = State#state.adapter,
     case State#state.connection_retry_timer of
-	undefined ->
-	    noop;
-	Timer ->
-	    timer:cancel(Timer)
+    undefined ->
+        noop;
+    Timer ->
+        timer:cancel(Timer)
     end,
     terminate_connections(Adapter, State#state.read_connection, State#state.write_connection),
     lists:map(fun({A, RC, WC}) -> terminate_connections(A, RC, WC) end, State#state.shards).
@@ -256,12 +256,12 @@ handle_info(stop, State) ->
     {stop, shutdown, State};
 
 handle_info({'EXIT', _From, 'normal'}, State) when State#state.adapter=:=boss_db_adapter_mongodb ->
-	%% Mongo Driver links and kills connection with each request, so capture it here and ignore it
+    %% Mongo Driver links and kills connection with each request, so capture it here and ignore it
     {noreply, State};
 handle_info({'EXIT', _From, _Reason}, State) when State#state.connection_state == connected ->
     {ok, Tref} = setup_reconnect(State),
     {noreply, State#state { connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
-			    connection_retry_timer = Tref } };
+                connection_retry_timer = Tref } };
 
 handle_info({'EXIT', _From, _Reason}, State) ->
     {noreply, State#state { connection_state = disconnected } };
@@ -275,16 +275,16 @@ find_by_key(Key, From, Prefix, State, _CachedValue = undefined) ->
     {reply, Res, _} = handle_call({find, Key}, From, State#state{ cache_enable = false }),
     IsSuccess       = find_is_success(Res),
     case IsSuccess of
-	true ->
-	    boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-	    WatchString = lists:concat([Key, ", ", Key, ".*"]), 
-	    boss_news:set_watch(Key, WatchString, 
-				fun boss_db_cache:handle_record_news/3, 
-				{Prefix, Key}, 
-				State#state.cache_ttl);
-	false ->
-	    lager:error("Find in Cache by key error ~p ~p ", [Key, Res]),
-	    error 
+    true ->
+        boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
+        WatchString = lists:concat([Key, ", ", Key, ".*"]),
+        boss_news:set_watch(Key, WatchString,
+                fun boss_db_cache:handle_record_news/3,
+                {Prefix, Key},
+                State#state.cache_ttl);
+    false ->
+        _ = lager:error("Find in Cache by key error ~p ~p ", [Key, Res]),
+        error 
     end,
     {reply, Res, State};
 find_by_key(Key, _From, _Prefix, State, CachedValue) ->
@@ -305,18 +305,18 @@ find_list(Type, Include, Cmd, From, Prefix, State, Key) ->
     {reply, Res, _} = handle_call(Cmd, From, State#state{cache_enable = false}),
     case is_list(Res) of
         true ->
-            DummyRecord		= boss_record_lib:dummy_record(Type),
-            BelongsToTypes	= DummyRecord:belongs_to_types(),
+            DummyRecord        = boss_record_lib:dummy_record(Type),
+            BelongsToTypes    = DummyRecord:belongs_to_types(),
             IncludedRecords     = find_list_records(Include, From, State,
                                                        Res, BelongsToTypes),
             lists:map(fun(Rec) ->
                         boss_cache:set(Prefix, Rec:id(), Rec, State#state.cache_ttl)
                       end, IncludedRecords),
             boss_cache:set(Prefix, Key, Res, State#state.cache_ttl),
-            WatchString         = lists:concat([inflector:pluralize(atom_to_list(Type)), 
-						", ", Type, "-*.*"]),
+            WatchString         = lists:concat([inflector:pluralize(atom_to_list(Type)),
+                        ", ", Type, "-*.*"]),
             boss_news:set_watch(Key, WatchString, fun boss_db_cache:handle_collection_news/3,
-				{Prefix, Key}, State#state.cache_ttl);
+                {Prefix, Key}, State#state.cache_ttl);
         _ -> error % log it here?
     end,
     Res.
@@ -325,76 +325,76 @@ find_list(Type, Include, Cmd, From, Prefix, State, Key) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 find_list_records(Include, From, State, Res, BelongsToTypes) ->
     lists:foldl(fun
-		    ({RelationshipName, InnerInclude}, Acc) ->
-			RelType    = proplists:get_value(RelationshipName, BelongsToTypes),
+            ({RelationshipName, InnerInclude}, Acc) ->
+            RelType    = proplists:get_value(RelationshipName, BelongsToTypes),
                         RecordList = lookup_rel_records(From, State, Res,
-					                RelationshipName,
-					                InnerInclude, RelType),
-			RecordList ++ Acc
+                                    RelationshipName,
+                                    InnerInclude, RelType),
+            RecordList ++ Acc
                 end, [], lists:map(fun({R, I}) -> {R, I}; (R) -> {R, []} end, Include)).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 lookup_rel_records(_From, _State, _Res, _RelationshipName, _InnerInclude,
-		   undefined) -> [];
+           undefined) -> [];
 lookup_rel_records(From, State, Res, RelationshipName, InnerInclude,
-		   RelationshipType) ->
+           RelationshipType) ->
 
     IdList = lists:map(fun(Record) ->
-			       Record:get(lists:concat([RelationshipType, "_id"]))
-		       end, Res),
+                   Record:get(lists:concat([RelationshipType, "_id"]))
+               end, Res),
     handle_call({find, RelationshipName,
-		 [{'id', 'in', IdList}],
-		 all, 0, id, ascending,
-		 InnerInclude}, From, State).
+         [{'id', 'in', IdList}],
+         all, 0, id, ascending,
+         InnerInclude}, From, State).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL) ->
     {ok, Tref} = setup_reconnect(State),
     {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
-		     connection_retry_timer = Tref,
-		     adapter = Adapter, read_connection = undefined, write_connection = undefined,
+             connection_retry_timer = Tref,
+             adapter = Adapter, read_connection = undefined, write_connection = undefined,
                      options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db}}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 make_shards(Options, Adapter) ->
     lists:foldr(fun(ShardOptions, {ShardAcc, ModelDictAcc}) ->
-			case proplists:get_value(db_shard_models, ShardOptions, []) of
-			    [] ->
-				{ShardAcc, ModelDictAcc};
-			    Models ->
-				ShardAdapter                    = make_shard_adapter(Adapter, ShardOptions),
-				MergedOptions                   = make_merged_options(Options, ShardOptions),
-				{ok, {ShardRead, ShardWrite}}   = connections_for_adapter(ShardAdapter, MergedOptions),
-				Index                           = erlang:length(ShardAcc),
-				NewDict                         = make_new_dict(ModelDictAcc, Models, Index),
-				{[{ShardAdapter, ShardRead, ShardWrite}|ShardAcc], NewDict}
-			end
+            case proplists:get_value(db_shard_models, ShardOptions, []) of
+                [] ->
+                {ShardAcc, ModelDictAcc};
+                Models ->
+                ShardAdapter                    = make_shard_adapter(Adapter, ShardOptions),
+                MergedOptions                   = make_merged_options(Options, ShardOptions),
+                {ok, {ShardRead, ShardWrite}}   = connections_for_adapter(ShardAdapter, MergedOptions),
+                Index                           = erlang:length(ShardAcc),
+                NewDict                         = make_new_dict(ModelDictAcc, Models, Index),
+                {[{ShardAdapter, ShardRead, ShardWrite}|ShardAcc], NewDict}
+            end
                 end, {[], dict:new()}, proplists:get_value(shards, Options, [])).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 make_new_dict(ModelDictAcc, Models, Index) ->
     lists:foldr(fun(ModelAtom, Dict) ->
-			dict:store(ModelAtom, Index, Dict)
+            dict:store(ModelAtom, Index, Dict)
                 end, ModelDictAcc, Models).
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 make_merged_options(Options, ShardOptions) ->
     case proplists:get_value(db_replication_set, ShardOptions) of
-	undefined -> ShardOptions ++ proplists:delete(db_replication_set, Options);
-	_ -> ShardOptions ++ Options
+    undefined -> ShardOptions ++ proplists:delete(db_replication_set, Options);
+    _ -> ShardOptions ++ Options
     end.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 make_shard_adapter(Adapter, ShardOptions) ->
     case proplists:get_value(db_adapter, ShardOptions) of
-	undefined -> Adapter;
-	ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
+    undefined -> Adapter;
+    ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
     end.
 
 

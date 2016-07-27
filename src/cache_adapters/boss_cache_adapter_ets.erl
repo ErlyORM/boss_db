@@ -5,14 +5,14 @@
 -export([init/1, start/0, start/1, stop/1, terminate/1]).
 -export([get/3, set/5, delete/3]).
 
--spec start() -> 'ok'.
--spec start(_) -> 'ok'.
--spec stop(_) -> 'ok'.
--spec init(_) -> {'ok','undefined'}.
--spec terminate(_) -> 'ok'.
+-spec start() -> pid().
+-spec start(_) -> pid().
+-spec stop(atom() | pid() | {atom(),_} | {'via',_,_}) -> 'ok'.
+-spec init(_) -> {'ok',pid()}.
+-spec terminate(atom() | pid() | {atom(),_} | {'via',_,_}) -> 'ok'.
 -spec get(_,atom() | string() | number(),_) -> any().
 -spec set(_,atom() | string() | number(),_,_,non_neg_integer()) -> 'ok'.
--spec delete(_,atom() | string() | number(),_) -> 'ok'.
+-spec delete(atom() | pid() | {atom(),_} | {'via',_,_},atom() | string() | number(),_) -> 'ok'.
 -spec term_to_key(atom() | string() | number(),_) -> string().
 
 start() ->
@@ -21,8 +21,14 @@ start() ->
     Conn.
 
 start(Options) ->
-    {ok, CheckPid} = check_server:start_link(Options),
-    {ok, Conn} = cache_server:start_link([{checkpid, CheckPid}|Options]),
+    case check_server:start_link(Options) of
+        {ok, CheckPid} -> lager:info("ETS check server started");
+        {error, {already_started, CheckPid}} -> lager:warning("ETS check server already started")
+    end,
+    case cache_server:start_link([{checkpid, CheckPid}|Options]) of
+        {ok, Conn} -> lager:info("ETS cache server started");
+        {error, {already_started, Conn}} -> lager:warning("ETS cache server already started")
+    end,
     Conn.
 
 stop(Conn) ->

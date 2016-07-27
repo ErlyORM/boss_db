@@ -41,7 +41,7 @@ find(_, Id) when is_list(Id) ->
     end.
 
 % -----
-find(_, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions), 
+find(_, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
                                                         is_integer(Max) orelse Max =:= all,
                                                         is_integer(Skip), is_atom(Sort), is_atom(SortOrder) ->
 % Mnesia allows a pattern to be provided against which it will check records.
@@ -86,22 +86,22 @@ filter_rec(Rec, [First|Rest]) ->
 
 apply_sort([], _Key, _Order) ->
     [];
-apply_sort(List, primary, Order) ->    
+apply_sort(List, primary, Order) ->
     apply_sort(List, id, Order);
-apply_sort(List, Key, ascending) ->    
+apply_sort(List, Key, ascending) ->
     Fun = fun (A, B) -> apply(A,Key,[]) =< apply(B,Key,[]) end,
     lists:sort(Fun, List);
-apply_sort(List, Key, descending) ->    
+apply_sort(List, Key, descending) ->
     Fun = fun (A, B) -> apply(A,Key,[]) >= apply(B,Key,[]) end,
     lists:sort(Fun, List).
 
 
 
-apply_skip(List, 0) -> 
+apply_skip(List, 0) ->
     List;
-apply_skip(List, Skip) when Skip >= length(List) -> 
+apply_skip(List, Skip) when Skip >= length(List) ->
     [];
-apply_skip(List, Skip) -> 
+apply_skip(List, Skip) ->
     lists:nthtail(Skip, List).
 
 apply_max(List, all) ->
@@ -198,7 +198,7 @@ save_record(_, Record) when is_tuple(Record) ->
     RecordWithId = Record:set(id, Id),
 
     Fun = fun() -> mnesia:write(Type, RecordWithId, write) end,
-    
+
     case mnesia:transaction(Fun) of
 	    {atomic, ok} ->
 	        {ok, RecordWithId};
@@ -218,10 +218,10 @@ get_migrations_table(_) ->
 
 migration_done(_, Tag, up) ->
     Id = "schema_migrations-" ++ integer_to_list(gen_uid(schema_migrations)),
-    RecordWithId = {schema_migrations, Id, atom_to_list(Tag), erlang:now()},
+    RecordWithId = {schema_migrations, Id, atom_to_list(Tag), os:timestamp()},
 
     Fun = fun() -> mnesia:write(schema_migrations, RecordWithId, write) end,
-    
+
     case mnesia:transaction(Fun) of
         {atomic, ok} ->
             ok;
@@ -235,7 +235,7 @@ migration_done(_, Tag, down) ->
         [Migration] ->
             Id = element(2, Migration),
             Fun = fun () -> mnesia:delete({schema_migrations,Id}) end,
-            
+
             case mnesia:transaction(Fun)  of
                 {atomic,ok} ->
                     ok;
@@ -253,7 +253,7 @@ gen_uid(Tab) ->
 infer_type_from_id(Id) when is_list(Id) ->
     list_to_atom(hd(string:tokens(Id, "-"))).
 
-%----- 
+%-----
 build_query(Type, Conditions, _Max, _Skip, _Sort, _SortOrder) -> % a Query is a {Pattern, Filter} combo
     Fldnames = mnesia:table_info(Type, attributes),
     BlankPattern = [ {Fld, '_'} || Fld <- Fldnames],
