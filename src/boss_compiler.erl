@@ -15,7 +15,7 @@
 -type form()         :: atom().
 -type position()     :: {non_neg_integer(), non_neg_integer()}.
 
--type otp_version() :: 14|15|16|17.
+-type otp_version() :: 14|15|16|17|18|19.
 -spec(make_forms_by_version([syntaxTree()], otp_version()) ->syntaxTree()).
 -spec compile(binary() | [atom() | [any()] | char()]) -> {'error',atom() | {_,[any(),...]}}.
 -spec compile(binary() | [atom() | [any()] | char()],[any()]) -> {'error',atom() | {_,[any(),...]}}.
@@ -29,8 +29,8 @@
 -spec parse_text('undefined' | [atom() | [any()] | char()],binary(),_,_) -> {'error',{'undefined' | [any()],[any(),...]}} |
                                                                             {'error',[{_,_}]} |
                                                                             {'ok',[any()],_}.
--spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()]) -> {[any()],[{_,_}]}.
--spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_) -> {[any()],[{_,_}]}.
+-spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()], otp_version()) -> {[any()],[{_,_}]}.
+-spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_, otp_version()) -> {[any()],[{_,_}]}.
 -spec scan_transform(binary()) -> syntaxTree().
 -spec scan_transform('eof' | binary() | string(),integer() | {integer(),pos_integer()}) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
 -spec transform_char(special_char() |char()) -> 'error' | {'ok',[any()]}.
@@ -182,7 +182,9 @@ handle_tokens(FileName, TokenInfo, ProcessedTokens) ->
     % has a bug that chokes on {Line, Col} locations in typed record
     % definitions
     TokensWithOnlyLineNumbers = flatten_token_locations(ProcessedTokens),
-    {Forms, Errors}           = parse_tokens(TokensWithOnlyLineNumbers, FileName),
+
+    Version = otp_version(),
+    {Forms, Errors}           = parse_tokens(TokensWithOnlyLineNumbers, FileName, Version),
     parse_has_errors(TokenInfo, Forms, Errors).
 
 
@@ -207,34 +209,34 @@ transform_tokens(TransformFun,Tokens) when is_function(TransformFun) ->
     TransformFun(Tokens).
 
 
-parse_tokens(Tokens, FileName) ->
-    parse_tokens(Tokens, [], [], [], FileName).
+parse_tokens(Tokens, FileName, Version) ->
+    parse_tokens(Tokens, [], [], [], FileName, Version).
 
-parse_tokens([], _, FormAcc, ErrorAcc, _) ->
+parse_tokens([], _, FormAcc, ErrorAcc, _, Version) ->
     {lists:reverse(FormAcc), lists:reverse(ErrorAcc)};
-parse_tokens([{dot, _}=Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName) ->
+parse_tokens([{dot, _}=Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName, Version) ->
     case erl_parse:parse_form(lists:reverse([Token|TokenAcc])) of
         {ok, {attribute, _, file, {NewFileName, _Line}} = AbsForm} ->
-            parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, NewFileName);
-        {ok, {attribute, La, record, {Record, Fields}} = AbsForm} ->
+            parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, NewFileName, Version);
+        {ok, {attribute, La, record, {Record, Fields}} = AbsForm} when Version < 19 ->
             case epp:normalize_typed_record_fields(Fields) of
                 {typed, NewFields} ->
                     parse_tokens(Rest, [], lists:reverse([
                                 {attribute, La, record, {Record, NewFields}},
                                 {attribute, La, type, {{record, Record}, Fields, []}}],
-                            FormAcc), ErrorAcc, FileName);
+                            FormAcc), ErrorAcc, FileName, Version);
                 not_typed ->
-                    parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, FileName)
+                    parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, FileName, Version)
             end;
         {ok, AbsForm} ->
-            parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, FileName);
+            parse_tokens(Rest, [], [AbsForm|FormAcc], ErrorAcc, FileName, Version);
         {error, ErrorInfo} ->
-            parse_tokens(Rest, [], FormAcc, [{FileName, ErrorInfo}|ErrorAcc], FileName)
+            parse_tokens(Rest, [], FormAcc, [{FileName, ErrorInfo}|ErrorAcc], FileName, Version)
     end;
-parse_tokens([{eof, Location}], TokenAcc, FormAcc, ErrorAcc, FileName) ->
-    parse_tokens([], TokenAcc, [{eof, Location}|FormAcc], ErrorAcc, FileName);
-parse_tokens([Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName) ->
-    parse_tokens(Rest, [Token|TokenAcc], FormAcc, ErrorAcc, FileName).
+parse_tokens([{eof, Location}], TokenAcc, FormAcc, ErrorAcc, FileName, Version) ->
+    parse_tokens([], TokenAcc, [{eof, Location}|FormAcc], ErrorAcc, FileName, Version);
+parse_tokens([Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName, Version) ->
+    parse_tokens(Rest, [Token|TokenAcc], FormAcc, ErrorAcc, FileName, Version).
 
 scan_transform(FileContents) ->
     scan_transform(FileContents, {1, 1}).

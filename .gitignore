@@ -10,3 +10,4 @@ rebar3.crashdump
 /doc
 rebar.lock
 .project
+.idea
