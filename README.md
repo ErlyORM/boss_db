@@ -28,6 +28,7 @@ Write an adapter: https://github.com/ChicagoBoss/ChicagoBoss/wiki/DB-Adapter-Qui
 
 Usage
 -----
+```erlang
 
     boss_db:start(DBOptions),
     boss_cache:start(CacheOptions), % If you want cacheing with Memcached
@@ -77,6 +78,7 @@ Usage
         {ets_threshold, Threshold::float() = 0.85},
         {ets_weight,    Weight::integer()  = 30}
     ]
+```
 
 Introduction
 ------------
