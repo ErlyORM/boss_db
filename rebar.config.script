@@ -1,0 +1,48 @@
+case erlang:function_exported(rebar3, main, 1) of
+    true -> % rebar3
+        CONFIG;
+    false -> % rebar 2.x or older
+        %% Rebuild deps, possibly including those that have been moved to
+        %% profiles
+        [{deps, [
+            {lager,         ".*",   {git, "https://github.com/basho/lager.git",                       {tag, "2.1.0"}}},
+            {erlando,       ".*",   {git, "https://github.com/ChicagoBoss/erlando.git",               {tag, "b0b77dd9b9"}}},
+            {aleppo,        ".*",   {git, "https://github.com/ErlyORM/aleppo.git",                    {tag, "ee1056f740"}}},
+            {medici,        ".*",   {git, "https://github.com/ErlyORM/medici.git",                    {tag, "bb6167459d"}}},
+
+            % Different version of mongodb driver and bson breaking compilation
+            % on different Erlang version. So disabling them by default. Uncomment one
+            % of options below, if you need mongodb driver
+            % for Erlang = 17
+            %{bson,          ".*",   {git, "https://github.com/comtihon/bson-erlang",                  {branch, "legacy"}}},
+            %{mongodb,       ".*",   {git, "https://github.com/comtihon/mongodb-erlang",               {tag, "v0.7.9"}}},
+            % for Erlang >= 18
+            %{mongodb,       ".*",   {git, "https://github.com/comtihon/mongodb-erlang",               {tag, "v0.7.9"}}},
+
+            % riak_pb not compatible with Erlang 18, so commented for now
+            % uncomment line below if you need Riak support and have Erlang < 18
+            %{riakc,         ".*",   {git, "https://github.com/ErlyORM/riak-erlang-client.git",        {tag, "1.3.0-boss"}}},
+
+            {ddb,           ".*",   {git, "https://github.com/ErlyORM/ddb.git",                       {tag, "v0.1.3"}}},
+            {epgsql,        ".*",   {git, "https://github.com/epgsql/epgsql.git",                     {tag, "c7dfb064811"}}},
+            {erlmc,         ".*",   {git, "https://github.com/layerhq/erlmc.git",                     {tag, "1c17552"}}},
+            {mysql,         ".*",   {git, "https://github.com/ErlyORM/erlang-mysql-driver.git",       {tag, "v0.0.1"}}},
+            {poolboy,       ".*",   {git, "https://github.com/devinus/poolboy.git",                   {tag, "1.5.1"}}},
+            {uuid,          ".*",   {git, "https://github.com/avtobiff/erlang-uuid.git",              {tag, "v0.5.0"}}},
+            {redo,          ".*",   {git, "https://github.com/heroku/redo.git",                       {tag, "936a3c5"}}},
+                                                                                                    % boss_branch for ets_cache
+            {ets_cache,     ".*",   {git, "https://github.com/cuongth/ets_cache.git",                 {tag, "c7a17204cd"}}},
+            {proper,        ".*",   {git, "https://github.com/manopapad/proper.git",                  {tag, "c8c73ee23b"}}},
+            {dh_date,       ".*",   {git, "https://github.com/zotonic/dh_date.git",                   {tag, "473ad8c473"}}},
+            {tiny_pq,       ".*",   {git, "https://github.com/ChicagoBoss/tiny_pq.git",               {tag, "v0.8.15"}}},
+            {boss_test,     ".*",   {git, "https://github.com/ChicagoBoss/boss_test.git",             {tag, "0.0.1"}}}
+        ]}
+        ,{plugins, [rebar_ct]}
+        ,{erl_opts, [
+            debug_info,
+            {parse_transform, lager_transform},
+            {parse_transform, cut},
+            {parse_transform, do},
+            {parse_transform, import_as}
+        ]} | [Config || {Key, _Value}=Config <- CONFIG, Key =/= deps andalso Key =/= plugins andalso Key =/= erl_opts]]
+end.
