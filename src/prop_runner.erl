@@ -1,4 +1,6 @@
 -module(prop_runner).
+
+-ifdef(TEST).
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
@@ -21,3 +23,5 @@ gen(Tests, TModule,Count,PCount) ->
                                              [{to_file, user},Count]))
           end||Test <-Tests]
      end}.
+
+-endif.
