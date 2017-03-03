@@ -84,7 +84,7 @@ pre_compile_helper(RebarConf, BossDbOpts, TargetDir) ->
             compile_model(S, T, BossDbOpts, RebarConf)
         end,
         [{check_last_mod, true},
-            {recursive, option(recursive, BossDbOpts)}]).
+        {recursive, option(recursive, BossDbOpts)}]).
 
 option(Opt, BossDbOpts) ->
     proplists:get_value(Opt, BossDbOpts, option_default(Opt)).
