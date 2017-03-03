@@ -117,11 +117,11 @@ compile_model(Source, Target, BossDbOpts, RebarConfig) ->
     end.
 
 %% @private
+%% @doc copies `.erl' files into the `.eunit' directory
 eunit_coverage_helper(ModelDir) ->
     {ok, Filenames} = file:list_dir(ModelDir),
     lists:foreach(
         fun(Filename) ->
-            %% Copy files to the "src" directory
             copy_model_to_eunit_dir(Filename, ModelDir)
         end,
         Filenames
