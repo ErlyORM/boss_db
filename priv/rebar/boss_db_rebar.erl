@@ -38,39 +38,22 @@
 
 -export([pre_compile/2]).
 -export([pre_eunit/2]).
--export([eunit/2]).
--export([post_eunit/2]).
 
 %% @doc A pre-compile hook to compile boss_db models
 pre_compile(RebarConf, _AppFile) ->
     BossDbOpts = boss_db_opts(RebarConf),
     pre_compile_helper(RebarConf, BossDbOpts, option(out_dir, BossDbOpts)).
 
-%% @doc A pre-eunit hook to compile boss_db models before eunit
+%% @doc A pre-eunit hook to compile boss_db models before eunit.
+%% It also copies model's .erl files to the .eunit directory if
+%% coverage is needed.
 pre_eunit(RebarConf, _AppFile) ->
     BossDbOpts = boss_db_opts(RebarConf),
-    pre_compile_helper(RebarConf, BossDbOpts, ".eunit").
-
-%% @doc Runs at the same time as eunit. If coverage is enabled,
-%% copy models into src directory to allow coverage to run on them.
-eunit(RebarConf, _AppFile) ->
-    BossDbOpts = boss_db_opts(RebarConf),
+    pre_compile_helper(RebarConf, BossDbOpts, ".eunit"),
     case coverage_modifications_needed(RebarConf, BossDbOpts) of
         true ->
             ModelDir = option(model_dir, BossDbOpts),
             eunit_coverage_helper(ModelDir);
-        false ->
-            ok
-    end.
-
-%% @doc Cleans up and removes the models from src directory, if
-%% coverage is enabled.
-post_eunit(RebarConf, _AppFile) ->
-    BossDbOpts = boss_db_opts(RebarConf),
-    case coverage_modifications_needed(RebarConf, BossDbOpts) of
-        true ->
-            ModelDir = option(model_dir, BossDbOpts),
-            post_eunit_coverage_helper(ModelDir);
         false ->
             ok
     end.
@@ -139,41 +122,22 @@ eunit_coverage_helper(ModelDir) ->
     lists:foreach(
         fun(Filename) ->
             %% Copy files to the "src" directory
-            copy_model_to_src_dir(Filename, ModelDir)
+            copy_model_to_eunit_dir(Filename, ModelDir)
         end,
         Filenames
     ).
 
 %% @private
-copy_model_to_src_dir(Filename, ModelDir) ->
+copy_model_to_eunit_dir(Filename, ModelDir) ->
     %% We only want to copy erl files. If it's something else,
     %% don't touch it.
     case is_erl_file(Filename) of
         true ->
             Source = filename:join([ModelDir, Filename]),
-            Destination = filename:join(["src", Filename]),
+            Destination = filename:join([".eunit", Filename]),
             file:copy(Source, Destination);
         false ->
             ok
-    end.
-
-%% @private
-post_eunit_coverage_helper(ModelDir) ->
-    {ok, Filenames} = file:list_dir(ModelDir),
-    lists:foreach(
-        fun(Filename) ->
-            %% Clean up, delete the files we copied into src
-            LocationOfFile = filename:join(["src", Filename]),
-            delete_file(LocationOfFile)
-        end,
-        Filenames
-    ).
-
-%% @private
-delete_file(Filename) ->
-    case is_erl_file(Filename) of
-        true -> file:delete(Filename);
-        false -> ok
     end.
 
 %% @private
@@ -191,7 +155,7 @@ coverage_modifications_needed(RebarConf, BossDbOpts) ->
 
 %% @private
 %% @doc We only want to copy the models if they are stored outside of
-%% the src directory, otherwise, we'll leave them where they are.
+%% the src directory.
 model_dir_is_not_src(BossDbOpts) ->
     ModelsDir = option(model_dir, BossDbOpts),
     [FirstDir | _] = string:tokens(ModelsDir, "/"),
