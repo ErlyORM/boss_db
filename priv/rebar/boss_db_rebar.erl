@@ -133,8 +133,8 @@ copy_model_to_eunit_dir(Filename, ModelDir) ->
     %% don't touch it.
     case is_erl_file(Filename) of
         true ->
-            Source = filename:join([ModelDir, Filename]),
-            Destination = filename:join([".eunit", Filename]),
+            Source = filename:join(ModelDir, Filename),
+            Destination = filename:join(".eunit", Filename),
             file:copy(Source, Destination);
         false ->
             ok
@@ -150,13 +150,12 @@ is_erl_file(Filename) ->
 %% @doc Modifications are only needed if both coverage is enabled
 %% and the models are not in the src directory.
 coverage_modifications_needed(RebarConf, BossDbOpts) ->
-    ModelDirIsNotSrc = model_dir_is_not_src(BossDbOpts),
-    coverage_enabled(RebarConf) and ModelDirIsNotSrc.
+    coverage_enabled(RebarConf) and model_dir_is_not_src(BossDbOpts).
 
 %% @private
 %% @doc We only want to copy the models if they are stored outside of
 %% the src directory.
 model_dir_is_not_src(BossDbOpts) ->
     ModelsDir = option(model_dir, BossDbOpts),
-    [FirstDir | _] = string:tokens(ModelsDir, "/"),
+    [FirstDir | _] = filename:split(ModelsDir),
     FirstDir =/= "src".
