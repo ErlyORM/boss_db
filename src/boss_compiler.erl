@@ -31,13 +31,6 @@
                                                                             {'ok',[any()],_}.
 -spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()], otp_version()) -> {[any()],[{_,_}]}.
 -spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_, otp_version()) -> {[any()],[{_,_}]}.
--spec scan_transform(binary()) -> syntaxTree().
--spec scan_transform('eof' | binary() | string(),integer() | {integer(),pos_integer()}) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
--spec transform_char(special_char() |char()) -> 'error' | {'ok',[any()]}.
--spec cut_at_location(position(), nonempty_string(),{integer(),pos_integer()}) -> {string(),char(),string()}.
--spec cut_at_location1(position(),string(),{integer(),pos_integer()},string()) -> {string(),char(),string()}.
--spec flatten_token_locations([token()]) -> [token()].
--spec flatten_token_locations1([token()],[token()]) -> [token()].
 
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 compile(File) ->
@@ -238,9 +231,11 @@ parse_tokens([{eof, Location}], TokenAcc, FormAcc, ErrorAcc, FileName, Version) 
 parse_tokens([Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName, Version) ->
     parse_tokens(Rest, [Token|TokenAcc], FormAcc, ErrorAcc, FileName, Version).
 
+-spec scan_transform(binary()) -> syntaxTree().
 scan_transform(FileContents) ->
     scan_transform(FileContents, {1, 1}).
 
+-spec scan_transform('eof' | binary() | string(),integer() | {integer(),pos_integer()}) -> {'error',{integer() | {_,_},atom() | tuple(),_}} | {'ok',[{_,_} | {_,_,_},...]}.
 scan_transform([], StartLocation) ->
     {ok, [{eof, StartLocation}]};
 scan_transform(FileContents, StartLocation) when is_binary(FileContents) ->
@@ -300,6 +295,7 @@ scan_transform_illegal_char(StartLocation, ErrorInfo, Truncated,
             {error, ErrorInfo}
     end.
 
+-spec transform_char(special_char() |char()) -> 'error' | {'ok',[any()]}.
 transform_char(8800) -> % ≠
     {ok, ",'not_equals',"};
 transform_char(8804) -> % ≤
@@ -336,9 +332,11 @@ transform_char(Char) when Char > 127 ->
 transform_char(_) ->
     error.
 
+-spec cut_at_location(position(), nonempty_string(),{integer(),pos_integer()}) -> {string(),char(),string()}.
 cut_at_location({CutLine, CutCol}, FileContents, {StartLine, StartCol}) ->
     cut_at_location1({CutLine, CutCol}, FileContents, {StartLine, StartCol}, []).
 
+-spec cut_at_location1(position(),string(),{integer(),pos_integer()},string()) -> {string(),char(),string()}.
 cut_at_location1(_, [], _, Acc) ->
     {lists:reverse(Acc), 0, ""};
 cut_at_location1({Line, Col}, [C|Rest], {Line, Col}, Acc) ->
@@ -348,9 +346,11 @@ cut_at_location1({Line, Col}, [C|Rest], {ThisLine, _}, Acc) when C =:= $\n ->
 cut_at_location1({Line, Col}, [C|Rest], {ThisLine, ThisCol}, Acc) ->
     cut_at_location1({Line, Col}, Rest, {ThisLine, ThisCol + 1}, [C|Acc]).
 
+-spec flatten_token_locations([token()]) -> [token()].
 flatten_token_locations(Tokens) ->
     flatten_token_locations1(Tokens, []).
 
+-spec flatten_token_locations1([token()],[token()]) -> [token()].
 flatten_token_locations1([], Acc) ->
     lists:reverse(Acc);
 flatten_token_locations1([{Type, {Line, _Col}}|Rest], Acc) ->
