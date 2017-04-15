@@ -92,7 +92,7 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
 count(Pid, Type, Conditions) ->
     ConditionClause = build_conditions(Type, Conditions),
     TableName = boss_record_lib:database_table(Type),
-    Res = fetch(Pid, ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
+    Res = fetch(Pid, ["SELECT COUNT(1) AS count FROM ", TableName, " WHERE ", ConditionClause]),
     case Res of
         {data, MysqlRes} ->
             [[Count]] = mysql:get_result_rows(MysqlRes),
