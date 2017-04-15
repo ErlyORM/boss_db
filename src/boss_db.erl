@@ -23,6 +23,12 @@
         find_last/4,
         count/1,
         count/2,
+        counter/1,
+        paginate/3,
+        incr/1,
+        incr/2,
+        delete/1,
+        save_record/1,
         count/3,
         counter/1,
         counter/2,
@@ -70,6 +76,7 @@
 
 -define(DEFAULT_TIMEOUT, (30 * 1000)).
 -define(POOLNAME, boss_db_pool).
+-define(DEFAULT_PAGE_SIZE, 10).
 
 start(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
@@ -270,6 +277,23 @@ counter(Key) ->
 
 counter(Key, Timeout) ->
     db_call({counter, Key}, Timeout).
+
+%% @spec paginate( Model::atom(), Conditions, Opts ) -> Value | {error, Reason}
+%% @doc Paginate through the results from boss_db:find.  Use `Opts' {page,
+%% PageNum} and {page_size, PageSize} to control which page to fetch,
+%% and how many results per page.  Page size defaults to 10.
+paginate(Model, Conditions, Opts) ->
+    CleanOpts = proplists:delete(offset, proplists:delete(limit, Opts)),
+    Page = proplists:get_value(page, Opts, 1),
+    PageSize = proplists:get_value(page_size, Opts, ?DEFAULT_PAGE_SIZE),
+    OptList = proplists:delete(page_size, proplists:delete(page, CleanOpts)) ++
+        [{offset, PageSize * (Page - 1)}, {limit, PageSize}],
+    Total = boss_db:count(Model, Conditions),
+    TotalPages = (Total div PageSize) + (case Total rem PageSize of
+                                             0 -> 0;
+                                             _ -> 1
+                                         end),
+    {Page, TotalPages, boss_db:find(Model, Conditions, OptList)}.
 
 %% @spec incr( Id::string() ) -> integer()
 %% @doc Treat the record associated with `Id' as a counter and atomically increment its value by 1.
@@ -500,6 +524,8 @@ validate_record_types(Record) ->
                         {undefined, _} ->
                             true;
                         {Data, string} when is_list(Data) ->
+                            true;
+                        {Data, uuid} when is_list(Data) ->
                             true;
                         {Data, binary} when is_binary(Data) ->
                             true;
