@@ -13,6 +13,9 @@
         kernel,
         stdlib,
         crypto
-            ]},
-    {env, []}
+        ]},
+    {env, []},
+    {maintainers,["ErlyORM"]},
+    {licenses,["MIT/X11"]},
+    {links,[{"Github","https://github.com/ErlyORM/boss_db"}]}
     ]}.

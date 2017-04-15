@@ -9,7 +9,7 @@
 -compile(export_all).
 -type limit()      :: pos_integer() | 'all' | 'many'.
 -type error(T)     :: {ok, T} | {error, string()}.
--type syntaxTree() :: erl_syntax:syntaxTree().
+-type syntaxTree() :: erl_syntax:syntaxTree() | any().
 -type name()       :: atom()|[byte(),...].
 -type fctn_n()     :: {atom(), non_neg_integer()}.
 -type fctn()       :: {function, atom(), atom(), non_neg_integer(), _}.
@@ -146,9 +146,9 @@ process_tokens([{'-',_N             } = T1,
                 {'::',_},
                 {atom,_,VarType},
                 {'(',_},
-                {')',_}|Rest]  = _T, 
-               TokenAcc, []) ->  
-   % lager:notice("Tokens ~p", [_T]) , 
+                {')',_}|Rest]  = _T,
+               TokenAcc, []) ->
+   % lager:notice("Tokens ~p", [_T]) ,
     _ = lager:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), [{'Id', VarType}]);
 
