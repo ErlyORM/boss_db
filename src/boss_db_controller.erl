@@ -215,18 +215,19 @@ handle_cast({try_connect, Options}, State) when State#state.connection_state /= 
     Adapter    = State#state.adapter,
     CacheEnable = State#state.cache_enable,
     CacheTTL    = State#state.cache_ttl,
+    CachePrefix = State#state.cache_prefix,
     try connections_for_adapter(Adapter, Options) of
     {ok, {ReadConn, WriteConn}} ->
         {Shards, ModelDict} = make_shards(Options, Adapter),
         {noreply, #state{connection_state = connected, connection_delay = 1,
                  adapter = Adapter, read_connection = ReadConn, write_connection = WriteConn,
                  shards = lists:reverse(Shards), model_dict = ModelDict, options = Options,
-                 cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db }};
+                 cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = CachePrefix }};
     _Failure ->
-        reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL)
+        reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL, CachePrefix)
     catch
     _Error ->
-        reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL)
+        reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL, CachePrefix)
     end;
 
 handle_cast(_Request, State) ->
@@ -350,12 +351,12 @@ lookup_rel_records(From, State, Res, RelationshipName, InnerInclude,
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL) ->
+reconnect_no_reply(Options, State, Adapter, CacheEnable, CacheTTL, CachePrefix) ->
     {ok, Tref} = setup_reconnect(State),
     {noreply, #state{connection_state = disconnected, connection_delay = State#state.connection_delay * 2,
              connection_retry_timer = Tref,
              adapter = Adapter, read_connection = undefined, write_connection = undefined,
-                     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = db}}.
+                     options = Options, cache_enable = CacheEnable, cache_ttl = CacheTTL, cache_prefix = CachePrefix}}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
