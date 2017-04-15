@@ -2,18 +2,6 @@
 -include_lib("proper/include/proper.hrl").
 -include_lib("eunit/include/eunit.hrl").
 
--type error(T)     :: {ok, T} | {error, string()}.
--type syntaxTree() :: erl_syntax:syntaxTree().
--type name()       :: atom()|[byte(),...].
--type fctn_n()     :: {atom(), non_neg_integer()}.
--type fctn()       :: {function, atom(), atom(), non_neg_integer(), _}.
--type pair()       :: {atom(),atom()}.
--type assoc()      :: {has,        {atom(), integer()}}          |
-                      {has,        {atom(), integer(), [any()]}} |
-                      {belongs_to, atom()}.
-
-
-
 make_counters_test() ->
     ?assert(proper:check_spec({boss_record_compiler,make_counters, 1},
                               [{to_file, user}])),
@@ -61,19 +49,19 @@ list_functions_test() ->
                                       [{to_file, user}])),
             ok.
 
-override_functions_test_() ->
-    {timeout,
-     300,
-     ?_test(
-        begin
-            ?assert(proper:check_spec({boss_record_compiler,override_functions, 2},
-                                      [{to_file, user},
-                                       40])),
-            ?assert(proper:check_spec({boss_record_compiler,override_functions, 3},
-                                      [{to_file, user},
-                                       40])),
-            ok
-        end)}.
+% override_functions_test_() ->
+%     {timeout,
+%      300,
+%      ?_test(
+%         begin
+%             ?assert(proper:check_spec({boss_record_compiler,override_functions, 2},
+%                                       [{to_file, user},
+%                                        40])),
+%             ?assert(proper:check_spec({boss_record_compiler,override_functions, 3},
+%                                       [{to_file, user},
+%                                        40])),
+%             ok
+%         end)}.
 
 export_forms_test() ->
     {timeout,
@@ -184,10 +172,10 @@ has_many_forms_test_test() ->
     ok.
 
 
-first_or_undefined_forms_test() ->
-    ?assert(proper:check_spec({boss_record_compiler, first_or_undefined_forms, 1},
-                              [{to_file, user}])),
-    ok.
+% first_or_undefined_forms_test() ->
+%     ?assert(proper:check_spec({boss_record_compiler, first_or_undefined_forms, 1},
+%                               [{to_file, user}])),
+%     ok.
 
 
 

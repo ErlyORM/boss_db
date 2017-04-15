@@ -15,7 +15,7 @@
 -type form()         :: atom().
 -type position()     :: {non_neg_integer(), non_neg_integer()}.
 
--type otp_version() :: 14|15|16|17|18|19.
+-type otp_version() :: 14|15|16|17|18|19|20.
 -spec(make_forms_by_version([syntaxTree()], otp_version()) ->syntaxTree()).
 -spec compile(binary() | [atom() | [any()] | char()]) -> {'error',atom() | {_,[any(),...]}}.
 -spec compile(binary() | [atom() | [any()] | char()],[any()]) -> {'error',atom() | {_,[any(),...]}}.
@@ -29,8 +29,6 @@
 -spec parse_text('undefined' | [atom() | [any()] | char()],binary(),_,_) -> {'error',{'undefined' | [any()],[any(),...]}} |
                                                                             {'error',[{_,_}]} |
                                                                             {'ok',[any()],_}.
--spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()], otp_version()) -> {[any()],[{_,_}]}.
--spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_, otp_version()) -> {[any()],[{_,_}]}.
 
 %% @spec compile( File::string() ) -> {ok, Module} | {error, Reason}
 compile(File) ->
@@ -181,8 +179,8 @@ handle_tokens(FileName, TokenInfo, ProcessedTokens) ->
     parse_has_errors(TokenInfo, Forms, Errors).
 
 
--spec(parse_has_errors(token(), token(), [{string(), string()}]) ->
-             error(token(),token())).
+-spec(parse_has_errors(token(), any(), [{string(), string()}]) ->
+             error(any(),any())).
 parse_has_errors(TokenInfo, Forms, []) ->
     {ok, Forms, TokenInfo};
 parse_has_errors(_TokenInfo, _Forms, Errors) ->
@@ -202,10 +200,12 @@ transform_tokens(TransformFun,Tokens) when is_function(TransformFun) ->
     TransformFun(Tokens).
 
 
+-spec parse_tokens([any()],'undefined' | [atom() | [any()] | char()], otp_version()) -> {[any()],[{_,_}]}.
 parse_tokens(Tokens, FileName, Version) ->
     parse_tokens(Tokens, [], [], [], FileName, Version).
 
-parse_tokens([], _, FormAcc, ErrorAcc, _, Version) ->
+-spec parse_tokens([any()],[any()],[any()],[{_,{_,_,_}}],_, otp_version()) -> {[any()],[{_,_}]}.
+parse_tokens([], _, FormAcc, ErrorAcc, _, _Version) ->
     {lists:reverse(FormAcc), lists:reverse(ErrorAcc)};
 parse_tokens([{dot, _}=Token|Rest], TokenAcc, FormAcc, ErrorAcc, FileName, Version) ->
     case erl_parse:parse_form(lists:reverse([Token|TokenAcc])) of
@@ -273,7 +273,7 @@ scan_transform(FileContents, StartLocation) ->
 -spec(scan_transform_result({ok, [token()], pos_integer()}|
                             {eof, pos_integer()} |
                             {error, string(), pos_integer()}) ->
-             error([token()])).
+             error([any()])).
 scan_transform_result(Return) ->
     case Return of
         {ok, Tokens, _EndLocation} ->
@@ -346,7 +346,7 @@ cut_at_location1({Line, Col}, [C|Rest], {ThisLine, _}, Acc) when C =:= $\n ->
 cut_at_location1({Line, Col}, [C|Rest], {ThisLine, ThisCol}, Acc) ->
     cut_at_location1({Line, Col}, Rest, {ThisLine, ThisCol + 1}, [C|Acc]).
 
--spec flatten_token_locations([token()]) -> [token()].
+-spec flatten_token_locations([any()]) -> [any()].
 flatten_token_locations(Tokens) ->
     flatten_token_locations1(Tokens, []).
 

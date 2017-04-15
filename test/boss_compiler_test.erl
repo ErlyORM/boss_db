@@ -16,11 +16,11 @@ spec_test_() ->
 
                   {scan_transform_result, 1},
                   {flatten_token_locations, 1},
-                  {cut_at_location,3},
+                  {cut_at_location, 3},
                   fun prop_transform_tokens/0,
                   fun prop_transform_tokens_null/0,
                   {make_parse_errors, 1},
-                  {parse_has_errors,3}],
+                  {parse_has_errors, 3}],
          [case Test of
              {Funct, Arity} ->
                  ?_assert(proper:check_spec({?TMODULE, Funct, Arity},
