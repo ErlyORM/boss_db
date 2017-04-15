@@ -508,6 +508,8 @@ validate_record_types(Record) ->
                         {{{D1, D2, D3}, {T1, T2, T3}}, datetime} when is_integer(D1), is_integer(D2), is_integer(D3),
                                                                       is_integer(T1), is_integer(T2), is_integer(T3) ->
                             true;
+                        {{{D1, D2, D3}, {0, 0, 0}}, date} when is_integer(D1), is_integer(D2), is_integer(D3) ->
+                            true;
                         {{D1, D2, D3}, date} when is_integer(D1), is_integer(D2), is_integer(D3) ->
                             true;
                         {Data, integer} when is_integer(Data) ->
