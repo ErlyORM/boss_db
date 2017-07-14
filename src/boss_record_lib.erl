@@ -31,7 +31,7 @@
 -spec database_table(atom() | tuple()) -> any().
 -spec belongs_to_types(atom()) -> any().
 -spec ensure_loaded(atom()) -> boolean().
--type target_types() :: 'binary' | 'boolean' | 'date' | 'datetime' | 'float' | 'integer' | 'string' | 'timestamp' | 'undefined'.
+-type target_types() :: 'atom' | 'binary' | 'boolean' | 'date' | 'datetime' | 'float' | 'integer' | 'string' | 'timestamp' | 'undefined'.
 -spec convert_value_to_type(_,target_types()) -> any().
 
 run_before_hooks(_OldRecord, Record, true) ->
@@ -150,6 +150,12 @@ convert_value_to_type(Val, binary) when is_list(Val) ->
     list_to_binary(Val);
 convert_value_to_type(Val, binary) when is_binary(Val) ->
     Val;
+convert_value_to_type(Val, atom) when is_atom(Val) ->
+    Val;
+convert_value_to_type(Val, atom) when is_binary(Val) ->
+    binary_to_atom(Val, utf8);
+convert_value_to_type(Val, atom) when is_list(Val) ->
+    list_to_atom(Val);
 convert_value_to_type({{D1, D2, D3}, {T1, T2, T3}}, Type) when is_integer(D1), is_integer(D2), is_integer(D3),
                                                                is_integer(T1), is_integer(T2), is_float(T3) ->
     convert_value_to_type({{D1, D2, D3}, {T1, T2, round(T3)}}, Type);
