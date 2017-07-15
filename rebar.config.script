@@ -43,7 +43,6 @@ case erlang:function_exported(rebar3, main, 1) of
             {parse_transform, lager_transform},
             {parse_transform, cut},
             {parse_transform, do},
-            {parse_transform, import_as},
-            {parse_transform, vararg}
+            {parse_transform, import_as}
         ]} | [Config || {Key, _Value}=Config <- CONFIG, Key =/= deps andalso Key =/= plugins andalso Key =/= erl_opts]]
 end.
