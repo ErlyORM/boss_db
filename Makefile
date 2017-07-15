@@ -1,7 +1,7 @@
 ERL=erl
 REBAR=./rebar3
 GIT = git
-REBAR_VER = 3.3.5
+REBAR_VER = 3.4.2
 DB_CONFIG_DIR=priv/test_db_config
 
 .PHONY: test
