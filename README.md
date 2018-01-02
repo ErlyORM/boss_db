@@ -49,7 +49,11 @@ DBOptions = [
         {db_host, _}, {db_port, _}, ...
     ]},
     {cache_enable, true | false},
-    {cache_exp_time, TTLSeconds::integer()}
+    {cache_exp_time, TTLSeconds::integer()},
+
+    {size, PoolSize::non_neg_integer()}, % the size of the connection pool - defaults to 5
+    {max_overflow, MaxOverflow::non_neg_integer()} % the maximum number of temporary extra workers that can be created past the `size' just above - defaults to 10
+    %% the sum size + max_overflow effectively controls how many concurrent mysql queries can run
 ]
 
 CacheOptions = [
