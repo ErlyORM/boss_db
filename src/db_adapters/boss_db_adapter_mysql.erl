@@ -211,7 +211,7 @@ do_transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     case do_begin(Pid, self()) of
         {error, _} = Err ->
             {aborted, Err};
-        {updated,{mysql_result,[],[],0,0,[]}} ->
+        {updated,{mysql_result,[],[],0,0,[],0,[]}} ->
             case catch TransactionFun() of
                 error = Err ->
                     do_rollback(Pid, self()),
