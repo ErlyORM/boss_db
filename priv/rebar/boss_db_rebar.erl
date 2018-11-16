@@ -44,9 +44,19 @@ pre_compile(RebarConf, _AppFile) ->
     BossDbOpts = boss_db_opts(RebarConf),
     pre_compile_helper(RebarConf, BossDbOpts, option(out_dir, BossDbOpts)).
 
-%% @doc A pre-eunit hook to compile boss_db models before eunit
+%% @doc A pre-eunit hook to compile boss_db models before eunit.
+%% It also copies model's .erl files to the .eunit directory if
+%% coverage is needed.
 pre_eunit(RebarConf, _AppFile) ->
-    pre_compile_helper(RebarConf, boss_db_opts(RebarConf), ".eunit").
+    BossDbOpts = boss_db_opts(RebarConf),
+    pre_compile_helper(RebarConf, BossDbOpts, ".eunit"),
+    case coverage_modifications_needed(RebarConf, BossDbOpts) of
+        true ->
+            ModelDir = option(model_dir, BossDbOpts),
+            eunit_coverage_helper(ModelDir);
+        false ->
+            ok
+    end.
 
 %% --------------------------------------------------------------------
 %% Internal functions
@@ -55,6 +65,10 @@ pre_eunit(RebarConf, _AppFile) ->
 %% @doc Gets the boss_db options
 boss_db_opts(RebarConf) ->
     rebar_config:get(RebarConf, boss_db_opts, []).
+
+%% @doc Gets the value for coverage_enabled from the rebar config
+coverage_enabled(RebarConf) ->
+    rebar_config:get(RebarConf, cover_enabled, false).
 
 %% @doc A pre-compile hook to compile boss_db models
 pre_compile_helper(RebarConf, BossDbOpts, TargetDir) ->
@@ -99,5 +113,49 @@ compile_model(Source, Target, BossDbOpts, RebarConfig) ->
             rebar_base_compiler:ok_tuple(RebarConfig, Source, Ws);
         {error, Es, Ws} ->
             rebar_base_compiler:error_tuple(RebarConfig, Source,
-                                            Es, Ws, RecordCompilerOpts)
+                Es, Ws, RecordCompilerOpts)
     end.
+
+%% @private
+%% @doc copies `.erl' files into the `.eunit' directory
+eunit_coverage_helper(ModelDir) ->
+    {ok, Filenames} = file:list_dir(ModelDir),
+    lists:foreach(
+        fun(Filename) ->
+            copy_model_to_eunit_dir(Filename, ModelDir)
+        end,
+        Filenames
+    ).
+
+%% @private
+copy_model_to_eunit_dir(Filename, ModelDir) ->
+    %% We only want to copy erl files. If it's something else,
+    %% don't touch it.
+    case is_erl_file(Filename) of
+        true ->
+            Source = filename:join(ModelDir, Filename),
+            Destination = filename:join(".eunit", Filename),
+            file:copy(Source, Destination);
+        false ->
+            ok
+    end.
+
+%% @private
+%% @doc simple helper to determine whether this file is an
+%% erlang file
+is_erl_file(Filename) ->
+    filename:extension(Filename) =:= ".erl".
+
+%% @private
+%% @doc Modifications are only needed if both coverage is enabled
+%% and the models are not in the src directory.
+coverage_modifications_needed(RebarConf, BossDbOpts) ->
+    coverage_enabled(RebarConf) and model_dir_is_not_src(BossDbOpts).
+
+%% @private
+%% @doc We only want to copy the models if they are stored outside of
+%% the src directory.
+model_dir_is_not_src(BossDbOpts) ->
+    ModelsDir = option(model_dir, BossDbOpts),
+    [FirstDir | _] = filename:split(ModelsDir),
+    FirstDir =/= "src".
