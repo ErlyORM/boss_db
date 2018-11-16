@@ -1,21 +1,22 @@
-{application, boss_db,
-    [
+{application, boss_db, [
     {description, "BossDB: a sharded, caching, evented ORM"},
-    {vsn, "0.9-beta3"},
+    {vsn, "0.9.0"},
     {registered, [
         boss_cache, boss_cache_sup,
         boss_db, boss_db_sup,
         boss_db_mock, boss_db_mock_sup,
         boss_news, boss_news_sup
-        ]},
+    ]},
     {modules, []},
     {applications, [
         kernel,
         stdlib,
         crypto
-        ]},
+    ]},
     {env, []},
     {maintainers, ["ErlyORM"]},
     {licenses, ["MIT/X11"]},
-    {links, [{"Github", "https://github.com/ErlyORM/boss_db"}]}
-    ]}.
+    {links, [
+        {"Github", "https://github.com/ErlyORM/boss_db"}
+    ]}
+]}.
