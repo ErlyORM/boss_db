@@ -63,6 +63,13 @@
 -compile(export_all).
 -endif.
 
+-ifndef(OTP_RELEASE).                           % pre-OTP21
+-define(WITH_STACKTRACE(T, R, S), T:R -> S = erlang:get_stacktrace(), ).
+-else.
+-define(WITH_STACKTRACE(T, R, S), T:R:S ->).
+-endif.
+
+
 -type sort_order()      :: ascending|descending.
 -type eq_operatator()   :: 'eq'|'ne'.
 -type normal_operator() ::'equals'|'not_equals'.
@@ -376,13 +383,27 @@ transaction(TransactionFun) ->
 transaction(TransactionFun, Timeout) ->
     Worker = poolboy:checkout(?POOLNAME, true, Timeout),
     State = gen_server:call(Worker, state, Timeout),
-    put(boss_db_transaction_info, State),
-    {reply, Reply, State} =
-        boss_db_controller:handle_call({transaction, TransactionFun},
-                                       undefined, State),
-    put(boss_db_transaction_info, undefined),
-    poolboy:checkin(?POOLNAME, Worker),
-    Reply.
+    TransactionInfo = get(boss_db_transaction_info),
+    FinReply = case TransactionInfo of
+        undefined ->
+            put(boss_db_transaction_info, State),
+            {reply, Reply, State} =
+                boss_db_controller:handle_call({transaction, TransactionFun},
+                                               undefined, State),
+            put(boss_db_transaction_info, undefined),
+            poolboy:checkin(?POOLNAME, Worker),
+            Reply;
+        _ ->
+            try
+                Res = TransactionFun(),
+                {atomic, Res}
+            catch
+                ?WITH_STACKTRACE(Type, Reason, Stack)
+                    throw({error, {Type, Reason, Stack}})
+            end
+    end,
+    FinReply.
+
 
 mock_transaction(TransactionFun) ->
     Worker = poolboy:checkout(?POOLNAME, true, ?DEFAULT_TIMEOUT),
