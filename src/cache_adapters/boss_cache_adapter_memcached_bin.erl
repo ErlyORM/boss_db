@@ -32,7 +32,7 @@ get(_Conn, Prefix, Key) ->
     end.
 
 set(_Conn, Prefix, Key, Val, TTL) ->
-    erlmc:set(term_to_key(Prefix, Key), term_to_binary(Val), TTL, 5000).
+    erlmc:set(term_to_key(Prefix, Key), term_to_binary(Val), TTL).
 
 delete(_Conn, Prefix, Key) ->
     erlmc:delete(term_to_key(Prefix, Key)).
