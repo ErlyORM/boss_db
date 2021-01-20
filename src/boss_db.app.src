@@ -1,6 +1,6 @@
 {application, boss_db, [
     {description, "BossDB: a sharded, caching, evented ORM"},
-    {vsn, "0.9.0"},
+    {vsn, "0.9.1"},
     {registered, [
         boss_cache, boss_cache_sup,
         boss_db, boss_db_sup,
