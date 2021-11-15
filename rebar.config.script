@@ -40,6 +40,7 @@ case erlang:function_exported(rebar3, main, 1) of
         ,{plugins, [rebar_ct]}
         ,{erl_opts, [
             debug_info,
+            tuple_calls,
             {parse_transform, lager_transform},
             {parse_transform, cut},
             {parse_transform, do},
