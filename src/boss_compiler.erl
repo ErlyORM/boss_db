@@ -98,7 +98,7 @@ otp_version() ->
 
 make_forms_by_version(NewForms, Version) when Version >= 16->
                                                 % OTP Version starting with R16A needs boss_db_pmod_pt
-                                                % boss_db_pmod_pt needs the form to end with {eof, 0} tagged tupple
+                                                % boss_db_pmod_pt needs the form to end with {eof, 0} tagged tuple
     NewForms1 = NewForms ++ [{eof,0}],
                                                 % boss_db_pmod_pt needs the form to be in "new" format
     {erl_syntax:revert_forms(erl_syntax:revert(NewForms1)), [boss_db_pmod_pt, boss_db_pt]};

@@ -30,7 +30,7 @@ Usage
 -----
 ```erlang
 boss_db:start(DBOptions),
-boss_cache:start(CacheOptions), % If you want cacheing with Memcached
+boss_cache:start(CacheOptions), % If you want caching with Memcached
 boss_news:start() % Mandatory! Hopefully will be optional one day
 
 DBOptions = [
@@ -114,7 +114,7 @@ Then compile it like:
 
 ...and you're ready to go.
 
-You can also enable boss_db_rebar plugin in your rebar.config to automatize
+You can also enable boss_db_rebar plugin in your rebar.config to automate
 compilation:
 
 ```erlang
