@@ -31,7 +31,7 @@ init(Options) ->
     application:start(ibrowse),
 
 
-    %% init initial credentials.  note that these will be refeshed automatically as needed
+    %% init initial credentials.  note that these will be refreshed automatically as needed
     ddb_iam:credentials(AccessKey, SecretKey),
     {'ok', Key, Secret, Token} = ddb_iam:token(129600),
     %% 129600 is the lifetime duration for the token

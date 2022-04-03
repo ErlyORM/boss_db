@@ -193,7 +193,7 @@ find(Type, Conditions, Options, Timeout) ->
 find_by_sql(Type, Sql) when is_list(Sql) ->
     find_by_sql(Type, Sql, []).
 
--spec(find_by_sql(Type::atom(), Sql::string(), Parmeters::list()) -> [BossRecord::tuple()]).
+-spec(find_by_sql(Type::atom(), Sql::string(), Parameters::list()) -> [BossRecord::tuple()]).
 find_by_sql(Type, Sql, Parameters) when is_list(Sql), is_list(Parameters) ->
     db_call({find_by_sql, Type, Sql, Parameters}, ?DEFAULT_TIMEOUT).
 
