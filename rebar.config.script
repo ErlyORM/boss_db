@@ -6,7 +6,7 @@ case erlang:function_exported(rebar3, main, 1) of
         %% profiles
         [{deps, [
             {lager,         ".*",   {git, "https://github.com/erlang-lager/lager.git",                {tag, "3.6.7"}}},
-            {erlando,       ".*",   {git, "https://github.com/mobilemindtec/erlando.git",               {tag, "680688f"}}},
+            {erlando,       ".*",   {git, "https://github.com/mobilemindtec/erlando.git",               {brench, master}}},
             {aleppo,        ".*",   {git, "https://github.com/ErlyORM/aleppo.git",                    {tag, "v0.9.4"}}},
             {medici,        ".*",   {git, "https://github.com/ErlyORM/medici.git",                    {tag, "bb6167459d"}}},
 
