@@ -61,7 +61,8 @@ t_test_() ->
 								?_test(test_count_model()),
 								?_test(test_delete_model()),
 								?_test(test_transaction()),
-								?_test(test_transaction_error())
+								?_test(test_transaction_error()),
+								?_test(test_count_model_by_condition())
 								]).
 
 test_raw_sql() ->		
@@ -98,6 +99,14 @@ test_count_model() ->
 	{ok, NewDeveloper} = Developer:save(),
 	1 = boss_db:count(developer),
 	ok.
+
+test_count_model_by_condition() ->	
+	delete_all(),
+	Developer = developer:new(id, "Carlos", "Brazil", calendar:local_time()),
+	{ok, NewDeveloper} = Developer:save(),
+	1 = boss_db:count(developer, [{name, 'equals', "Carlos"}]),
+	0 = boss_db:count(developer, [{name, 'equals', "Carloss"}]),
+	ok.	
 
 test_delete_model() ->	
 	delete_all(),
