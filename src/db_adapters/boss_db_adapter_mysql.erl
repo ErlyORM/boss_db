@@ -1,4 +1,6 @@
 -module(boss_db_adapter_mysql).
+-compile(tuple_calls).
+-include_lib("eunit/include/eunit.hrl").
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
@@ -17,10 +19,13 @@ init(Options) ->
     DBUsername   = proplists:get_value(db_username, Options, "guest"),
     DBPassword   = proplists:get_value(db_password, Options, ""),
     DBDatabase   = proplists:get_value(db_database, Options, "test"),
-    DBIdentifier = proplists:get_value(db_shard_id, Options, boss_pool),
-    Encoding     = utf8,
-    mysql_conn:start_link(DBHost, DBPort, DBUsername, DBPassword, DBDatabase,
-        fun(_, _, _, _) -> ok end, Encoding, DBIdentifier).
+    %DBIdentifier = proplists:get_value(db_shard_id, Options, boss_pool),
+    %Encoding     = utf8,
+    % {ssl, [{server_name_indication, disable}, {cacertfile, "/path/to/ca.pem"}]}
+    mysql:start_link([{host, DBHost}, {user, DBUsername}, {port, DBPort},
+                      {password, DBPassword}, {database, DBDatabase}]).
+    %mysql_conn:start_link(DBHost, DBPort, DBUsername, DBPassword, DBDatabase,
+    %    fun(_, _, _, _) -> ok end, Encoding, DBIdentifier).
 
 terminate(Pid) ->
     exit(Pid, normal).
@@ -30,14 +35,14 @@ find_by_sql(Pid, Type, Sql, Parameters) when is_atom(Type), is_list(Sql), is_lis
         true ->
             Res = fetch(Pid, Sql, Parameters),
             case Res of
-                {data, MysqlRes} ->
-                    Rows = mysql:get_result_rows(MysqlRes),
-                    Columns = mysql:get_result_field_info(MysqlRes),
+                {ok, Columns, Rows} ->
+                    %Rows = mysql:get_result_rows(MysqlRes),
+                    %Columns = mysql:get_result_field_info(MysqlRes),
                     lists:map(fun(Row) ->
                         activate_record(Row, Columns, Type)
                     end, Rows);
-                {error, MysqlRes} ->
-                    {error, mysql:get_result_reason(MysqlRes)}
+                {error, Reason} ->
+                    {error, Reason}
             end;
         false ->
             {error, {module_not_loaded, Type}}
@@ -48,18 +53,18 @@ find(Pid, Id) when is_list(Id) ->
     {Type, TableName, IdColumn, TableId} = boss_sql_lib:infer_type_from_id(Id),
     Res = fetch(Pid, ["SELECT * FROM ", TableName, " WHERE ", IdColumn, " = ", pack_value(TableId)]),
     case Res of
-        {data, MysqlRes} ->
-            case mysql:get_result_rows(MysqlRes) of
+        {ok, Columns, Rows} ->
+            case Rows of
                 [] -> undefined;
                 [Row] ->
-                    Columns = mysql:get_result_field_info(MysqlRes),
+                    %Columns = mysql:get_result_field_info(MysqlRes),
                     case boss_record_lib:ensure_loaded(Type) of
                         true  -> activate_record(Row, Columns, Type);
                         false -> {error, {module_not_loaded, Type}}
                     end
             end;
-        {error, MysqlRes} ->
-            {error, mysql:get_result_reason(MysqlRes)}
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_list(Conditions),
@@ -71,9 +76,9 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
             Res = fetch(Pid, Query),
 
             case Res of
-                {data, MysqlRes} ->
-                    Columns = mysql:get_result_field_info(MysqlRes),
-                    ResultRows = mysql:get_result_rows(MysqlRes),
+                {ok, Columns, ResultRows} ->
+                    %Columns = mysql:get_result_field_info(MysqlRes),
+                    %ResultRows = mysql:get_result_rows(MysqlRes),
                     FilteredRows = case {Max, Skip} of
                         {all, Skip} when Skip > 0 ->
                             lists:nthtail(Skip, ResultRows);
@@ -83,8 +88,8 @@ find(Pid, Type, Conditions, Max, Skip, Sort, SortOrder) when is_atom(Type), is_l
                     lists:map(fun(Row) ->
                                 activate_record(Row, Columns, Type)
                         end, FilteredRows);
-                {error, MysqlRes} ->
-                    {error, mysql:get_result_reason(MysqlRes)}
+                {error, Reason} ->
+                    {error, Reason}
             end;
         false -> {error, {module_not_loaded, Type}}
     end.
@@ -94,28 +99,24 @@ count(Pid, Type, Conditions) ->
     TableName = boss_record_lib:database_table(Type),
     Res = fetch(Pid, ["SELECT COUNT(*) AS count FROM ", TableName, " WHERE ", ConditionClause]),
     case Res of
-        {data, MysqlRes} ->
-            [[Count]] = mysql:get_result_rows(MysqlRes),
-            Count;
-        {error, MysqlRes} ->
-            {error, mysql:get_result_reason(MysqlRes)}
+        {ok, _, [[Count]]} -> Count;
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 table_exists(Pid, Type) ->
     TableName = boss_record_lib:database_table(Type),
     Res = fetch(Pid, ["SELECT 1 FROM ", TableName," LIMIT 1"]),
     case Res of
-        {updated, _} ->
+        {ok, _} ->
             ok;
-        {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
+        {error, Reason} -> {error, Reason}
     end.
 
 counter(Pid, Id) when is_list(Id) ->
     Res = fetch(Pid, ["SELECT value FROM counters WHERE name = ", pack_value(Id)]),
     case Res of
-        {data, MysqlRes} ->
-            [[Value]] = mysql:get_result_rows(MysqlRes),
-            Value;
+        {ok, _, [[Value]]} -> Value;
         {error, _Reason} -> 0
     end.
 
@@ -123,14 +124,14 @@ incr(Pid, Id, Count) ->
     Res = fetch(Pid, ["UPDATE counters SET value = value + ", pack_value(Count),
             " WHERE name = ", pack_value(Id)]),
     case Res of
-        {updated, _} ->
+        {ok, _} ->
             counter(Pid, Id); % race condition
         {error, _Reason} ->
             Res1 = fetch(Pid, ["INSERT INTO counters (name, value) VALUES (",
                     pack_value(Id), ", ", pack_value(Count), ")"]),
             case Res1 of
-                {updated, _} -> counter(Pid, Id); % race condition
-                {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
+                {ok, _} -> counter(Pid, Id); % race condition
+                {error, Reason} -> {error, Reason}
             end
     end.
 
@@ -139,11 +140,11 @@ delete(Pid, Id) when is_list(Id) ->
     Res = fetch(Pid, ["DELETE FROM ", TableName, " WHERE ", IdColumn, " = ",
             pack_value(TableId)]),
     case Res of
-        {updated, _} ->
+        ok ->
             fetch(Pid, ["DELETE FROM counters WHERE name = ",
                     pack_value(Id)]),
             ok;
-        {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
+        {error, Reason} -> {error, Reason}
     end.
 
 save_record(Pid, Record) when is_tuple(Record) ->
@@ -151,34 +152,28 @@ save_record(Pid, Record) when is_tuple(Record) ->
         id ->
             Type = element(1, Record),
             Query = build_insert_query(Record),
-            Res = fetch(Pid, Query),
+            Res = fetch(Pid, Query),            
             case Res of
-                {updated, _} ->
-                    Res1 = fetch(Pid, "SELECT last_insert_id()"),
-                    case Res1 of
-                        {data, MysqlRes} ->
-                            [[Id]] = mysql:get_result_rows(MysqlRes),
-                            {ok, Record:set(id, lists:concat([Type, "-", integer_to_list(Id)]))};
-                        {error, MysqlRes} ->
-                            {error, mysql:get_result_reason(MysqlRes)}
-                    end;
-                {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
+                ok ->
+                    Id = mysql:insert_id(Pid),
+                    {ok, Record:set(id, lists:concat([Type, "-", integer_to_list(Id)]))};
+                {error, Reason} -> {error, Reason}
             end;
         Identifier when is_integer(Identifier) ->
             Type = element(1, Record),
             Query = build_insert_query(Record),
             Res = fetch(Pid, Query),
             case Res of
-                {updated, _} ->
+                ok ->
                     {ok, Record:set(id, lists:concat([Type, "-", integer_to_list(Identifier)]))};
-                {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
+                {error, Reason} -> {error, Reason}
             end;
         Defined when is_list(Defined) ->
             Query = build_update_query(Record),
             Res = fetch(Pid, Query),
             case Res of
-                {updated, _} -> {ok, Record};
-                {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
+                ok -> {ok, Record};
+                {error, Reason} -> {error, Reason}
             end
     end.
 
@@ -211,7 +206,7 @@ do_transaction(Pid, TransactionFun) when is_function(TransactionFun) ->
     case do_begin(Pid, self()) of
         {error, _} = Err ->
             {aborted, Err};
-        {updated,{mysql_result,[],[],0,0,[],0,[]}} ->
+        ok -> % {mysql_result,[],[],0,0,[],0,[]}
             case catch TransactionFun() of
                 error = Err ->
                     do_rollback(Pid, self()),
@@ -265,7 +260,14 @@ activate_record(Record, Metadata, Type) ->
 
     apply(Type, new, lists:map(fun
                 (id) ->
+
                     DBColumn = proplists:get_value('id', AttributeColumns),
+                    %?debugMsg("---------------------------------------------"),
+                    %?debugFmt("Record = ~p", [Record]),
+                    %?debugFmt("DBColumn = ~p", [DBColumn]),
+                    %?debugFmt("AttributeColumns = ~p", [AttributeColumns]),
+                    %?debugFmt("Metadata = ~p", [Metadata]),
+                    %?debugMsg("---------------------------------------------"),
                     Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     atom_to_list(Type) ++ "-" ++ integer_to_list(lists:nth(Index, Record));
                 (Key) ->
@@ -280,8 +282,8 @@ activate_record(Record, Metadata, Type) ->
                     end
             end, boss_record_lib:attribute_names(Type))).
 
-keyindex(Key, N, TupleList) ->
-    keyindex(Key, N, TupleList, 1).
+keyindex(Key, N, List) ->
+    keyindex(Key, N, lists:map(fun(X) -> {X,X} end, List), 1).
 
 keyindex(_Key, _N, [], _Index) ->
     undefined;
@@ -468,7 +470,7 @@ pack_value(undefined) ->
 pack_value(V) when is_binary(V) ->
     pack_value(binary_to_list(V));
 pack_value(V) when is_list(V) ->
-    mysql:encode(V);
+    quote(V);
 pack_value({_, _, _} = Val) ->
     pack_date(Val);
 pack_value({{_, _, _}, {_, _, _}} = Val) ->
@@ -482,12 +484,36 @@ pack_value(true) ->
 pack_value(false) ->
     "FALSE".
 
+quote(String) when is_list(String) ->
+    [39 | lists:reverse([39 | quote(String, [])])]; %% 39 is $'
+quote(Bin) when is_binary(Bin) ->
+    list_to_binary(quote(binary_to_list(Bin))).
+
+quote([], Acc) ->
+    Acc;
+quote([0 | Rest], Acc) ->
+    quote(Rest, [$0, $\\ | Acc]);
+quote([10 | Rest], Acc) ->
+    quote(Rest, [$n, $\\ | Acc]);
+quote([13 | Rest], Acc) ->
+    quote(Rest, [$r, $\\ | Acc]);
+quote([$\\ | Rest], Acc) ->
+    quote(Rest, [$\\ , $\\ | Acc]);
+quote([39 | Rest], Acc) ->      %% 39 is $'
+    quote(Rest, [39, $\\ | Acc]);   %% 39 is $'
+quote([34 | Rest], Acc) ->      %% 34 is $"
+    quote(Rest, [34, $\\ | Acc]);   %% 34 is $"
+quote([26 | Rest], Acc) ->
+    quote(Rest, [$Z, $\\ | Acc]);
+quote([C | Rest], Acc) ->
+    quote(Rest, [C | Acc]).
+
 fetch(Pid, Query) ->
     _ = lager:info("Query ~s", [Query]),
-    Res = mysql_conn:fetch(Pid, [Query], self()),
+    Res = mysql:query(Pid, [Query]),
     _ = case Res of
-        {error, MysqlRes} ->
-            _ = lager:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
+        {error, Resson} ->
+            _ = lager:error("SQL Error: ~p",[Resson]);
         _ -> ok
     end,
     Res.
@@ -498,6 +524,7 @@ fetch(Pid, Query, Parameters) ->
 
 replace_parameters([$$, X, Y | Rest], Parameters) when X >= $1, X =< $9, Y >= $0, Y =< $9 ->
     Position = (X-$0)*10 + (Y-$0),
+    ?debugFmt("Position = ~p", [Position]),
     [lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
 replace_parameters([$$, X | Rest], Parameters) when X >= $1, X =< $9 ->
     Position = X-$0,

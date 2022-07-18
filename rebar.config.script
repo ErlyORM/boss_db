@@ -6,7 +6,7 @@ case erlang:function_exported(rebar3, main, 1) of
         %% profiles
         [{deps, [
             {lager,         ".*",   {git, "https://github.com/erlang-lager/lager.git",                {tag, "3.6.7"}}},
-            {erlando,       ".*",   {git, "https://github.com/ChicagoBoss/erlando.git",               {tag, "680688f"}}},
+            {erlando,       ".*",   {git, "https://github.com/mobilemindtec/erlando.git",               {branch, "master"}}},
             {aleppo,        ".*",   {git, "https://github.com/ErlyORM/aleppo.git",                    {tag, "v0.9.4"}}},
             {medici,        ".*",   {git, "https://github.com/ErlyORM/medici.git",                    {tag, "bb6167459d"}}},
 
@@ -26,7 +26,8 @@ case erlang:function_exported(rebar3, main, 1) of
             {ddb,           ".*",   {git, "https://github.com/ErlyORM/ddb.git",                       {tag, "v0.1.7"}}},
             {epgsql,        ".*",   {git, "https://github.com/epgsql/epgsql.git",                     {tag, "4.2.0"}}},
             {erlmc,         ".*",   {git, "https://github.com/ErlyORM/erlmc.git",                     {tag, "c5280da"}}},
-            {mysql,         ".*",   {git, "https://github.com/ErlyORM/erlang-mysql-driver.git",       {tag, "v0.0.4"}}},
+            %{mysql,         ".*",   {git, "https://github.com/ErlyORM/erlang-mysql-driver.git",       {tag, "v0.0.4"}}},
+            {mysql, ".*", {git, "https://github.com/mysql-otp/mysql-otp",                     {tag, "1.7.0"}}},
             {poolboy,       ".*",   {git, "https://github.com/devinus/poolboy.git",                   {tag, "1.5.2"}}},
             {uuid,          ".*",   {git, "https://github.com/avtobiff/erlang-uuid.git",              {tag, "v0.5.2"}}},
             {redo,          ".*",   {git, "https://github.com/heroku/redo.git",                       {tag, "cd75a11"}}},

@@ -1,6 +1,6 @@
 -module(boss_compiler).
 -export([compile/1, compile/2, parse/3]).
-
+%-include_lib("eunit/include/eunit.hrl").
 -compile(export_all).
 
 -ifdef(TEST).
@@ -129,6 +129,7 @@ transform_action(Forms,  TokenInfo, TransformFun) when is_function(TransformFun,
 
 
 compile_forms(Forms, File, Options) ->
+    %?debugFmt("Forms = ~p, Options = ~p", [Forms, Options]),
     case compile:forms(Forms, Options) of
         {ok, Module1, Bin} ->
             code:purge(Module1),

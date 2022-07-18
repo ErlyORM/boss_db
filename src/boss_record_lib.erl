@@ -12,6 +12,7 @@
         convert_value_to_type/2,
         ensure_loaded/1
     ]).
+-compile(tuple_calls).
 -ifdef(TEST).
 -compile(export_all).
 -endif.
