@@ -3,9 +3,9 @@
 -include_lib("pmod_transform/include/pmod.hrl").
 -compile(export_all).
 
-%-define(test(Desc, F), {setup, fun setup/0, fun cleanup/1, {Desc, F}}).
+-define(test(Desc, F), {setup, fun setup/0, fun cleanup/1, {Desc, F}}).
 
-init_per_suite(Config) ->
+setup() ->
 
 	MysqlHost = os:getenv("MYSQL_HOST", "localhost"),
 	MysqlPort = os:getenv("MYSQL_PORT", "3306"),
@@ -17,7 +17,7 @@ init_per_suite(Config) ->
 
 	if 
 		length(MysqlUser) =:= 0 ->
-			skip_suites;
+			skip_case;
 		true ->
 			{ok, developer} = boss_record_compiler:compile("developer.erl"),
 			DBOptions = [
@@ -29,7 +29,6 @@ init_per_suite(Config) ->
 			    {db_database, MysqlDbName},
 			    {db_configure, []},
 			    {db_ssl, false}, % for now pgsql only
-
 			    {shards, []},
 			    {cache_enable, false},
 			    {cache_exp_time, 0},
@@ -42,88 +41,76 @@ init_per_suite(Config) ->
 			boss_news:start(),
 
 			ok = boss_db:execute("DROP TABLE IF EXISTS developers"),
-			ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(20), country varchar(10) )") 			
+			ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(20), country varchar(10), created_at datetime )") 			
  	end,
- 	Config.
+ 	ok.
 
-all() ->
-	[test_raw_sql,
-		test_find_model_by_sql,
-		test_new_model,
-		test_find_model,
-		test_count_model,
-		test_delete_model,
-		test_transaction,
-		test_transaction_error].
+cleanup(_) ->
+	ok.
 
 delete_all() ->
 	ok = boss_db:execute("delete from developers").
 
-%t_test_() ->
-%
-%	?test("test raw query", [
-%								?_test(test_raw_sql()), 
-%								?_test(test_find_model_by_sql()),
-%								?_test(test_new_model()),
-%								?_test(test_find_model()),
-%								?_test(test_count_model()),
-%								?_test(test_delete_model()),
-%								?_test(test_transaction()),
-%								?_test(test_transaction_error())
-%								]).
-%
-%	%{setup, 
-%	%	fun top_setup/0,
-%	%	fun top_cleanup/1,
-%	%		[{generator, fun test_raw_sql/0},
-%	%		 {generator, fun test_find_model_by_sql/0}]}.	
+t_test_() ->
 
-test_raw_sql(_Config) ->	
+	?test("test raw query", [
+								?_test(test_raw_sql()), 
+								?_test(test_find_model_by_sql()),
+								?_test(test_new_model()),
+								?_test(test_find_model()),
+								?_test(test_count_model()),
+								?_test(test_delete_model()),
+								?_test(test_transaction()),
+								?_test(test_transaction_error())
+								]).
+
+test_raw_sql() ->		
 	delete_all(),
 	ok = boss_db:execute("insert developers (name, country) values ('Pedro', 'Brazil')"),
-	{ok,[<<"id">>, <<"name">>,<<"country">>],[[1, <<"Pedro">>,<<"Brazil">>]]}  = boss_db:execute("select id, name, country from developers where name = 'Pedro'"),
+	{ok,[<<"id">>, <<"name">>,<<"country">>, <<"created_at">>],[[1, <<"Pedro">>,<<"Brazil">>, null]]}  = boss_db:execute("select * from developers where name = 'Pedro'"),
 	ok.
 
-test_find_model_by_sql(_Config) ->
+test_find_model_by_sql() ->	
 	delete_all(),
 	ok = boss_db:execute("insert into developers (name, country) values ('Jonas', 'Brazil')"),
-	[{developer,_,"Jonas","Brazil"}] = boss_db:find_by_sql(developer, "select id, name, country from developers where name = 'Jonas'"),
+	[{developer,_,"Jonas","Brazil", _}] = boss_db:find_by_sql(developer, "select * from developers where name = 'Jonas'"),
 	ok.
 
-test_new_model() ->
+test_new_model() ->	
 	delete_all(),
-	Developer = developer:new(id, "Carlos", "Brazil"),
+	Now = calendar:local_time(),
+	Developer = developer:new(id, "Carlos", "Brazil", Now),
 	{ok, NewDeveloper} = Developer:save(),
-	{developer, _,"Carlos","Brazil"} = NewDeveloper,
+	{developer, _,"Carlos","Brazil", Now} = NewDeveloper,
 	ok.
 
-test_find_model(_Config) ->
+test_find_model() ->	
 	delete_all(),
-	Developer = developer:new(id, "Carlos", "Brazil"),
+	Developer = developer:new(id, "Carlos", "Brazil", calendar:local_time()),
 	{ok, NewDeveloper} = Developer:save(),
 	NewDeveloper = boss_db:find_first(developer, [{id, 'equals', NewDeveloper:id()}]),
 	NewDeveloper = boss_db:find_last(developer, [{id, 'equals', NewDeveloper:id()}]),
 	ok.
 
-test_count_model(_Config) ->
+test_count_model() ->	
 	delete_all(),
-	Developer = developer:new(id, "Carlos", "Brazil"),
+	Developer = developer:new(id, "Carlos", "Brazil", calendar:local_time()),
 	{ok, NewDeveloper} = Developer:save(),
 	1 = boss_db:count(developer),
 	ok.
 
-test_delete_model(_Config) ->
+test_delete_model() ->	
 	delete_all(),
-	Developer = developer:new(id, "Carlos", "Brazil"),
+	Developer = developer:new(id, "Carlos", "Brazil", calendar:local_time()),
 	{ok, NewDeveloper} = Developer:save(),
 	ok = boss_db:delete(NewDeveloper:id()),
 	0 = boss_db:count(developer),
 	ok.
 
-test_transaction(_Config) ->	
+test_transaction() ->		
 	delete_all(),
 	{atomic, _} = boss_db:transaction(fun() -> 
-		Developer = developer:new(id, "Carlos", "Brazil"),
+		Developer = developer:new(id, "Carlos", "Brazil", calendar:local_time()),
 		{ok, _} = Developer:save(),
 		ok	
 	end),
@@ -132,12 +119,12 @@ test_transaction(_Config) ->
 
 	ok.
 
-test_transaction_error(_Config) ->	
+test_transaction_error() ->		
 	delete_all(),
 	{aborted, _} = boss_db:transaction(fun() -> 
-		Developer = developer:new(id, "Carlos", "Brazil"),
+		Developer = developer:new(id, "Carlos", "Brazil", calendar:local_time()),
 		{ok, _} = Developer:save(),
-		OtherDeveloper = developer:new(id, "Mario", "Brazilzilzilzilzilzilzil"),
+		OtherDeveloper = developer:new(id, "Mario", "Brazilzilzilzilzilzilzil", calendar:local_time()),
 		OtherDeveloper:save() % return error		
 	end),
 

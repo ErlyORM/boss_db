@@ -274,10 +274,17 @@ activate_record(Record, Metadata, Type) ->
                     DBColumn = proplists:get_value(Key, AttributeColumns),
                     Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     AttrType = proplists:get_value(Key, AttributeTypes),
+                    %?debugMsg("---------------------------------------------"),
+                    %?debugFmt("DBColumn = ~p", [DBColumn]),
+                    %?debugFmt("AttributeColumns = ~p", [AttributeColumns]),
+                    %?debugFmt("Metadata = ~p", [Metadata]),
+                    %?debugFmt("Key = ~p, Index = ~p, AttrType = ~p", [Key, Index, AttrType]),
+                    %?debugMsg("---------------------------------------------"),
                     case lists:nth(Index, Record) of
                         undefined -> undefined;
                         {datetime, DateTime} -> boss_record_lib:convert_value_to_type(DateTime, AttrType);
                         Val ->
+                            %?debugFmt("Val = ~p", [Val]),
                             boss_sql_lib:convert_possible_foreign_key(RetypedForeignKeys, Type, Key, Val, AttrType)
                     end
             end, boss_record_lib:attribute_names(Type))).
