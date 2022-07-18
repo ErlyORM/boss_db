@@ -1,4 +1,4 @@
--module(mysql_driver_test).
+-module(boss_db_mysql8_adapter_test).
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("pmod_transform/include/pmod.hrl").
 -compile(export_all).
@@ -8,13 +8,19 @@
 setup() ->
 	{ok, developer} = boss_record_compiler:compile("developer.erl"),
 
+	MysqlHost = os:getenv("MYSQL_HOST", "localhost"),
+	MysqlPort = os:getenv("MYSQL_PORT", "3306"),
+	MysqlUser = os:getenv("MYSQL_USER", "guest"),
+	MysqlPassword = os:getenv("MYSQL_PASSWORD", ""),
+	MysqlDbName = os:getenv("MYSQL_TEST_DBNAME", "test"),
+
 	DBOptions = [
 	    {adapter, mysql},
-	    {db_host, "127.0.0.1"},
-	    {db_port, 3305},
-	    {db_username, "root"},
-	    {db_password, "131054"},
-	    {db_database, "test"},
+	    {db_host,  MysqlHost},
+	    {db_port, list_to_integer(MysqlPort)},
+	    {db_username, MysqlUser},
+	    {db_password, MysqlPassword},
+	    {db_database, MysqlDbName},
 	    {db_configure, []},
 	    {db_ssl, false}, % for now pgsql only
 
@@ -30,7 +36,7 @@ setup() ->
 	boss_news:start(),
 
 	ok = boss_db:execute("DROP TABLE IF EXISTS developers"),
-	ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(50), country varchar(50) )"),
+	ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(20), country varchar(10) )"),
 
   ?debugMsg("top setup").
 
@@ -45,7 +51,13 @@ t_test_() ->
 	?test("test raw query", [
 								?_test(test_raw_sql()), 
 								?_test(test_find_model_by_sql()),
-								?_test(test_new_model())]).
+								?_test(test_new_model()),
+								?_test(test_find_model()),
+								?_test(test_count_model()),
+								?_test(test_delete_model()),
+								?_test(test_transaction()),
+								?_test(test_transaction_error())
+								]).
 
 	%{setup, 
 	%	fun top_setup/0,
@@ -70,18 +82,52 @@ test_new_model() ->
 	Developer = developer:new(id, "Carlos", "Brazil"),
 	{ok, NewDeveloper} = Developer:save(),
 	{developer, _,"Carlos","Brazil"} = NewDeveloper,
+	ok.
+
+test_find_model() ->
+	delete_all(),
+	Developer = developer:new(id, "Carlos", "Brazil"),
+	{ok, NewDeveloper} = Developer:save(),
 	NewDeveloper = boss_db:find_first(developer, [{id, 'equals', NewDeveloper:id()}]),
 	NewDeveloper = boss_db:find_last(developer, [{id, 'equals', NewDeveloper:id()}]),
+	ok.
+
+test_count_model() ->
+	delete_all(),
+	Developer = developer:new(id, "Carlos", "Brazil"),
+	{ok, NewDeveloper} = Developer:save(),
 	1 = boss_db:count(developer),
+	ok.
+
+test_delete_model() ->
+	delete_all(),
+	Developer = developer:new(id, "Carlos", "Brazil"),
+	{ok, NewDeveloper} = Developer:save(),
 	ok = boss_db:delete(NewDeveloper:id()),
 	0 = boss_db:count(developer),
+	ok.
 
+test_transaction() ->	
+	delete_all(),
 	{atomic, _} = boss_db:transaction(fun() -> 
-		OtherDeveloper = developer:new(id, "Carlos", "Brazil"),
-		{ok, _} = OtherDeveloper:save(),
+		Developer = developer:new(id, "Carlos", "Brazil"),
+		{ok, _} = Developer:save(),
 		ok	
 	end),
 
 	1 = boss_db:count(developer),
+
+	ok.
+
+test_transaction_error() ->	
+	delete_all(),
+	{aborted, _} = boss_db:transaction(fun() -> 
+		Developer = developer:new(id, "Carlos", "Brazil"),
+		{ok, _} = Developer:save(),
+		OtherDeveloper = developer:new(id, "Mario", "Brazilzilzilzilzilzilzil"),
+		OtherDeveloper:save() % return error		
+	end),
+
+	0 = boss_db:count(developer),
 
 	ok.

@@ -10,7 +10,7 @@ Supported databases
 * *NEW* DynamoDB (experimental)
 * Mnesia
 * MongoDB
-* MySQL
+* MySQL 8 Compatibility (driver https://github.com/mysql-otp/mysql-otp.git)
 * PostgreSQL
 * Riak
 * Tokyo Tyrant
@@ -82,6 +82,8 @@ EtsCacheServerOpts = [
     {ets_weight,    Weight::integer()  = 30}
 ]
 ```
+
+
 
 Introduction
 ------------
@@ -339,3 +341,19 @@ are useful PKs when data are being aggregated from multiple sources.
 
 The default Id type ::serial() may be explicitly supplied.  Note that
 all Id types, valid or otherwise, pass type validation.
+
+
+Test
+----
+
+To test mysql adapter, you need provide mysql connection env on test. Example:
+
+``` 
+MYSQL_HOST=127.0.0.1  \
+MYSQL_PORT=3306 \
+MYSQL_USER=root \
+MYSQL_PASSWORD=pass \
+MYSQL_TEST_DBNAME=test \
+rebar eunit suite=boss_db_mysql8_adapter_test 
+```
+
