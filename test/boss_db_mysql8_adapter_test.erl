@@ -3,75 +3,88 @@
 -include_lib("pmod_transform/include/pmod.hrl").
 -compile(export_all).
 
--define(test(Desc, F), {setup, fun setup/0, fun cleanup/1, {Desc, F}}).
+%-define(test(Desc, F), {setup, fun setup/0, fun cleanup/1, {Desc, F}}).
 
-setup() ->
-	{ok, developer} = boss_record_compiler:compile("developer.erl"),
+init_per_suite(Config) ->
 
 	MysqlHost = os:getenv("MYSQL_HOST", "localhost"),
 	MysqlPort = os:getenv("MYSQL_PORT", "3306"),
-	MysqlUser = os:getenv("MYSQL_USER", "guest"),
+	MysqlUser = os:getenv("MYSQL_USER", ""),
 	MysqlPassword = os:getenv("MYSQL_PASSWORD", ""),
 	MysqlDbName = os:getenv("MYSQL_TEST_DBNAME", "test"),
 
-	DBOptions = [
-	    {adapter, mysql},
-	    {db_host,  MysqlHost},
-	    {db_port, list_to_integer(MysqlPort)},
-	    {db_username, MysqlUser},
-	    {db_password, MysqlPassword},
-	    {db_database, MysqlDbName},
-	    {db_configure, []},
-	    {db_ssl, false}, % for now pgsql only
+	?debugFmt("MysqlUser = ~p", [MysqlUser]),
 
-	    {shards, []},
-	    {cache_enable, false},
-	    {cache_exp_time, 0},
+	if 
+		length(MysqlUser) =:= 0 ->
+			skip_suites;
+		true ->
+			{ok, developer} = boss_record_compiler:compile("developer.erl"),
+			DBOptions = [
+			    {adapter, mysql},
+			    {db_host,  MysqlHost},
+			    {db_port, list_to_integer(MysqlPort)},
+			    {db_username, MysqlUser},
+			    {db_password, MysqlPassword},
+			    {db_database, MysqlDbName},
+			    {db_configure, []},
+			    {db_ssl, false}, % for now pgsql only
 
-	    {size, 5}, % the size of the connection pool - defaults to 5
-	    {max_overflow, 10} % the maximum number of temporary extra workers that can be created past the `size' just above - defaults to 10
-	    %% the sum size + max_overflow effectively controls how many concurrent mysql queries can run
-	],
-	{ok, _} = boss_db:start(DBOptions),
-	boss_news:start(),
+			    {shards, []},
+			    {cache_enable, false},
+			    {cache_exp_time, 0},
 
-	ok = boss_db:execute("DROP TABLE IF EXISTS developers"),
-	ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(20), country varchar(10) )"),
+			    {size, 5}, % the size of the connection pool - defaults to 5
+			    {max_overflow, 10} % the maximum number of temporary extra workers that can be created past the `size' just above - defaults to 10
+			    %% the sum size + max_overflow effectively controls how many concurrent mysql queries can run
+			],
+			{ok, _} = boss_db:start(DBOptions),
+			boss_news:start(),
 
-  ?debugMsg("top setup").
+			ok = boss_db:execute("DROP TABLE IF EXISTS developers"),
+			ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(20), country varchar(10) )") 			
+ 	end,
+ 	Config.
 
-cleanup(_) ->
-    ?debugMsg("top cleanup").
+all() ->
+	[test_raw_sql,
+		test_find_model_by_sql,
+		test_new_model,
+		test_find_model,
+		test_count_model,
+		test_delete_model,
+		test_transaction,
+		test_transaction_error].
 
 delete_all() ->
 	ok = boss_db:execute("delete from developers").
 
-t_test_() ->
+%t_test_() ->
+%
+%	?test("test raw query", [
+%								?_test(test_raw_sql()), 
+%								?_test(test_find_model_by_sql()),
+%								?_test(test_new_model()),
+%								?_test(test_find_model()),
+%								?_test(test_count_model()),
+%								?_test(test_delete_model()),
+%								?_test(test_transaction()),
+%								?_test(test_transaction_error())
+%								]).
+%
+%	%{setup, 
+%	%	fun top_setup/0,
+%	%	fun top_cleanup/1,
+%	%		[{generator, fun test_raw_sql/0},
+%	%		 {generator, fun test_find_model_by_sql/0}]}.	
 
-	?test("test raw query", [
-								?_test(test_raw_sql()), 
-								?_test(test_find_model_by_sql()),
-								?_test(test_new_model()),
-								?_test(test_find_model()),
-								?_test(test_count_model()),
-								?_test(test_delete_model()),
-								?_test(test_transaction()),
-								?_test(test_transaction_error())
-								]).
-
-	%{setup, 
-	%	fun top_setup/0,
-	%	fun top_cleanup/1,
-	%		[{generator, fun test_raw_sql/0},
-	%		 {generator, fun test_find_model_by_sql/0}]}.	
-
-test_raw_sql() ->	
+test_raw_sql(_Config) ->	
 	delete_all(),
 	ok = boss_db:execute("insert developers (name, country) values ('Pedro', 'Brazil')"),
 	{ok,[<<"id">>, <<"name">>,<<"country">>],[[1, <<"Pedro">>,<<"Brazil">>]]}  = boss_db:execute("select id, name, country from developers where name = 'Pedro'"),
 	ok.
 
-test_find_model_by_sql() ->
+test_find_model_by_sql(_Config) ->
 	delete_all(),
 	ok = boss_db:execute("insert into developers (name, country) values ('Jonas', 'Brazil')"),
 	[{developer,_,"Jonas","Brazil"}] = boss_db:find_by_sql(developer, "select id, name, country from developers where name = 'Jonas'"),
@@ -84,7 +97,7 @@ test_new_model() ->
 	{developer, _,"Carlos","Brazil"} = NewDeveloper,
 	ok.
 
-test_find_model() ->
+test_find_model(_Config) ->
 	delete_all(),
 	Developer = developer:new(id, "Carlos", "Brazil"),
 	{ok, NewDeveloper} = Developer:save(),
@@ -92,14 +105,14 @@ test_find_model() ->
 	NewDeveloper = boss_db:find_last(developer, [{id, 'equals', NewDeveloper:id()}]),
 	ok.
 
-test_count_model() ->
+test_count_model(_Config) ->
 	delete_all(),
 	Developer = developer:new(id, "Carlos", "Brazil"),
 	{ok, NewDeveloper} = Developer:save(),
 	1 = boss_db:count(developer),
 	ok.
 
-test_delete_model() ->
+test_delete_model(_Config) ->
 	delete_all(),
 	Developer = developer:new(id, "Carlos", "Brazil"),
 	{ok, NewDeveloper} = Developer:save(),
@@ -107,7 +120,7 @@ test_delete_model() ->
 	0 = boss_db:count(developer),
 	ok.
 
-test_transaction() ->	
+test_transaction(_Config) ->	
 	delete_all(),
 	{atomic, _} = boss_db:transaction(fun() -> 
 		Developer = developer:new(id, "Carlos", "Brazil"),
@@ -119,7 +132,7 @@ test_transaction() ->
 
 	ok.
 
-test_transaction_error() ->	
+test_transaction_error(_Config) ->	
 	delete_all(),
 	{aborted, _} = boss_db:transaction(fun() -> 
 		Developer = developer:new(id, "Carlos", "Brazil"),
