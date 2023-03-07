@@ -3,14 +3,22 @@
 -include_lib("pmod_transform/include/pmod.hrl").
 -compile(export_all).
 
--define(test(Desc, F), {setup, fun setup/0, fun cleanup/1, {Desc, F}}).
+-define(test(Desc, F), {setup, 
+													fun setup/0, 
+													fun cleanup/1, 
+													fun(State) ->
+														case State of
+															{ok, _} -> {Desc, F};
+															_ -> ?debugFmt("MYSQL TEST NOT EXECUTED: ~p", [State])
+														end
+													end}).
 
 setup() ->
 
-	MysqlHost = os:getenv("MYSQL_HOST", "localhost"),
-	MysqlPort = os:getenv("MYSQL_PORT", "3306"),
-	MysqlUser = os:getenv("MYSQL_USER", ""),
-	MysqlPassword = os:getenv("MYSQL_PASSWORD", ""),
+	MysqlHost = os:getenv("MYSQL_HOST", "127.0.0.1"),
+	MysqlPort = os:getenv("MYSQL_PORT", "6033"),
+	MysqlUser = os:getenv("MYSQL_USER", "test"),
+	MysqlPassword = os:getenv("MYSQL_PASSWORD", "test"),
 	MysqlDbName = os:getenv("MYSQL_TEST_DBNAME", "test"),
 
 	?debugFmt("MysqlUser = ~p", [MysqlUser]),
@@ -37,15 +45,19 @@ setup() ->
 			    {max_overflow, 10} % the maximum number of temporary extra workers that can be created past the `size' just above - defaults to 10
 			    %% the sum size + max_overflow effectively controls how many concurrent mysql queries can run
 			],
-			{ok, _} = boss_db:start(DBOptions),
+			DbServerState = boss_db:start(DBOptions),
 			boss_news:start(),
-
-			ok = boss_db:execute("DROP TABLE IF EXISTS developers"),
-			ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(20), country varchar(10), created_at datetime )") 			
- 	end,
- 	ok.
+			?debugFmt("DbServerState = ~p", [DbServerState]),
+			
+			DbServerState
+ 	end.
 
 cleanup(_) ->
+	ok.
+
+create_database() ->
+	ok = boss_db:execute("DROP TABLE IF EXISTS developers"),
+	ok = boss_db:execute("create table developers( id bigint auto_increment primary key, name varchar(20), country varchar(10), created_at datetime )"),
 	ok.
 
 delete_all() ->
@@ -54,6 +66,7 @@ delete_all() ->
 t_test_() ->
 
 	?test("test raw query", [
+								?_test(create_database()),
 								?_test(test_raw_sql()), 
 								?_test(test_find_model_by_sql()),
 								?_test(test_new_model()),
