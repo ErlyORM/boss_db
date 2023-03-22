@@ -41,8 +41,8 @@ setup() ->
 			    {cache_enable, false},
 			    {cache_exp_time, 0},
 
-			    {size, 5}, % the size of the connection pool - defaults to 5
-			    {max_overflow, 10} % the maximum number of temporary extra workers that can be created past the `size' just above - defaults to 10
+			    {size, 3}, % the size of the connection pool - defaults to 5
+			    {max_overflow, 3} % the maximum number of temporary extra workers that can be created past the `size' just above - defaults to 10
 			    %% the sum size + max_overflow effectively controls how many concurrent mysql queries can run
 			],
 			DbServerState = boss_db:start(DBOptions),
