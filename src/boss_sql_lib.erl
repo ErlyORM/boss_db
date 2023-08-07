@@ -36,7 +36,7 @@ convert_id_condition_to_use_table_ids({Key, Op, Value}) when Op =:= 'equals'; Op
     {Key, Op, TableId};
 convert_id_condition_to_use_table_ids({Key, Op, {Min, Max}}) when Op =:= 'in'; Op =:= 'not_in' ->
     {_Type, _TableName, _IdColumn, TableId1} = infer_type_from_id(Min),
-    {_Type, _TableName, _IdColumn, TableId2} = infer_type_from_id(Max),
+    {_Type0, _TableName0, _IdColumn0, TableId2} = infer_type_from_id(Max),
     {Key, Op, {TableId1, TableId2}};
 convert_id_condition_to_use_table_ids({Key, Op, ValueList}) when is_list(ValueList) andalso (Op =:= 'in' orelse Op =:= 'not_in') ->
     Value2 = lists:map(fun(V) ->

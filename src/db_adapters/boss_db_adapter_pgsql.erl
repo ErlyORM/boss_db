@@ -4,12 +4,11 @@
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2, create_table/3, table_exists/2]).
 -export([get_migrations_table/1, migration_done/3]).
--compile(export_all).
-%-type date_time() ::{{1970..3000,calendar:month(),calne},{pos_integer(),pos_integer(),pos_integer()|float()}}.
+
 -type date_time() :: calendar:datetime1970().
 -type sql_param_value() :: string()|number()|binary()|boolean().
 -export_type([sql_param_value/0]).
--compile(export_all).
+
 start(_) ->
     ok.
 
@@ -136,7 +135,7 @@ delete(Conn, Id) when is_list(Id) ->
 
 save_record(Conn, Record) when is_tuple(Record) ->
     RecordId = Record:id(),
-    _ = lager:notice("Saving Record ~p~n", [Record]),
+    logger:notice("Saving Record ~p~n", [Record]),
     case RecordId of
         id ->
             Record1        = maybe_populate_id_value(Record),

@@ -284,8 +284,8 @@ find_by_key(Key, From, Prefix, State, _CachedValue = undefined) ->
                 {Prefix, Key},
                 State#state.cache_ttl);
     false ->
-        _ = lager:error("Find in Cache by key error ~p ~p ", [Key, Res]),
-        error 
+        _ = logger:error("Find in Cache by key error ~p ~p ", [Key, Res]),
+        error
     end,
     {reply, Res, State};
 find_by_key(Key, _From, _Prefix, State, CachedValue) ->

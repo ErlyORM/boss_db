@@ -74,7 +74,7 @@
 start(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
     Adapter     = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
-    _ = lager:info("Start Database Adapter ~p options ~p", [Adapter, Options]),
+    logger:info("Start Database Adapter ~p options ~p", [Adapter, Options]),
     Adapter:start(Options),
     lists:foldr(fun(ShardOptions, Acc) ->
                 case proplists:get_value(db_shard_models, ShardOptions, []) of
@@ -136,7 +136,7 @@ create_migration_table_if_needed() ->
 
 %% @doc Run database migration {Tag, Fun} in Direction
 migrate({Tag, Fun}, Direction) ->
-    _ = lager:info("Running migration: ~p ~p~n", [Tag, Direction]),
+    logger:info("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
     db_call({migration_done, Tag, Direction}).
 

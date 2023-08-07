@@ -4,7 +4,7 @@
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2]).
 -export([get_migrations_table/1, migration_done/3]).
--compile(export_all).
+
 start(_) ->
     ok.
 
@@ -483,11 +483,11 @@ pack_value(false) ->
     "FALSE".
 
 fetch(Pid, Query) ->
-    _ = lager:info("Query ~s", [Query]),
+    logger:info("Query ~s", [Query]),
     Res = mysql_conn:fetch(Pid, [Query], self()),
     _ = case Res of
         {error, MysqlRes} ->
-            _ = lager:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
+            logger:error("SQL Error: ~p",[mysql:get_result_reason(MysqlRes)]);
         _ -> ok
     end,
     Res.

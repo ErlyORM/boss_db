@@ -7,13 +7,13 @@
 -export([push/2, pop/2, dump/1]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
 
--define(LOG(Name, Value), lager:debug("DEBUG: ~s: ~p~n", [Name, Value])).
+-define(LOG(Name, Value), logger:debug("DEBUG: ~s: ~p~n", [Name, Value])).
 -type maybe(X)   :: X|undefined.
 -type error_m(X) :: X|{error, any()}.
 
 % Number of seconds between beginning of gregorian calendar and 1970
 -define(GREGORIAN_SECONDS_1970, 62167219200).
--compile(export_all).
+
 -ifdef(TEST).
 -compile(export_all).
 -endif.
@@ -122,7 +122,7 @@ execute({WriteMode, ReadMode, Connection, Database, User, Password}, Fun) ->
 			 true ->
 			     Fun();
 			 _ ->
-			     _ = lager:error("Mongo DB Login Error check username and password ~p:~p", [User,Password]),
+			     logger:error("Mongo DB Login Error check username and password ~p:~p", [User,Password]),
 			     {error,bad_login}
 		     end
 	     end).
@@ -285,7 +285,7 @@ resolve(_Res ={ok, _}) ->
 resolve(_Res = {failure, Reason}) ->
     {error, Reason};
 resolve(_Res = {connection_failure, Reason}) ->
-    _ = lager:error("connection failure ~p", [Reason]),
+    logger:error("connection failure ~p", [Reason]),
     {error, Reason}.
 
 
@@ -295,14 +295,6 @@ get_migrations_table(Conn) ->
 				mongo:find(schema_migrations, {})
 			end),
     resolve(Res).
-
-make_curser(Curs) ->
-    lists:map(fun(Row) ->
-		      MongoDoc = tuple_to_proplist(Row),
-		      {attr_value('id', MongoDoc),
-		       attr_value(version, MongoDoc),
-		       attr_value(migrated_at, MongoDoc)}
-              end, mongo:rest(Curs)).
 
 migration_done(Conn, Tag, up) ->
     Res = execute(Conn, fun() ->

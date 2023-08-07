@@ -48,7 +48,7 @@ run_setup() ->
       lists:map(fun("") -> ok;
                    (Cmd) ->
                         RetVal = boss_db:execute(Cmd),
-                        lager:info("Returned: ~p~n", [RetVal])
+                        logger:info("Returned: ~p~n", [RetVal])
       end, re:split(FileContents, ";"));
     {error, _Reason} ->
       ok
@@ -59,7 +59,7 @@ run_tests() ->
     boss_db:mock_transaction(fun run_tests_inner/0).
 
 run_tests_inner() ->
-  _ = lager:info("~-60s", ["Root test"]),
+  logger:info("~-60s", ["Root test"]),
   ModelText = <<"Economists do it with models">>,
   do(
     fun() ->
