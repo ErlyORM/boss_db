@@ -1,5 +1,8 @@
 BossDB: A sharded, caching, pooling, evented ORM for Erlang
 ===========================================================
+
+[![Build and test](https://github.com/burbas/boss_db/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/burbas/boss_db/actions/workflows/workflow.yml)
+
 Attention! This is a master branch supporting Erlang 21 and above. For older Erlang versions use legacy branch.
 
 Supported databases
