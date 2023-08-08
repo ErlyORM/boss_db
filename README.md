@@ -1,8 +1,6 @@
 BossDB: A sharded, caching, pooling, evented ORM for Erlang
 ===========================================================
-[![Build Status](https://travis-ci.org/ErlyORM/boss_db.svg?branch=master)](https://travis-ci.org/ErlyORM/boss_db)
-
-Attention! This is a master branch supporting Erlang 18 and above. For older Erlang versions use legacy branch.
+Attention! This is a master branch supporting Erlang 21 and above. For older Erlang versions use legacy branch.
 
 Supported databases
 -------------------
@@ -155,8 +153,8 @@ Similarly, you could iterate over all the puppies of a particular breed:
 
 ```erlang
 Breed = boss_db:find("breed-47"),
-lists:map(fun(Puppy) -> 
-        io:format("Puppy: ~p~n", [Puppy:name()]) 
+lists:map(fun(Puppy) ->
+        io:format("Puppy: ~p~n", [Puppy:name()])
     end, Breed:puppies())
 ```
 
@@ -291,7 +289,7 @@ BossNews is suited to providing real-time notifications and alerts. For example,
 if you want to log each time a puppy's name is changed,
 
 ```erlang
-boss_news:watch("puppy-*.name", 
+boss_news:watch("puppy-*.name",
         fun(updated, {Puppy, 'name', OldName, NewName}) ->
             error_logger:info_msg("Puppy's name changed from ~p to ~p", [OldName, NewName])
         end)
