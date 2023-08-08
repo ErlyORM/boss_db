@@ -8,6 +8,5 @@ rebar3.crashdump
 .eunit
 /ebin
 /doc
-rebar.lock
 .project
 .idea
