@@ -1,17 +1,28 @@
 -module(boss_db_adapter_dynamodb).
 -behaviour(boss_db_adapter).
--export([start/1, stop/0, init/1, terminate/1, find/2, find/7]).
--export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
--export([push/2, pop/2]).
+-export([
+         start/1,
+         stop/0,
+         init/1,
+         terminate/1,
+         find/2,
+         find/7,
+         count/3,
+         counter/2,
+         incr/2,
+         incr/3,
+         delete/2,
+         save_record/2,
+         push/2,
+         pop/2
+        ]).
 
 -ifdef(TEST).
+%% Used for exposing all functions in testing
 -compile(export_all).
 -endif.
 
--define(LOG(Name, Value), logger:debug("DEBUG: ~s: ~p~n", [Name, Value])).
-
-% Number of seconds between beginning of gregorian calendar and 1970
--define(GREGORIAN_SECONDS_1970, 62167219200).
+-include("../../include/boss_db.hrl").
 
 start(_Options) ->
     application:start(ddb).
@@ -394,7 +405,7 @@ ddb_type_of(Value) when is_number(Value) ->
 ddb_type_of(_Value) ->
 	<<"S">>.
 
--spec(operator_to_ddb(boss_db_adapter_types:model_operator()) ->
+-spec(operator_to_ddb(model_operator()) ->
 	     binary()).
 operator_to_ddb('equals') ->
 	<<"EQ">>;
