@@ -134,7 +134,6 @@ process_tokens([{'-',N              } = T1,
                 {'[',_              } = T6,
                 {var,_,'Id'         } = T7|
                 Rest] = _T, TokenAcc, []) ->
- %   logger:notice("Tokens ~p", [_T]),
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), []);
 %-module(Foo, [...]) with type specs
 process_tokens([{'-',_N             } = T1,
@@ -149,7 +148,6 @@ process_tokens([{'-',_N             } = T1,
                 {'(',_},
                 {')',_}|Rest]  = _T,
                TokenAcc, []) ->
-   % logger:notice("Tokens ~p", [_T]) ,
     logger:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2, T3, T4, T5, T6, T7], TokenAcc), [{'Id', VarType}]);
 
@@ -160,7 +158,6 @@ process_tokens([{',',_}               = T1,
                 {'(',_},
                 {')',_} |Rest] = _T,
                TokenAcc, Acc) ->
-%    logger:notice("Tokens ~p", [_T]),
     logger:info("Var Type ~p",[VarType]),
     process_tokens(Rest, lists:reverse([T1, T2], TokenAcc), [{VarName, VarType}|Acc]);
 
@@ -223,7 +220,7 @@ make_generated_forms(ModuleName, Parameters, _TokenInfo, _Attributes,
 
 make_generated_forms(ModuleName, Parameters, TokenInfo, Attributes,
                      Counters, _Dup = false) ->
-    logger:notice("Module \"~p\" Parameters ~p Attributes~p", [ModuleName,Parameters, Attributes]),
+    logger:debug("Module \"~p\" Parameters ~p Attributes~p", [ModuleName,Parameters, Attributes]),
     GF = attribute_names_forms(ModuleName, Parameters)                  ++
         attribute_types_forms(ModuleName, TokenInfo)               ++
         database_columns_forms(ModuleName, Parameters, Attributes) ++
