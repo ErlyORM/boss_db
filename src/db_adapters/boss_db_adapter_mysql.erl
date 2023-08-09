@@ -5,6 +5,10 @@
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2]).
 -export([get_migrations_table/1, migration_done/3]).
 
+-ifdef(TEST).
+-compile(export_all).
+-endif.
+
 start(_) ->
     ok.
 
