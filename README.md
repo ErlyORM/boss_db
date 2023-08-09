@@ -10,11 +10,9 @@ Supported databases
 
 * *NEW* DynamoDB (experimental)
 * Mnesia
-* MongoDB
 * MySQL
 * PostgreSQL
 * Riak
-* Tokyo Tyrant
 
 Complete API references
 -----------------------
