@@ -8,7 +8,7 @@ Attention! This is a master branch supporting Erlang 21 and above. For older Erl
 Supported databases
 -------------------
 
-* *NEW* DynamoDB (experimental)
+* DynamoDB (experimental)
 * Mnesia
 * MySQL
 * PostgreSQL
