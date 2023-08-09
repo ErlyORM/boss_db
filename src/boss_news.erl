@@ -1,18 +1,23 @@
 -module(boss_news).
 
--export([start/0, start/1]).
-
--export([stop/0]).
-
--export([watch/2, watch/3, watch/4]).
-
--export([set_watch/3, set_watch/4, set_watch/5]).
-
--export([cancel_watch/1, extend_watch/1]).
-
--export([deleted/2, updated/3, created/2]).
-
--export([reset/0, dump/0]).
+-export([
+         start/0,
+         start/1,
+         stop/0,
+         watch/2,
+         watch/3,
+         watch/4,
+         set_watch/3,
+         set_watch/4,
+         set_watch/5,
+         cancel_watch/1,
+         extend_watch/1,
+         deleted/2,
+         updated/3,
+         created/2,
+         reset/0,
+         dump/0
+        ]).
 
 -define(TRILLION, 1000 * 1000 * 1000 * 1000).
 
@@ -42,7 +47,7 @@ watch(TopicString, CallBack, UserInfo) ->
 %% @doc Same as `watch/3', except that the watch expires after `TTL' seconds.
 %% @spec watch( TopicString :: string(), CallBack, UserInfo, TTL) -> {ok, WatchId} | {error, Reason}
 watch(TopicString, CallBack, UserInfo, TTL) ->
-    gen_server:call({global, ?MODULE}, {watch, TopicString, CallBack, UserInfo, TTL}).
+    call_server({watch, TopicString, CallBack, UserInfo, TTL}).
 
 %% @doc Create or replace a watch with `WatchId'.
 %% @spec set_watch( WatchId, TopicString::string(), CallBack ) -> ok | {error, Reason}
@@ -57,29 +62,41 @@ set_watch(WatchId, TopicString, CallBack, UserInfo) ->
 %% @doc Same as `set_watch/4', except that the watch expires after `TTL' seconds.
 %% @spec set_watch( WatchId, TopicString::string(), CallBack, UserInfo, TTL ) -> ok | {error, Reason}
 set_watch(WatchId, TopicString, CallBack, UserInfo, TTL) ->
-    gen_server:call({global, ?MODULE}, {set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}).
+    call_server({set_watch, WatchId, TopicString, CallBack, UserInfo, TTL}).
 
 %% @doc Cancel an existing watch identified by `WatchId'.
 %% @spec cancel_watch( WatchId ) -> ok | {error, Reason}
 cancel_watch(WatchId) ->
-    gen_server:call({global, ?MODULE}, {cancel_watch, WatchId}).
+    call_server({cancel_watch, WatchId}).
 
 %% @doc Extend an existing watch by the time-to-live specified at creation time.
 %% @spec extend_watch( WatchId ) -> ok | {error, Reason}
 extend_watch(WatchId) ->
-    gen_server:call({global, ?MODULE}, {extend_watch, WatchId}).
+    call_server({extend_watch, WatchId}).
 
 deleted(Id, Attrs) ->
-    gen_server:call({global, ?MODULE}, {deleted, Id, Attrs}).
+    call_server({deleted, Id, Attrs}).
 
 updated(Id, OldAttrs, NewAttrs) ->
-    gen_server:call({global, ?MODULE}, {updated, Id, OldAttrs, NewAttrs}).
+    call_server({updated, Id, OldAttrs, NewAttrs}).
 
 created(Id, NewAttrs) ->
-    gen_server:call({global, ?MODULE}, {created, Id, NewAttrs}).
+    call_server({created, Id, NewAttrs}).
 
 reset() ->
-    gen_server:call({global, ?MODULE}, reset).
+    call_server(reset).
 
 dump() ->
-    gen_server:call({global, ?MODULE}, dump).
+    call_server(dump).
+
+
+%%%%%%%%%%%%%%%%%%%%%%
+%% Private functions
+%%%%%%%%%%%%%%%%%%%%%%
+call_server(Msg) ->
+    case boss_news_sup:is_started() of
+        true ->
+            gen_server:call({global, ?MODULE}, Msg);
+        _ ->
+            {error, not_started}
+    end.

@@ -1,16 +1,21 @@
 -module(boss_news_sup).
-
 -behaviour(supervisor).
 
--export([start_link/0, start_link/1]).
-
--export([init/1]).
+-export([
+         start_link/0,
+         start_link/1,
+         init/1,
+         is_started/0
+        ]).
 
 start_link() ->
     start_link([]).
 
 start_link(StartArgs) ->
     supervisor:start_link({global, ?MODULE}, ?MODULE, StartArgs).
+
+is_started() ->
+    global:whereis_name({global, ?MODULE}) /= {error, no_proc}.
 
 init(StartArgs) ->
     {ok, {{one_for_one, 10, 10}, [
