@@ -33,7 +33,7 @@ boss_cache:start(CacheOptions), % If you want cacheing with Memcached
 boss_news:start() % Mandatory! Hopefully will be optional one day
 
 DBOptions = [
-    {adapter, mock | tyrant | riak | mysql | pgsql | mnesia | mongodb},
+    {adapter, mock | riak | mysql | pgsql | mnesia},
     {db_host, HostName::string()},
     {db_port, PortNumber::integer()},
     {db_username, UserName::string()},
