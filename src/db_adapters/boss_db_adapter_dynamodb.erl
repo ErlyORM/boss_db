@@ -2,7 +2,6 @@
 -behaviour(boss_db_adapter).
 -export([
          start/1,
-         stop/0,
          init/1,
          terminate/1,
          find/2,
@@ -26,9 +25,6 @@
 
 start(_Options) ->
     application:start(ddb).
-
-stop() ->
-    ok.
 
 init(Options) ->
     AccessKey 	= proplists:get_value(db_username, Options, os:getenv("AWS_ACCESS_KEY_ID")),

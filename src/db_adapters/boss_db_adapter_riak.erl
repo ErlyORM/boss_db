@@ -1,18 +1,12 @@
 -module(boss_db_adapter_riak).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
+-export([init/1, terminate/1, find/2, find/7]).
 -export([count/3, counter/2, incr/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2]).
 
 -define(LOG(Name, Value), logger:debug("DEBUG: ~s: ~p~n", [Name, Value])).
 
 -define(HUGE_INT, 1000 * 1000 * 1000 * 1000).
-
-start(_) ->
-    ok.
-
-stop() ->
-    ok.
 
 init(Options) ->
     Host = proplists:get_value(db_host, Options, "localhost"),

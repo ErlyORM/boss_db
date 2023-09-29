@@ -1,7 +1,7 @@
 % In-memory database for fast tests and easy setup
 -module(boss_db_adapter_mock).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0]).
+-export([init/1, terminate/1, start/1]).
 -export([find/2, find/7, count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, transaction/2]).
 
@@ -12,9 +12,6 @@ start(Options) ->
         false ->
             ok
     end.
-
-stop() ->
-    ok.
 
 init(_Options) ->
     {ok, undefined}.

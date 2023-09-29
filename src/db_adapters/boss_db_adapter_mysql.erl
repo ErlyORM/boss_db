@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mysql).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
+-export([init/1, terminate/1, find/2, find/7, find_by_sql/4]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2]).
 -export([get_migrations_table/1, migration_done/3]).
@@ -8,12 +8,6 @@
 -ifdef(TEST).
 -compile(export_all).
 -endif.
-
-start(_) ->
-    ok.
-
-stop() ->
-    ok.
 
 init(Options) ->
     DBHost       = proplists:get_value(db_host,     Options, "localhost"),
@@ -103,15 +97,6 @@ count(Pid, Type, Conditions) ->
             Count;
         {error, MysqlRes} ->
             {error, mysql:get_result_reason(MysqlRes)}
-    end.
-
-table_exists(Pid, Type) ->
-    TableName = boss_record_lib:database_table(Type),
-    Res = fetch(Pid, ["SELECT 1 FROM ", TableName," LIMIT 1"]),
-    case Res of
-        {updated, _} ->
-            ok;
-        {error, MysqlRes} -> {error, mysql:get_result_reason(MysqlRes)}
     end.
 
 counter(Pid, Id) when is_list(Id) ->
