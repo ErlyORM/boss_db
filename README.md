@@ -10,7 +10,6 @@ Supported databases
 
 * DynamoDB (experimental)
 * Mnesia
-* MongoDB
 * MySQL
 * PostgreSQL
 * Riak
