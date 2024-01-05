@@ -1,17 +1,15 @@
 -module(boss_db_adapter_mysql).
 -compile(tuple_calls).
--include_lib("eunit/include/eunit.hrl").
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7, find_by_sql/4]).
+-export([init/1, terminate/1, find/2, find/7, find_by_sql/4]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([push/2, pop/2, dump/1, execute/2, execute/3, transaction/2]).
 -export([get_migrations_table/1, migration_done/3]).
--compile(export_all).
-start(_) ->
-    ok.
 
-stop() ->
-    ok.
+-ifdef(TEST).
+%-include_lib("eunit/include/eunit.hrl").
+-compile(export_all).
+-endif.
 
 init(Options) ->
     DBHost       = proplists:get_value(db_host,     Options, "localhost"),
@@ -104,14 +102,6 @@ count(Pid, Type, Conditions) ->
             {error, Reason}
     end.
 
-table_exists(Pid, Type) ->
-    TableName = boss_record_lib:database_table(Type),
-    Res = fetch(Pid, ["SELECT 1 FROM ", TableName," LIMIT 1"]),
-    case Res of
-        {ok, _} ->
-            ok;
-        {error, Reason} -> {error, Reason}
-    end.
 
 counter(Pid, Id) when is_list(Id) ->
     Res = fetch(Pid, ["SELECT value FROM counters WHERE name = ", pack_value(Id)]),
@@ -262,29 +252,16 @@ activate_record(Record, Metadata, Type) ->
                 (id) ->
 
                     DBColumn = proplists:get_value('id', AttributeColumns),
-                    %?debugMsg("---------------------------------------------"),
-                    %?debugFmt("Record = ~p", [Record]),
-                    %?debugFmt("DBColumn = ~p", [DBColumn]),
-                    %?debugFmt("AttributeColumns = ~p", [AttributeColumns]),
-                    %?debugFmt("Metadata = ~p", [Metadata]),
-                    %?debugMsg("---------------------------------------------"),
                     Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     atom_to_list(Type) ++ "-" ++ integer_to_list(lists:nth(Index, Record));
                 (Key) ->
                     DBColumn = proplists:get_value(Key, AttributeColumns),
                     Index = keyindex(list_to_binary(DBColumn), 2, Metadata),
                     AttrType = proplists:get_value(Key, AttributeTypes),
-                    %?debugMsg("---------------------------------------------"),
-                    %?debugFmt("DBColumn = ~p", [DBColumn]),
-                    %?debugFmt("AttributeColumns = ~p", [AttributeColumns]),
-                    %?debugFmt("Metadata = ~p", [Metadata]),
-                    %?debugFmt("Key = ~p, Index = ~p, AttrType = ~p", [Key, Index, AttrType]),
-                    %?debugMsg("---------------------------------------------"),
                     case lists:nth(Index, Record) of
                         undefined -> undefined;
                         {datetime, DateTime} -> boss_record_lib:convert_value_to_type(DateTime, AttrType);
                         Val ->
-                            %?debugFmt("Val = ~p", [Val]),
                             boss_sql_lib:convert_possible_foreign_key(RetypedForeignKeys, Type, Key, Val, AttrType)
                     end
             end, boss_record_lib:attribute_names(Type))).
@@ -516,11 +493,11 @@ quote([C | Rest], Acc) ->
     quote(Rest, [C | Acc]).
 
 fetch(Pid, Query) ->
-    _ = lager:info("Query ~s", [Query]),
+    logger:info("Query ~s", [Query]),
     Res = mysql:query(Pid, [Query]),
     _ = case Res of
-        {error, Resson} ->
-            _ = lager:error("SQL Error: ~p",[Resson]);
+        {error, Reason} ->            
+            logger:error("SQL Error: ~p",[Reason]);
         _ -> ok
     end,
     Res.
@@ -530,8 +507,7 @@ fetch(Pid, Query, Parameters) ->
     fetch(Pid, Sql).
 
 replace_parameters([$$, X, Y | Rest], Parameters) when X >= $1, X =< $9, Y >= $0, Y =< $9 ->
-    Position = (X-$0)*10 + (Y-$0),
-    ?debugFmt("Position = ~p", [Position]),
+    Position = (X-$0)*10 + (Y-$0),    
     [lookup_single_parameter(Position, Parameters) | replace_parameters(Rest, Parameters)];
 replace_parameters([$$, X | Rest], Parameters) when X >= $1, X =< $9 ->
     Position = X-$0,

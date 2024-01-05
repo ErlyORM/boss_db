@@ -102,7 +102,7 @@ substr_to_i(Result, S, E) ->
     I.
 
 pack_value_test() ->
-    ?assert(proper:check_spec({boss_db_adapter_pgsql, pack_value,1},
+    ?assert(proper:check_spec({boss_db_adapter_pgsql, pack_value, 1},
 			      [{to_file, user}])),
 	ok.
 
