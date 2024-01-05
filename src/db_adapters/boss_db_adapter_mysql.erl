@@ -1,5 +1,4 @@
 -module(boss_db_adapter_mysql).
--compile(tuple_calls).
 -behaviour(boss_db_adapter).
 -export([init/1, terminate/1, find/2, find/7, find_by_sql/4]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).

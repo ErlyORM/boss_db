@@ -127,7 +127,6 @@ transform_action(Forms,  TokenInfo, TransformFun) when is_function(TransformFun,
 
 
 compile_forms(Forms, File, Options) ->
-    %?debugFmt("Forms = ~p, Options = ~p", [Forms, Options]),
     case compile:forms(Forms, Options) of
         {ok, Module1, Bin} ->
             code:purge(Module1),
