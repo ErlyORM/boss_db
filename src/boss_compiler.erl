@@ -1,8 +1,6 @@
 -module(boss_compiler).
 -export([compile/1, compile/2, parse/3]).
 
--compile(export_all).
-
 -ifdef(TEST).
 -compile(export_all).
 -endif.
@@ -35,7 +33,7 @@ compile(File) ->
     compile(File, []).
 
 compile(File, Options) ->
-    _ = lager:notice("Compile file ~p with options ~p ", [File, Options]),
+    _ = logger:notice("Compile file ~p with options ~p ", [File, Options]),
     IncludeDirs    = ["include"] ++ proplists:get_value(include_dirs,    Options, []) ++
                      proplists:get_all_values(i, compiler_options(Options)),
     TokenTransform = proplists:get_value(token_transform, Options),

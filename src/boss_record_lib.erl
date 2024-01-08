@@ -126,6 +126,8 @@ ensure_loaded(Module) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 convert_value_to_type(Val, undefined) ->
     Val;
+convert_value_to_type(null, _) ->
+    null;
 convert_value_to_type(Val, integer) when is_integer(Val) ->
     Val;
 convert_value_to_type(Val, integer) when is_list(Val) ->

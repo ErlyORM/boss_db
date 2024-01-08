@@ -1,7 +1,6 @@
 -module(boss_news_controller).
 
 -behaviour(gen_server).
-
 -ifdef(TEST).
 -compile(export_all).
 -endif.

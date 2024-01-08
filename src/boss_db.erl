@@ -1,7 +1,6 @@
 %% @doc Chicago Boss database abstraction
 
 -module(boss_db).
-
 -export([start/1, stop/0]).
 
 -export([
@@ -74,8 +73,14 @@
 start(Options) ->
     AdapterName = proplists:get_value(adapter, Options, mock),
     Adapter     = list_to_atom(lists:concat(["boss_db_adapter_", AdapterName])),
-    _ = lager:info("Start Database Adapter ~p options ~p", [Adapter, Options]),
-    Adapter:start(Options),
+    logger:info("Start Database Adapter ~p options ~p", [Adapter, Options]),
+    %% We need to check if there's an adapter
+    case erlang:function_exported(Adapter, start, 1) of
+        true ->
+            Adapter:start(Options);
+        _ ->
+            ok
+    end,
     lists:foldr(fun(ShardOptions, Acc) ->
                 case proplists:get_value(db_shard_models, ShardOptions, []) of
                     [] -> Acc;
@@ -84,7 +89,12 @@ start(Options) ->
                             undefined -> Adapter;
                             ShortName -> list_to_atom(lists:concat(["boss_db_adapter_", ShortName]))
                         end,
-                        ShardAdapter:start(ShardOptions ++ Options),
+                        case erlang:function_exported(ShardAdapter, start, 1) of
+                            true ->
+                                ShardAdapter:start(ShardOptions ++ Options);
+                            _ ->
+                                ok
+                        end,
                         Acc
                 end
         end, [], proplists:get_value(shards, Options, [])),
@@ -99,7 +109,10 @@ db_call(Msg) ->
 db_call(Msg, Timeout) when is_integer(Timeout), Timeout > 0 ->
     case erlang:get(boss_db_transaction_info) of
         undefined ->
-            boss_pool:call(?POOLNAME, Msg, ?DEFAULT_TIMEOUT);
+            Worker = poolboy:checkout(?POOLNAME, true, Timeout),
+            Reply = gen_server:call(Worker, Msg, Timeout),
+            poolboy:checkin(?POOLNAME, Worker),
+            Reply;
         State ->
             {reply, Reply, NewState} =
                 boss_db_controller:handle_call(Msg, undefined, State),
@@ -136,7 +149,7 @@ create_migration_table_if_needed() ->
 
 %% @doc Run database migration {Tag, Fun} in Direction
 migrate({Tag, Fun}, Direction) ->
-    _ = lager:info("Running migration: ~p ~p~n", [Tag, Direction]),
+    logger:info("Running migration: ~p ~p~n", [Tag, Direction]),
     Fun(Direction),
     db_call({migration_done, Tag, Direction}).
 

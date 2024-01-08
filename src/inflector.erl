@@ -27,11 +27,21 @@
 
 -module(inflector).
 -author('Luke Galea <luke@ideaforge.org>').
--export([pluralize/1, singularize/1, camelize/1, lower_camelize/1, titleize/1,
-	 capitalize/1, humanize/1, underscore/1, dasherize/1, tableize/1, moduleize/1,
-	 foreign_key/1, ordinalize/1]).
-
--include_lib("eunit/include/eunit.hrl").
+-export([
+         pluralize/1,
+         singularize/1,
+         camelize/1,
+         lower_camelize/1,
+         titleize/1,
+	 capitalize/1,
+         humanize/1,
+         underscore/1,
+         dasherize/1,
+         tableize/1,
+         moduleize/1,
+         foreign_key/1,
+         ordinalize/1
+        ]).
 
 %% External API
 singularize(Word) ->
@@ -199,6 +209,9 @@ uncountables() ->
      "equipment" ].
 
 
+-ifdef(TEST).
+
+-include_lib("eunit/include/eunit.hrl").
 %% Tests
 replace_test() ->
     SampleList = [ {"abc", "def"},
@@ -272,3 +285,5 @@ ordinalize_test() ->
 
 foreign_key_test() ->
     "message_id"		= foreign_key("Message").
+
+-endif.

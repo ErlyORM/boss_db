@@ -1,6 +1,6 @@
 -module(boss_db_adapter_mnesia).
 -behaviour(boss_db_adapter).
--export([init/1, terminate/1, start/1, stop/0, find/2, find/7]).
+-export([init/1, terminate/1, start/1, find/2, find/7]).
 -export([count/3, counter/2, incr/3, delete/2, save_record/2]).
 -export([transaction/2]).
 -export([table_exists/2, get_migrations_table/1, migration_done/3]).
@@ -10,9 +10,6 @@
 start(_) ->
     application:start(mnesia).
 
-stop() ->
-    application:stop(mnesia).
-
 % -----
 
 init(_Options) ->
@@ -20,7 +17,7 @@ init(_Options) ->
 
 % -----
 terminate(_) ->
-    ok.
+    application:stop(mnesia).
 
 % -----
 find(_, Id) when is_list(Id) ->
@@ -271,5 +268,3 @@ build_conditions1([{Key, 'eq', Value}|Rest], Pattern, Filter) ->
     build_conditions1(Rest, lists:keystore(Key, 1, Pattern, {Key, Value}), Filter);
 build_conditions1([First|Rest], Pattern, Filter) ->
     build_conditions1(Rest, Pattern, [First|Filter]).
-
-

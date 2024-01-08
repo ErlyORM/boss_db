@@ -9,19 +9,21 @@
 -define(MAXDELAY, 10000).
 
 -record(state, {
-      connection_state,
-      connection_delay,
-      connection_retry_timer,
-      options,
-      adapter,
-      read_connection,
-      write_connection,
-      shards    = [],
-      model_dict    = dict:new(),
-      cache_enable,
-      cache_ttl,
-      cache_prefix,
-      depth        = 0}).
+                connection_state,
+                connection_delay,
+                connection_retry_timer,
+                options,
+                adapter,
+                read_connection,
+                write_connection,
+                shards    = [],
+                model_dict    = dict:new(),
+                cache_enable,
+                cache_ttl,
+                cache_prefix,
+                depth        = 0,
+                supports_dump = false
+               }).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_link() ->
@@ -85,14 +87,17 @@ init(Options) ->
     CacheTTL    = proplists:get_value(cache_exp_time, Options, 60),
     CachePrefix = proplists:get_value(cache_prefix, Options, db),
     process_flag(trap_exit, true),
+    SupportsDump = erlang:function_exported(Adapter, dump, 1),
     try_connection(self(), Options),
     {ok, #state{connection_state    = connecting,
-        connection_delay    = 1,
-        options            = Options,
-        adapter            = Adapter,
-        cache_enable        = CacheEnable,
-        cache_ttl        = CacheTTL,
-        cache_prefix        = CachePrefix }}.
+                connection_delay    = 1,
+                options            = Options,
+                adapter            = Adapter,
+                cache_enable        = CacheEnable,
+                cache_ttl        = CacheTTL,
+                cache_prefix        = CachePrefix,
+                supports_dump = SupportsDump
+               }}.
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -176,10 +181,12 @@ handle_call(pop, _From, State) ->
 handle_call(depth, _From, State) ->
     {reply, State#state.depth, State};
 
-handle_call(dump, _From, State) ->
-    Adapter = State#state.adapter,
-    Conn = State#state.read_connection,
+handle_call(dump, _From, State = #state{adapter = Adapter, read_connection = Conn,
+                                        supports_dump = true}) ->
     {reply, Adapter:dump(Conn), State};
+handle_call(dump, _From, State = #state{adapter = Adapter, supports_dump = false}) ->
+    logger:error("Adapter ~s does not support the command 'dump'", [Adapter]),
+    {reply, {error, not_supported}, State};
 
 handle_call({create_table, TableName, TableDefinition}, _From, State) ->
     Adapter = State#state.adapter,
@@ -284,8 +291,8 @@ find_by_key(Key, From, Prefix, State, _CachedValue = undefined) ->
                 {Prefix, Key},
                 State#state.cache_ttl);
     false ->
-        _ = lager:error("Find in Cache by key error ~p ~p ", [Key, Res]),
-        error 
+        _ = logger:error("Find in Cache by key error ~p ~p ", [Key, Res]),
+        error
     end,
     {reply, Res, State};
 find_by_key(Key, _From, _Prefix, State, CachedValue) ->

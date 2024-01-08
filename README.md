@@ -1,19 +1,18 @@
 BossDB: A sharded, caching, pooling, evented ORM for Erlang
 ===========================================================
-[![Build Status](https://travis-ci.org/ErlyORM/boss_db.svg?branch=master)](https://travis-ci.org/ErlyORM/boss_db)
 
-Attention! This is a master branch supporting Erlang 18 and above. For older Erlang versions use legacy branch.
+[![Build and test](https://github.com/burbas/boss_db/actions/workflows/workflow.yml/badge.svg?branch=master)](https://github.com/burbas/boss_db/actions/workflows/workflow.yml)
+
+**Important** This fork deviates from boss_db and does not support Erlang versions prior to 21. We've removed some of the database adapters since they were using very old libraries and we did not have time to port them.
 
 Supported databases
 -------------------
 
-* *NEW* DynamoDB (experimental)
+* DynamoDB (experimental)
 * Mnesia
-* MongoDB
 * MySQL
 * PostgreSQL
 * Riak
-* Tokyo Tyrant
 
 Complete API references
 -----------------------
@@ -34,7 +33,7 @@ boss_cache:start(CacheOptions), % If you want cacheing with Memcached
 boss_news:start() % Mandatory! Hopefully will be optional one day
 
 DBOptions = [
-    {adapter, mock | tyrant | riak | mysql | pgsql | mnesia | mongodb},
+    {adapter, mock | riak | mysql | pgsql | mnesia},
     {db_host, HostName::string()},
     {db_port, PortNumber::integer()},
     {db_username, UserName::string()},
@@ -82,6 +81,8 @@ EtsCacheServerOpts = [
     {ets_weight,    Weight::integer()  = 30}
 ]
 ```
+
+
 
 Introduction
 ------------
@@ -155,8 +156,8 @@ Similarly, you could iterate over all the puppies of a particular breed:
 
 ```erlang
 Breed = boss_db:find("breed-47"),
-lists:map(fun(Puppy) -> 
-        io:format("Puppy: ~p~n", [Puppy:name()]) 
+lists:map(fun(Puppy) ->
+        io:format("Puppy: ~p~n", [Puppy:name()])
     end, Breed:puppies())
 ```
 
@@ -291,7 +292,7 @@ BossNews is suited to providing real-time notifications and alerts. For example,
 if you want to log each time a puppy's name is changed,
 
 ```erlang
-boss_news:watch("puppy-*.name", 
+boss_news:watch("puppy-*.name",
         fun(updated, {Puppy, 'name', OldName, NewName}) ->
             error_logger:info_msg("Puppy's name changed from ~p to ~p", [OldName, NewName])
         end)
@@ -339,3 +340,18 @@ are useful PKs when data are being aggregated from multiple sources.
 
 The default Id type ::serial() may be explicitly supplied.  Note that
 all Id types, valid or otherwise, pass type validation.
+
+
+Test
+----
+
+To test mysql adapter, you need provide mysql connection env on test. Example:
+
+``` 
+MYSQL_HOST=127.0.0.1  \
+MYSQL_PORT=3306 \
+MYSQL_USER=user \
+MYSQL_PASSWORD=test \
+MYSQL_TEST_DBNAME=test \
+rebar3 eunit --suite=boss_db_adapter_mysql_otp_test
+```
